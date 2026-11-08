@@ -225,7 +225,9 @@ def sync_entity(engine: Engine, client: ODataClient, spec: EntitySpec, settings:
                                           "pass_max_seen": max_seen,
                                           "pass_started_at": started_at}
                 if page.next_url is None:  # pass complete: advance the mark
-                    new_hwm = max(d for d in (hwm, max_seen, None if hwm else started_at) if d)
+                    # the latest server timestamp seen; our own clock only if the pass saw
+                    # nothing at all (an empty entity), so the next pass is incremental
+                    new_hwm = max((d for d in (hwm, max_seen) if d), default=started_at)
                     values |= {"high_water_mark": new_hwm, "pass_max_seen": None,
                                "pass_started_at": None, "last_pass_completed_at": func.now()}
                 conn.execute(update(sync_state).where(sync_state.c.entity == spec.odata)

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import time
 from collections import Counter
+from datetime import datetime
 
 import pytest
 from sqlalchemy import func, select
@@ -34,6 +35,11 @@ def test_day1_backfill_then_day2_produces_exact_events(engine, settings):
     for spec in specs:  # every record mirrored
         assert count(engine, spec.table) == len(day1[spec.odata]), spec.odata
     assert count(engine, change_event) == 0  # the backfill is silent
+    with engine.connect() as c:  # the mark is the newest server timestamp, not our clock
+        hwm = c.execute(select(sync_state.c.high_water_mark)
+                        .where(sync_state.c.entity == "KNS_Bill")).scalar_one()
+    assert hwm == max(datetime.fromisoformat(b["LastUpdatedDate"])
+                      for b in day1["KNS_Bill"].values())
 
     # Re-running with no changes is a no-op (idempotent, overlap window is cheap).
     runs = run_sync(engine, make_client(server), settings, specs)
