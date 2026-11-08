@@ -1,0 +1,32 @@
+[
+ {
+  "Id": 7,
+  "AuthorizingLawID": 2000966,
+  "SecondaryLawID": 2067829,
+  "LastUpdatedDate": "2018-03-20T13:53:16.813+02:00"
+ },
+ {
+  "Id": 9,
+  "AuthorizingLawID": 2000944,
+  "SecondaryLawID": 2068032,
+  "LastUpdatedDate": "2018-03-26T11:57:46.817+03:00"
+ },
+ {
+  "Id": 13,
+  "AuthorizingLawID": 2001403,
+  "SecondaryLawID": 2068036,
+  "LastUpdatedDate": "2018-03-26T14:18:24.703+03:00"
+ },
+ {
+  "Id": 14,
+  "AuthorizingLawID": 2001403,
+  "SecondaryLawID": 2067879,
+  "LastUpdatedDate": "2018-03-26T14:20:37.267+03:00"
+ },
+ {
+  "Id": 15,
+  "AuthorizingLawID": 2001411,
+  "SecondaryLawID": 2068045,
+  "LastUpdatedDate": "2018-03-27T09:16:53.197+03:00"
+ }
+]

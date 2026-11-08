@@ -1,0 +1,62 @@
+[
+ {
+  "Id": 1,
+  "ItemID": 9629,
+  "PlenumSessionID": 9626,
+  "ItemTypeID": 9,
+  "ItemTypeDesc": "פריטי מליאה",
+  "Ordinal": 1,
+  "Name": "פתיחת הכנסת השש-עשרה ",
+  "StatusID": null,
+  "IsDiscussion": 1,
+  "LastUpdatedDate": "2011-04-12T09:06:39+03:00"
+ },
+ {
+  "Id": 2,
+  "ItemID": 9632,
+  "PlenumSessionID": 9630,
+  "ItemTypeID": 9,
+  "ItemTypeDesc": "פריטי מליאה",
+  "Ordinal": 1,
+  "Name": "דברים לזכרם של חברי הכנסת לשעבר שמעון גרידי ודוד שטרן, זכרונם לברכה",
+  "StatusID": null,
+  "IsDiscussion": 1,
+  "LastUpdatedDate": "2011-04-12T09:07:59+03:00"
+ },
+ {
+  "Id": 3,
+  "ItemID": 9633,
+  "PlenumSessionID": 9630,
+  "ItemTypeID": 9,
+  "ItemTypeDesc": "פריטי מליאה",
+  "Ordinal": 4,
+  "Name": "פרספקטיבות חדשות במדע וטכנולוגיה ",
+  "StatusID": null,
+  "IsDiscussion": 1,
+  "LastUpdatedDate": "2011-04-12T09:08:00+03:00"
+ },
+ {
+  "Id": 4,
+  "ItemID": 9634,
+  "PlenumSessionID": 9630,
+  "ItemTypeID": 9,
+  "ItemTypeDesc": "פריטי מליאה",
+  "Ordinal": 2,
+  "Name": "הרכב הוועדה המסדרת",
+  "StatusID": null,
+  "IsDiscussion": 1,
+  "LastUpdatedDate": "2011-04-12T09:08:01+03:00"
+ },
+ {
+  "Id": 5,
+  "ItemID": 9635,
+  "PlenumSessionID": 9630,
+  "ItemTypeID": 9,
+  "ItemTypeDesc": "פריטי מליאה",
+  "Ordinal": 3,
+  "Name": "הודעת יושב-ראש הוועדה המסדרת",
+  "StatusID": null,
+  "IsDiscussion": 1,
+  "LastUpdatedDate": "2011-04-12T09:08:03+03:00"
+ }
+]

@@ -1,0 +1,37 @@
+[
+ {
+  "Id": 1,
+  "LawCorrectionID": 1,
+  "IsraelLawID": 2000147,
+  "LastUpdatedBy": 9999,
+  "LastUpdatedDate": "2021-06-24T00:00:00+03:00"
+ },
+ {
+  "Id": 2,
+  "LawCorrectionID": 1,
+  "IsraelLawID": 2000198,
+  "LastUpdatedBy": 9999,
+  "LastUpdatedDate": "2021-06-24T00:00:00+03:00"
+ },
+ {
+  "Id": 3,
+  "LawCorrectionID": 2,
+  "IsraelLawID": 2000237,
+  "LastUpdatedBy": 9999,
+  "LastUpdatedDate": "2021-06-24T00:00:00+03:00"
+ },
+ {
+  "Id": 4,
+  "LawCorrectionID": 3,
+  "IsraelLawID": 2000141,
+  "LastUpdatedBy": 9999,
+  "LastUpdatedDate": "2021-06-24T00:00:00+03:00"
+ },
+ {
+  "Id": 5,
+  "LawCorrectionID": 3,
+  "IsraelLawID": 2000561,
+  "LastUpdatedBy": 9999,
+  "LastUpdatedDate": "2021-06-24T00:00:00+03:00"
+ }
+]

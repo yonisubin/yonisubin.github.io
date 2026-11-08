@@ -1,0 +1,52 @@
+[
+ {
+  "Id": 73614,
+  "BillID": 17689,
+  "GroupTypeID": 15,
+  "GroupTypeDesc": "קטע מדברי הכנסת",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il/\\16\\law\\16_ls_ptk_73614.doc",
+  "LastUpdatedDate": "2010-06-02T21:14:42.977+03:00"
+ },
+ {
+  "Id": 73617,
+  "BillID": 19331,
+  "GroupTypeID": 15,
+  "GroupTypeDesc": "קטע מדברי הכנסת",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il/\\16\\law\\16_ls_ptk_73617.doc",
+  "LastUpdatedDate": "2010-06-02T21:14:43.48+03:00"
+ },
+ {
+  "Id": 73618,
+  "BillID": 20045,
+  "GroupTypeID": 15,
+  "GroupTypeDesc": "קטע מדברי הכנסת",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il/\\16\\law\\16_ls_ptk_73618.doc",
+  "LastUpdatedDate": "2010-06-02T21:14:43.63+03:00"
+ },
+ {
+  "Id": 73619,
+  "BillID": 20081,
+  "GroupTypeID": 15,
+  "GroupTypeDesc": "קטע מדברי הכנסת",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il/\\16\\law\\16_ls_ptk_73619.doc",
+  "LastUpdatedDate": "2010-06-02T21:14:43.78+03:00"
+ },
+ {
+  "Id": 73622,
+  "BillID": 20513,
+  "GroupTypeID": 15,
+  "GroupTypeDesc": "קטע מדברי הכנסת",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il/\\16\\law\\16_ls_ptk_73622.doc",
+  "LastUpdatedDate": "2010-06-02T21:14:44.22+03:00"
+ }
+]

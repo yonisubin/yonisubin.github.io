@@ -1,0 +1,1128 @@
+[
+ {
+  "entity": "KNS_Agenda",
+  "fields": {
+   "Id": "Edm.Int32",
+   "Number": "Edm.Int32",
+   "ClassificationID": "Edm.Int32",
+   "ClassificationDesc": "Edm.String",
+   "LeadingAgendaID": "Edm.Int32",
+   "KnessetNum": "Edm.Int32",
+   "Name": "Edm.String",
+   "SubTypeID": "Edm.Int32",
+   "SubTypeDesc": "Edm.String",
+   "StatusID": "Edm.Int32",
+   "InitiatorPersonID": "Edm.Int32",
+   "GovRecommendationID": "Edm.Int32",
+   "GovRecommendationDesc": "Edm.String",
+   "PresidentDecisionDate": "Edm.DateTimeOffset",
+   "PostopenmentReasonID": "Edm.Int32",
+   "PostopenmentReasonDesc": "Edm.String",
+   "CommitteeID": "Edm.Int32",
+   "RecommendCommitteeID": "Edm.Int32",
+   "MinisterPersonID": "Edm.Int32",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 22072,
+  "has_next_link": false,
+  "avg_row_json_bytes": 595,
+  "last_updated_range": [
+   "2015-03-20T12:03:01+02:00",
+   "2026-11-02T10:00:50.64+02:00"
+  ],
+  "count_by_knesset": {
+   "16": 2312,
+   "17": 1838,
+   "18": 2752,
+   "19": 1223,
+   "20": 3300,
+   "21": 6,
+   "22": 66,
+   "23": 452,
+   "24": 440,
+   "25": 798
+  }
+ },
+ {
+  "entity": "KNS_Bill",
+  "fields": {
+   "Id": "Edm.Int32",
+   "KnessetNum": "Edm.Int32",
+   "Name": "Edm.String",
+   "TypeID": "Edm.Int32",
+   "TypeDesc": "Edm.String",
+   "SubTypeID": "Edm.Int32",
+   "SubTypeDesc": "Edm.String",
+   "PrivateNumber": "Edm.Int32",
+   "CommitteeID": "Edm.Int32",
+   "StatusID": "Edm.Int32",
+   "Number": "Edm.Int32",
+   "PostponementReasonID": "Edm.Int32",
+   "PostponementReasonDesc": "Edm.String",
+   "PublicationDate": "Edm.DateTimeOffset",
+   "PublicationSeriesID": "Edm.Int32",
+   "PublicationSeriesDesc": "Edm.String",
+   "PublicationSeriesFirstCallID": "Edm.Int32",
+   "PublicationSeriesFirstCallDesc": "Edm.String",
+   "MagazineNumber": "Edm.String",
+   "PageNumber": "Edm.String",
+   "IsContinuationBill": "Edm.Boolean",
+   "SummaryLaw": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 60137,
+  "has_next_link": false,
+  "avg_row_json_bytes": 718,
+  "last_updated_range": [
+   "2013-05-23T18:37:57+03:00",
+   "2026-11-03T10:21:15.62+02:00"
+  ],
+  "count_by_knesset": {
+   "16": 4780,
+   "17": 4526,
+   "18": 5195,
+   "19": 3206,
+   "20": 6645,
+   "21": 557,
+   "22": 1423,
+   "23": 2722,
+   "24": 4277,
+   "25": 7491
+  }
+ },
+ {
+  "entity": "KNS_BillHistoryInitiator",
+  "fields": {
+   "Id": "Edm.Int32",
+   "BillID": "Edm.Int32",
+   "PersonID": "Edm.Int32",
+   "IsInitiator": "Edm.Boolean",
+   "StartDate": "Edm.DateTimeOffset",
+   "EndDate": "Edm.DateTimeOffset",
+   "ReasonID": "Edm.Int32",
+   "ReasonDesc": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 10808,
+  "has_next_link": false,
+  "avg_row_json_bytes": 256,
+  "last_updated_range": [
+   "2015-03-20T12:03:30+02:00",
+   "2026-09-22T09:39:30.23+03:00"
+  ]
+ },
+ {
+  "entity": "KNS_BillInitiator",
+  "fields": {
+   "Id": "Edm.Int32",
+   "BillID": "Edm.Int32",
+   "PersonID": "Edm.Int32",
+   "IsInitiator": "Edm.Boolean",
+   "Ordinal": "Edm.Int32",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 169348,
+  "has_next_link": false,
+  "avg_row_json_bytes": 128,
+  "last_updated_range": [
+   "2014-08-17T15:13:18+03:00",
+   "2026-10-28T14:00:36.77+02:00"
+  ]
+ },
+ {
+  "entity": "KNS_BillName",
+  "fields": {
+   "Id": "Edm.Int32",
+   "BillID": "Edm.Int32",
+   "Name": "Edm.String",
+   "NameHistoryTypeID": "Edm.Int32",
+   "NameHistoryTypeDesc": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 28116,
+  "has_next_link": false,
+  "avg_row_json_bytes": 283,
+  "last_updated_range": [
+   "1949-03-18T00:00:00+02:00",
+   "2026-10-29T11:25:08.75+02:00"
+  ]
+ },
+ {
+  "entity": "KNS_BillSplit",
+  "fields": {
+   "Id": "Edm.Int32",
+   "MainBillID": "Edm.Int32",
+   "SplitBillID": "Edm.Int32",
+   "Name": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 887,
+  "has_next_link": false,
+  "avg_row_json_bytes": 273,
+  "last_updated_range": [
+   "2015-03-20T12:03:32+02:00",
+   "2026-07-28T15:13:19.693+03:00"
+  ]
+ },
+ {
+  "entity": "KNS_BillUnion",
+  "fields": {
+   "Id": "Edm.Int32",
+   "MainBillID": "Edm.Int32",
+   "UnionBillID": "Edm.Int32",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 1621,
+  "has_next_link": false,
+  "avg_row_json_bytes": 101,
+  "last_updated_range": [
+   "2015-03-20T12:03:33+02:00",
+   "2026-10-19T09:47:32.123+03:00"
+  ]
+ },
+ {
+  "entity": "KNS_BroadcastCommitteSession",
+  "fields": {
+   "Id": "Edm.Int32",
+   "BroadcastId": "Edm.Int32",
+   "BroadcastUrl": "Edm.String"
+  },
+  "count": 109289,
+  "has_next_link": false,
+  "avg_row_json_bytes": 56
+ },
+ {
+  "entity": "KNS_CmtSessionItem",
+  "fields": {
+   "Id": "Edm.Int32",
+   "ItemID": "Edm.Int32",
+   "CommitteeSessionID": "Edm.Int32",
+   "Ordinal": "Edm.Int32",
+   "StatusID": "Edm.Int32",
+   "Name": "Edm.String",
+   "ItemTypeID": "Edm.Int32",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 80790,
+  "has_next_link": false,
+  "avg_row_json_bytes": 218,
+  "last_updated_range": [
+   "2012-09-20T22:23:47+03:00",
+   "2026-11-03T12:10:59.123+02:00"
+  ]
+ },
+ {
+  "entity": "KNS_CmtSiteCode",
+  "fields": {
+   "Id": "Edm.Int32",
+   "KnsID": "Edm.Int32",
+   "SiteId": "Edm.Int32"
+  },
+  "count": 720,
+  "has_next_link": false,
+  "avg_row_json_bytes": 37
+ },
+ {
+  "entity": "KNS_Committee",
+  "fields": {
+   "Id": "Edm.Int32",
+   "Name": "Edm.String",
+   "CategoryID": "Edm.Int16",
+   "CategoryDesc": "Edm.String",
+   "KnessetNum": "Edm.Int32",
+   "CommitteeTypeID": "Edm.Int32",
+   "CommitteeTypeDesc": "Edm.String",
+   "Email": "Edm.String",
+   "StartDate": "Edm.DateTimeOffset",
+   "FinishDate": "Edm.DateTimeOffset",
+   "AdditionalTypeID": "Edm.Int32",
+   "AdditionalTypeDesc": "Edm.String",
+   "ParentCommitteeID": "Edm.Int32",
+   "CommitteeParentName": "Edm.String",
+   "IsCurrent": "Edm.Boolean",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 2901,
+  "has_next_link": false,
+  "avg_row_json_bytes": 510,
+  "last_updated_range": [
+   "2015-03-20T12:02:57+02:00",
+   "2026-07-29T16:38:17.787+03:00"
+  ],
+  "count_by_knesset": {
+   "16": 164,
+   "17": 98,
+   "18": 92,
+   "19": 75,
+   "20": 136,
+   "21": 27,
+   "22": 25,
+   "23": 71,
+   "24": 66,
+   "25": 90
+  }
+ },
+ {
+  "entity": "KNS_CommitteeSession",
+  "fields": {
+   "Id": "Edm.Int32",
+   "Number": "Edm.Int32",
+   "KnessetNum": "Edm.Int32",
+   "TypeID": "Edm.Int32",
+   "TypeDesc": "Edm.String",
+   "CommitteeID": "Edm.Int32",
+   "StatusID": "Edm.Int32",
+   "StatusDesc": "Edm.String",
+   "Location": "Edm.String",
+   "SessionUrl": "Edm.String",
+   "BroadcastUrl": "Edm.String",
+   "StartDate": "Edm.DateTimeOffset",
+   "FinishDate": "Edm.DateTimeOffset",
+   "Note": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 109277,
+  "has_next_link": false,
+  "avg_row_json_bytes": 461,
+  "last_updated_range": [
+   "2011-04-12T05:28:59+03:00",
+   "2026-11-03T12:10:12.443+02:00"
+  ],
+  "count_by_knesset": {
+   "16": 7540,
+   "17": 6712,
+   "18": 8673,
+   "19": 4149,
+   "20": 10266,
+   "21": 105,
+   "22": 92,
+   "23": 2301,
+   "24": 2857,
+   "25": 10856
+  }
+ },
+ {
+  "entity": "KNS_DocumentAgenda",
+  "fields": {
+   "Id": "Edm.Int32",
+   "AgendaID": "Edm.Int32",
+   "GroupTypeID": "Edm.Byte",
+   "GroupTypeDesc": "Edm.String",
+   "ApplicationID": "Edm.Byte",
+   "ApplicationDesc": "Edm.String",
+   "FilePath": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 27475,
+  "has_next_link": false,
+  "avg_row_json_bytes": 285,
+  "last_updated_range": [
+   "2010-06-02T15:40:37.323+03:00",
+   "2026-07-28T13:06:19.033+03:00"
+  ]
+ },
+ {
+  "entity": "KNS_DocumentBill",
+  "fields": {
+   "Id": "Edm.Int32",
+   "BillID": "Edm.Int32",
+   "GroupTypeID": "Edm.Byte",
+   "GroupTypeDesc": "Edm.String",
+   "ApplicationID": "Edm.Byte",
+   "ApplicationDesc": "Edm.String",
+   "FilePath": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 111663,
+  "has_next_link": false,
+  "avg_row_json_bytes": 268,
+  "last_updated_range": [
+   "2010-06-02T21:14:42.977+03:00",
+   "2026-11-02T12:42:19.95+02:00"
+  ]
+ },
+ {
+  "entity": "KNS_DocumentCommitteeSession",
+  "fields": {
+   "Id": "Edm.Int32",
+   "CommitteeSessionID": "Edm.Int32",
+   "GroupTypeID": "Edm.Byte",
+   "GroupTypeDesc": "Edm.String",
+   "DocumentName": "Edm.String",
+   "ApplicationID": "Edm.Byte",
+   "ApplicationDesc": "Edm.String",
+   "FilePath": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 201807,
+  "has_next_link": false,
+  "avg_row_json_bytes": 373,
+  "last_updated_range": [
+   "2010-06-02T20:32:33.95+03:00",
+   "2026-11-08T10:59:00+02:00"
+  ]
+ },
+ {
+  "entity": "KNS_DocumentIsraelLaw",
+  "fields": {
+   "Id": "Edm.Int32",
+   "IsraelLawID": "Edm.Int32",
+   "GroupTypeID": "Edm.Byte",
+   "GroupTypeDesc": "Edm.String",
+   "ApplicationID": "Edm.Byte",
+   "ApplicationDesc": "Edm.String",
+   "FilePath": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 0,
+  "has_next_link": false,
+  "last_updated_range": [
+   null,
+   null
+  ]
+ },
+ {
+  "entity": "KNS_DocumentPlenumSession",
+  "fields": {
+   "Id": "Edm.Int32",
+   "PlenumSessionID": "Edm.Int32",
+   "GroupTypeID": "Edm.Byte",
+   "GroupTypeDesc": "Edm.String",
+   "ApplicationID": "Edm.Byte",
+   "ApplicationDesc": "Edm.String",
+   "FilePath": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 21924,
+  "has_next_link": false,
+  "avg_row_json_bytes": 268,
+  "last_updated_range": [
+   "2010-06-03T06:55:11.027+03:00",
+   "2026-11-08T15:23:00+02:00"
+  ]
+ },
+ {
+  "entity": "KNS_DocumentQuerie",
+  "fields": {
+   "Id": "Edm.Int32",
+   "QueryID": "Edm.Int32",
+   "GroupTypeID": "Edm.Byte",
+   "GroupTypeDesc": "Edm.String",
+   "ApplicationID": "Edm.Byte",
+   "ApplicationDesc": "Edm.String",
+   "FilePath": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "error": "HTTP Error 404: Not Found"
+ },
+ {
+  "entity": "KNS_DocumentSecondaryLaw",
+  "fields": {
+   "Id": "Edm.Int32",
+   "SecondaryLawId": "Edm.Int32",
+   "GroupTypeID": "Edm.Byte",
+   "GroupTypeDesc": "Edm.String",
+   "ApplicationID": "Edm.Byte",
+   "ApplicationDesc": "Edm.String",
+   "FilePath": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 7627,
+  "has_next_link": false,
+  "avg_row_json_bytes": 294,
+  "last_updated_range": [
+   "2018-03-18T18:42:54.53+02:00",
+   "2026-10-26T09:50:16.51+02:00"
+  ]
+ },
+ {
+  "entity": "KNS_Faction",
+  "fields": {
+   "Id": "Edm.Int32",
+   "Name": "Edm.String",
+   "KnessetNum": "Edm.Int32",
+   "StartDate": "Edm.DateTimeOffset",
+   "FinishDate": "Edm.DateTimeOffset",
+   "IsCurrent": "Edm.Boolean",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 545,
+  "has_next_link": false,
+  "avg_row_json_bytes": 227,
+  "last_updated_range": [
+   "2019-01-24T11:45:06.46+02:00",
+   "2026-03-23T17:01:43.96+02:00"
+  ],
+  "count_by_knesset": {
+   "16": 34,
+   "17": 22,
+   "18": 18,
+   "19": 17,
+   "20": 17,
+   "21": 18,
+   "22": 17,
+   "23": 26,
+   "24": 27,
+   "25": 16
+  }
+ },
+ {
+  "entity": "KNS_GovMinistry",
+  "fields": {
+   "Id": "Edm.Int32",
+   "Name": "Edm.String",
+   "IsActive": "Edm.Boolean",
+   "LastUpdatedDate": "Edm.DateTimeOffset",
+   "CategoryID": "Edm.Int32",
+   "CategoryName": "Edm.String",
+   "GovID": "Edm.Int32"
+  },
+  "count": 922,
+  "has_next_link": false,
+  "avg_row_json_bytes": 197,
+  "last_updated_range": [
+   "2019-12-31T14:45:32.73+02:00",
+   "2026-06-03T22:06:34.25+03:00"
+  ]
+ },
+ {
+  "entity": "KNS_IsraelLaw",
+  "fields": {
+   "Id": "Edm.Int32",
+   "KnessetNum": "Edm.Int32",
+   "Name": "Edm.String",
+   "IsBasicLaw": "Edm.Boolean",
+   "IsFavoriteLaw": "Edm.Boolean",
+   "PublicationDate": "Edm.DateTimeOffset",
+   "LatestPublicationDate": "Edm.DateTimeOffset",
+   "IsBudgetLaw": "Edm.Boolean",
+   "LawValidityID": "Edm.Int32",
+   "LawValidityDesc": "Edm.String",
+   "ValidityStartDate": "Edm.DateTimeOffset",
+   "ValidityStartDateNotes": "Edm.String",
+   "ValidityFinishDate": "Edm.DateTimeOffset",
+   "ValidityFinishDateNotes": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 2024,
+  "has_next_link": false,
+  "avg_row_json_bytes": 537,
+  "last_updated_range": [
+   "2014-09-10T14:26:43.75+03:00",
+   "2026-10-18T17:12:00.787+03:00"
+  ],
+  "count_by_knesset": {
+   "16": 55,
+   "17": 69,
+   "18": 64,
+   "19": 23,
+   "20": 83,
+   "21": 2,
+   "22": 2,
+   "23": 30,
+   "24": 16,
+   "25": 116
+  }
+ },
+ {
+  "entity": "KNS_IsraelLawBinding",
+  "fields": {
+   "Id": "Edm.Int32",
+   "IsraelLawID": "Edm.Int32",
+   "IsraelLawReplacedID": "Edm.Int32",
+   "LawID": "Edm.Int32",
+   "LawTypeID": "Edm.Int32",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 375,
+  "has_next_link": false,
+  "avg_row_json_bytes": 152,
+  "last_updated_range": [
+   "2016-05-25T14:10:03.157+03:00",
+   "2024-10-01T09:42:35.067+03:00"
+  ]
+ },
+ {
+  "entity": "KNS_IsraelLawClassificiation",
+  "fields": {
+   "Id": "Edm.Int32",
+   "IsraelLawID": "Edm.Int32",
+   "ClassificiationID": "Edm.Int32",
+   "ClassificiationDesc": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 2919,
+  "has_next_link": false,
+  "avg_row_json_bytes": 151,
+  "last_updated_range": [
+   "2015-01-15T15:59:55.7+02:00",
+   "2021-06-03T11:07:40.247+03:00"
+  ]
+ },
+ {
+  "entity": "KNS_IsraelLawLawCorrections",
+  "fields": {
+   "Id": "Edm.Int32",
+   "LawCorrectionID": "Edm.Int32",
+   "IsraelLawID": "Edm.Int32",
+   "LastUpdatedBy": "Edm.Int32",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 706,
+  "has_next_link": false,
+  "avg_row_json_bytes": 128,
+  "last_updated_range": [
+   "2021-06-24T00:00:00+03:00",
+   "2026-04-12T14:51:15.997+03:00"
+  ]
+ },
+ {
+  "entity": "KNS_IsraelLawMinistry",
+  "fields": {
+   "Id": "Edm.Int32",
+   "IsraelLawID": "Edm.Int32",
+   "LastUpdatedDate": "Edm.DateTimeOffset",
+   "MinistryCategoryID": "Edm.Int32",
+   "MinistryCategoryDesc": "Edm.String"
+  },
+  "count": 1734,
+  "has_next_link": false,
+  "avg_row_json_bytes": 162,
+  "last_updated_range": [
+   "2014-09-10T14:27:17.383+03:00",
+   "2026-07-30T13:44:44.623+03:00"
+  ]
+ },
+ {
+  "entity": "KNS_IsraelLawName",
+  "fields": {
+   "Id": "Edm.Int32",
+   "IsraelLawID": "Edm.Int32",
+   "LawID": "Edm.Int32",
+   "LawTypeID": "Edm.Int32",
+   "Name": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 2180,
+  "has_next_link": false,
+  "avg_row_json_bytes": 200,
+  "last_updated_range": [
+   "2016-05-09T15:40:21.723+03:00",
+   "2026-07-30T13:44:44.623+03:00"
+  ]
+ },
+ {
+  "entity": "KNS_ItemType",
+  "fields": {
+   "Id": "Edm.Int32",
+   "Desc": "Edm.String",
+   "TableName": "Edm.String"
+  },
+  "count": 8,
+  "has_next_link": false,
+  "avg_row_json_bytes": 71
+ },
+ {
+  "entity": "KNS_JointCommittee",
+  "fields": {
+   "Id": "Edm.Int32",
+   "CommitteeID": "Edm.Int32",
+   "ParticipantCommitteeID": "Edm.Int32",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 1176,
+  "has_next_link": false,
+  "avg_row_json_bytes": 107,
+  "last_updated_range": [
+   "2015-03-20T12:02:57+02:00",
+   "2026-07-07T09:38:14.153+03:00"
+  ]
+ },
+ {
+  "entity": "KNS_KnessetDates",
+  "fields": {
+   "Id": "Edm.Int32",
+   "KnessetNum": "Edm.Int32",
+   "Name": "Edm.String",
+   "Assembly": "Edm.Int32",
+   "Plenum": "Edm.Int32",
+   "PlenumStart": "Edm.DateTimeOffset",
+   "PlenumFinish": "Edm.DateTimeOffset",
+   "IsCurrent": "Edm.Boolean",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 166,
+  "has_next_link": false,
+  "avg_row_json_bytes": 245,
+  "last_updated_range": [
+   "2015-03-20T12:02:59+02:00",
+   "2026-08-17T15:49:29.313+03:00"
+  ],
+  "count_by_knesset": {
+   "16": 7,
+   "17": 6,
+   "18": 9,
+   "19": 6,
+   "20": 8,
+   "21": 1,
+   "22": 1,
+   "23": 2,
+   "24": 3,
+   "25": 8
+  }
+ },
+ {
+  "entity": "KNS_LawBinding",
+  "fields": {
+   "Id": "Edm.Int32",
+   "LawID": "Edm.Int32",
+   "IsraelLawID": "Edm.Int32",
+   "ParentLawID": "Edm.Int32",
+   "LawTypeID": "Edm.Int32",
+   "LawParentTypeID": "Edm.Int32",
+   "BindingType": "Edm.Int32",
+   "BindingTypeDesc": "Edm.String",
+   "PageNumber": "Edm.String",
+   "AmendmentType": "Edm.Int32",
+   "AmendmentTypeDesc": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset",
+   "IsTempLegislation": "Edm.Boolean",
+   "IsSecondaryAmendment": "Edm.Boolean",
+   "CorrectionNumber": "Edm.Int32",
+   "ParagraphNumber": "Edm.String"
+  },
+  "count": 15326,
+  "has_next_link": false,
+  "avg_row_json_bytes": 409,
+  "last_updated_range": [
+   "2014-09-10T14:27:13.897+03:00",
+   "2026-08-02T13:35:41.01+03:00"
+  ]
+ },
+ {
+  "entity": "KNS_LawCorrections",
+  "fields": {
+   "Id": "Edm.Int32",
+   "BillID": "Edm.Int32",
+   "CorrectionTypeID": "Edm.Int32",
+   "CorrectionTypeDesc": "Edm.String",
+   "IsKnessetInvolvement": "Edm.Boolean",
+   "CommitteeID": "Edm.Int32",
+   "CorrectionStatusID": "Edm.Int32",
+   "CorrectionStatusDesc": "Edm.String",
+   "VoteDate": "Edm.DateTimeOffset",
+   "PublicationDate": "Edm.DateTimeOffset",
+   "PublicationSeriesID": "Edm.Int32",
+   "PublicationSeriesDesc": "Edm.String",
+   "MagazineNumber": "Edm.String",
+   "PageNumber": "Edm.String",
+   "CommencementDate": "Edm.DateTimeOffset",
+   "LastUpdatedBy": "Edm.Int32",
+   "LastUpdatedDate": "Edm.DateTimeOffset",
+   "CreatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 610,
+  "has_next_link": false,
+  "avg_row_json_bytes": 557,
+  "last_updated_range": [
+   "2021-06-24T00:00:00+03:00",
+   "2026-05-18T15:31:01.763+03:00"
+  ]
+ },
+ {
+  "entity": "KNS_MkSiteCode",
+  "fields": {
+   "Id": "Edm.Int32",
+   "KnsID": "Edm.Int32",
+   "SiteId": "Edm.Int32"
+  },
+  "count": 1116,
+  "has_next_link": false,
+  "avg_row_json_bytes": 38
+ },
+ {
+  "entity": "KNS_Person",
+  "fields": {
+   "Id": "Edm.Int32",
+   "LastName": "Edm.String",
+   "FirstName": "Edm.String",
+   "GenderID": "Edm.Int32",
+   "GenderDesc": "Edm.String",
+   "Email": "Edm.String",
+   "IsCurrent": "Edm.Boolean",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 1236,
+  "has_next_link": false,
+  "avg_row_json_bytes": 190,
+  "last_updated_range": [
+   "2015-03-20T12:03:08+02:00",
+   "2026-11-02T16:09:18.853+02:00"
+  ]
+ },
+ {
+  "entity": "KNS_PersonToPosition",
+  "fields": {
+   "Id": "Edm.Int32",
+   "PersonID": "Edm.Int32",
+   "PositionID": "Edm.Int32",
+   "KnessetNum": "Edm.Int32",
+   "StartDate": "Edm.DateTimeOffset",
+   "FinishDate": "Edm.DateTimeOffset",
+   "GovMinistryID": "Edm.Int32",
+   "GovMinistryName": "Edm.String",
+   "DutyDesc": "Edm.String",
+   "FactionID": "Edm.Int32",
+   "FactionName": "Edm.String",
+   "GovernmentNum": "Edm.Int32",
+   "CommitteeID": "Edm.Int32",
+   "CommitteeName": "Edm.String",
+   "IsCurrent": "Edm.Boolean",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 23688,
+  "has_next_link": false,
+  "avg_row_json_bytes": 390,
+  "last_updated_range": [
+   "2015-03-20T12:03:08+02:00",
+   "2026-10-22T11:14:39.347+03:00"
+  ],
+  "count_by_knesset": {
+   "16": 1551,
+   "17": 1533,
+   "18": 1383,
+   "19": 1162,
+   "20": 2285,
+   "21": 518,
+   "22": 506,
+   "23": 1336,
+   "24": 1155,
+   "25": 2180
+  }
+ },
+ {
+  "entity": "KNS_PlenumSession",
+  "fields": {
+   "Id": "Edm.Int32",
+   "Number": "Edm.Int32",
+   "KnessetNum": "Edm.Int32",
+   "Name": "Edm.String",
+   "StartDate": "Edm.DateTimeOffset",
+   "FinishDate": "Edm.DateTimeOffset",
+   "IsSpecialMeeting": "Edm.Boolean",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 8795,
+  "has_next_link": false,
+  "avg_row_json_bytes": 278,
+  "last_updated_range": [
+   "2013-10-03T16:21:47+03:00",
+   "2026-11-02T12:10:35.44+02:00"
+  ],
+  "count_by_knesset": {
+   "16": 311,
+   "17": 277,
+   "18": 388,
+   "19": 193,
+   "20": 398,
+   "21": 28,
+   "22": 28,
+   "23": 138,
+   "24": 155,
+   "25": 418
+  }
+ },
+ {
+  "entity": "KNS_PlenumVote",
+  "fields": {
+   "Id": "Edm.Int32",
+   "VoteDateTime": "Edm.DateTimeOffset",
+   "SessionID": "Edm.Int32",
+   "ItemID": "Edm.Int32",
+   "Ordinal": "Edm.Int32",
+   "VoteMethodID": "Edm.Int32",
+   "VoteMethodDesc": "Edm.String",
+   "VoteStatusCode": "Edm.Int32",
+   "VoteStatusDesc": "Edm.String",
+   "VoteTitle": "Edm.String",
+   "VoteSubject": "Edm.String",
+   "IsNoConfidenceInGov": "Edm.Boolean",
+   "LastUpdatedDate": "Edm.DateTimeOffset",
+   "ForOptionID": "Edm.Int32",
+   "ForOptionDesc": "Edm.String",
+   "AgainstOptionID": "Edm.Int32",
+   "AgainstOptionDesc": "Edm.String"
+  },
+  "count": 36168,
+  "has_next_link": false,
+  "avg_row_json_bytes": 634,
+  "last_updated_range": [
+   "2021-07-22T09:47:02.41+03:00",
+   "2026-10-28T16:07:19.753+02:00"
+  ]
+ },
+ {
+  "entity": "KNS_PlenumVoteResult",
+  "fields": {
+   "Id": "Edm.Int32",
+   "MkId": "Edm.Int32",
+   "VoteID": "Edm.Int32",
+   "VoteDate": "Edm.DateTimeOffset",
+   "ResultCode": "Edm.Int32",
+   "ResultDesc": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset",
+   "LastName": "Edm.String",
+   "FirstName": "Edm.String",
+   "SessionID": "Edm.Int32",
+   "ItemID": "Edm.Int32"
+  },
+  "count": 1953709,
+  "has_next_link": false,
+  "avg_row_json_bytes": 265,
+  "last_updated_range": [
+   "2021-07-22T09:47:04.36+03:00",
+   "2026-10-28T16:07:19.753+02:00"
+  ]
+ },
+ {
+  "entity": "KNS_PlmSessionItem",
+  "fields": {
+   "Id": "Edm.Int32",
+   "ItemID": "Edm.Int32",
+   "PlenumSessionID": "Edm.Int32",
+   "ItemTypeID": "Edm.Int32",
+   "ItemTypeDesc": "Edm.String",
+   "Ordinal": "Edm.Int64",
+   "Name": "Edm.String",
+   "StatusID": "Edm.Int32",
+   "IsDiscussion": "Edm.Int32",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 168801,
+  "has_next_link": false,
+  "avg_row_json_bytes": 297,
+  "last_updated_range": [
+   "2011-04-11T17:38:55+03:00",
+   "2026-11-03T10:21:15.617+02:00"
+  ]
+ },
+ {
+  "entity": "KNS_Position",
+  "fields": {
+   "Id": "Edm.Int32",
+   "Description": "Edm.String",
+   "GenderID": "Edm.Int32",
+   "GenderDesc": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 29,
+  "has_next_link": false,
+  "avg_row_json_bytes": 142,
+  "last_updated_range": [
+   "2015-03-20T12:03:00+02:00",
+   "2023-01-08T12:50:00.263+02:00"
+  ]
+ },
+ {
+  "entity": "KNS_Query",
+  "fields": {
+   "Id": "Edm.Int32",
+   "Number": "Edm.Int32",
+   "KnessetNum": "Edm.Int32",
+   "Name": "Edm.String",
+   "TypeID": "Edm.Int32",
+   "TypeDesc": "Edm.String",
+   "StatusID": "Edm.Int32",
+   "PersonID": "Edm.Int32",
+   "GovMinistryID": "Edm.Int32",
+   "SubmitDate": "Edm.DateTimeOffset",
+   "ReplyMinisterDate": "Edm.DateTimeOffset",
+   "ReplyDatePlanned": "Edm.DateTimeOffset",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 42824,
+  "has_next_link": false,
+  "avg_row_json_bytes": 387,
+  "last_updated_range": [
+   "2022-06-20T11:37:11.62+03:00",
+   "2026-08-03T10:08:31.013+03:00"
+  ],
+  "count_by_knesset": {
+   "16": 0,
+   "17": 0,
+   "18": 0,
+   "19": 571,
+   "20": 1657,
+   "21": 5,
+   "22": 58,
+   "23": 622,
+   "24": 757,
+   "25": 1580
+  }
+ },
+ {
+  "entity": "KNS_SecLawAuthorizingLaw",
+  "fields": {
+   "Id": "Edm.Int32",
+   "AuthorizingLawID": "Edm.Int32",
+   "SecondaryLawID": "Edm.Int32",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 68352,
+  "has_next_link": false,
+  "avg_row_json_bytes": 118,
+  "last_updated_range": [
+   "2018-03-20T13:53:16.813+02:00",
+   "2026-11-03T11:35:29.503+02:00"
+  ]
+ },
+ {
+  "entity": "KNS_SecLawRegulator",
+  "fields": {
+   "Id": "Edm.Int32",
+   "SecondaryLawID": "Edm.Int32",
+   "RegulatorTypeID": "Edm.Int32",
+   "RegulatorTypeDesc": "Edm.String",
+   "RegulatorID": "Edm.Int32",
+   "RegulatorDesc": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 5298,
+  "has_next_link": false,
+  "avg_row_json_bytes": 213,
+  "last_updated_range": [
+   "2018-03-04T00:00:00+02:00",
+   "2026-10-29T13:43:26.443+02:00"
+  ]
+ },
+ {
+  "entity": "KNS_SecToSecBinding",
+  "fields": {
+   "Id": "Edm.Int32",
+   "SecChildID": "Edm.Int32",
+   "SecChildTypeID": "Edm.Int32",
+   "SecParentID": "Edm.Int32",
+   "SecParentTypeID": "Edm.Int32",
+   "SecMainID": "Edm.Int32",
+   "SecMainTypeID": "Edm.Int32",
+   "BindingTypeID": "Edm.Int32",
+   "BindingTypeDesc": "Edm.String",
+   "IsTempLegislation": "Edm.Boolean",
+   "IsSecondaryAmendment": "Edm.Boolean",
+   "CorrectionNumber": "Edm.Int32",
+   "AmendmentTypeID": "Edm.Int32",
+   "AmendmentTypeDesc": "Edm.String",
+   "ParagraphNumber": "Edm.String",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 23763,
+  "has_next_link": false,
+  "avg_row_json_bytes": 421,
+  "last_updated_range": [
+   "2020-05-21T00:00:00+03:00",
+   "2024-12-22T00:00:00+02:00"
+  ]
+ },
+ {
+  "entity": "KNS_SecondaryLaw",
+  "fields": {
+   "Id": "Edm.Int32",
+   "KnessetNum": "Edm.Int32",
+   "Name": "Edm.String",
+   "CompletionCauseID": "Edm.Int32",
+   "CompletionCauseDesc": "Edm.String",
+   "PostponementReasonID": "Edm.Int32",
+   "PostponementReasonDesc": "Edm.String",
+   "KnessetInvolvementID": "Edm.Int32",
+   "KnessetInvolvementDesc": "Edm.String",
+   "CommitteeID": "Edm.Int32",
+   "PublicationSeriesID": "Edm.Int32",
+   "PublicationSeriesDesc": "Edm.String",
+   "MagazineNumber": "Edm.String",
+   "PageNumber": "Edm.String",
+   "PublicationDate": "Edm.DateTimeOffset",
+   "MajorAuthorizingLawID": "Edm.Int32",
+   "CommitteeReceivedDate": "Edm.DateTimeOffset",
+   "CommitteeApprovalDate": "Edm.DateTimeOffset",
+   "ApprovalDateWithoutDiscussion": "Edm.DateTimeOffset",
+   "IsAmmendingLawOriginal": "Edm.Boolean",
+   "ClassificationID": "Edm.Int32",
+   "ClassificationDesc": "Edm.String",
+   "IsEmergency": "Edm.Boolean",
+   "SecretaryReceivedDate": "Edm.DateTimeOffset",
+   "PlenumApprovalDate": "Edm.DateTimeOffset",
+   "TypeID": "Edm.Int32",
+   "TypeDesc": "Edm.String",
+   "StatusID": "Edm.Int32",
+   "StatusName": "Edm.String",
+   "IsCurrent": "Edm.Boolean",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 60338,
+  "has_next_link": false,
+  "avg_row_json_bytes": 1088,
+  "last_updated_range": [
+   "2019-07-04T09:16:40.94+03:00",
+   "2026-11-03T11:35:49.283+02:00"
+  ],
+  "count_by_knesset": {
+   "16": 1913,
+   "17": 2106,
+   "18": 3241,
+   "19": 1698,
+   "20": 4009,
+   "21": 286,
+   "22": 145,
+   "23": 651,
+   "24": 1075,
+   "25": 2847
+  }
+ },
+ {
+  "entity": "KNS_Status",
+  "fields": {
+   "Id": "Edm.Int32",
+   "Desc": "Edm.String",
+   "TypeID": "Edm.Int32",
+   "TypeDesc": "Edm.String",
+   "OrderTransition": "Edm.Int32",
+   "IsActive": "Edm.Boolean",
+   "LastUpdatedDate": "Edm.DateTimeOffset"
+  },
+  "count": 82,
+  "has_next_link": false,
+  "avg_row_json_bytes": 204,
+  "last_updated_range": [
+   "2013-10-06T14:08:19.8+03:00",
+   "2026-10-06T16:01:44.18+03:00"
+  ]
+ },
+ {
+  "entity": "V_Lobbyists",
+  "fields": {
+   "Id": "Edm.Int32",
+   "IdentityNumber": "Edm.String",
+   "FullName": "Edm.String",
+   "PermitTypeValue": "Edm.String",
+   "Key": "Edm.Int32",
+   "CorporationName": "Edm.String",
+   "IsIndependent": "Edm.Boolean",
+   "CorpNumber": "Edm.String",
+   "PracticeFramework": "Edm.String",
+   "IsMemberInFaction": "Edm.String",
+   "MemberInFaction": "Edm.Boolean"
+  },
+  "error": "HTTP Error 404: Not Found"
+ },
+ {
+  "entity": "V_LobbyistsClients",
+  "fields": {
+   "Id": "Edm.Int32",
+   "LobbyistID": "Edm.Int32",
+   "ClientID": "Edm.Int32",
+   "Name": "Edm.String",
+   "ClientsNames": "Edm.String"
+  },
+  "error": "HTTP Error 404: Not Found"
+ }
+]

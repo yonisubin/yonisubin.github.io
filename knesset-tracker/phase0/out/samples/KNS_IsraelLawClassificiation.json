@@ -1,0 +1,37 @@
+[
+ {
+  "Id": 1,
+  "IsraelLawID": 2000001,
+  "ClassificiationID": 23,
+  "ClassificiationDesc": "מקרקעין",
+  "LastUpdatedDate": "2015-01-15T15:59:55.7+02:00"
+ },
+ {
+  "Id": 2,
+  "IsraelLawID": 2000001,
+  "ClassificiationID": 27,
+  "ClassificiationDesc": "ניהול נכסים",
+  "LastUpdatedDate": "2015-01-15T15:59:55.7+02:00"
+ },
+ {
+  "Id": 3,
+  "IsraelLawID": 2000001,
+  "ClassificiationID": 50,
+  "ClassificiationDesc": "תשתיות",
+  "LastUpdatedDate": "2015-01-15T15:59:55.7+02:00"
+ },
+ {
+  "Id": 4,
+  "IsraelLawID": 2000002,
+  "ClassificiationID": 48,
+  "ClassificiationDesc": "תקשורת",
+  "LastUpdatedDate": "2015-01-15T15:59:55.7+02:00"
+ },
+ {
+  "Id": 5,
+  "IsraelLawID": 2000005,
+  "ClassificiationID": 44,
+  "ClassificiationDesc": "תעופה",
+  "LastUpdatedDate": "2015-01-15T15:59:55.7+02:00"
+ }
+]

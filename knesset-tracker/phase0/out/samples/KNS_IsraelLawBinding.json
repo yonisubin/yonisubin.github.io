@@ -1,0 +1,42 @@
+[
+ {
+  "Id": 1,
+  "IsraelLawID": 2002363,
+  "IsraelLawReplacedID": 2001409,
+  "LawID": 569596,
+  "LawTypeID": 2,
+  "LastUpdatedDate": "2016-05-25T14:10:03.157+03:00"
+ },
+ {
+  "Id": 2,
+  "IsraelLawID": 2001253,
+  "IsraelLawReplacedID": 2001333,
+  "LawID": 2002058,
+  "LawTypeID": 6002,
+  "LastUpdatedDate": "2016-06-14T15:36:55.83+03:00"
+ },
+ {
+  "Id": 6,
+  "IsraelLawID": 2000722,
+  "IsraelLawReplacedID": 2000236,
+  "LawID": 275505,
+  "LawTypeID": 2,
+  "LastUpdatedDate": "2016-11-24T11:25:37.343+02:00"
+ },
+ {
+  "Id": 7,
+  "IsraelLawID": 2000140,
+  "IsraelLawReplacedID": 2000139,
+  "LawID": 2002218,
+  "LawTypeID": 6002,
+  "LastUpdatedDate": "2016-11-24T11:29:08.377+02:00"
+ },
+ {
+  "Id": 8,
+  "IsraelLawID": 2000568,
+  "IsraelLawReplacedID": 2001413,
+  "LawID": 433692,
+  "LawTypeID": 2,
+  "LastUpdatedDate": "2016-12-14T19:27:24.113+02:00"
+ }
+]
