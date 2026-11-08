@@ -10,7 +10,7 @@ Everything below can be re-run with `phase0/explore.py` (counts, samples, field 
 | --- | --- | --- |
 | Are vote tables public? | **Yes.** `KNS_PlenumVote` (36,168 votes, 2003 to Jul 2026) and `KNS_PlenumVoteResult` (1.95M per-MK rows) both work. | MK voting records are **in scope**, with caveats (see below). |
 | Does any bill status history exist? | **Not on `KNS_Bill`** (it only has the current `StatusID`). **But** every plenum and committee agenda item (`KNS_PlmSessionItem`, `KNS_CmtSessionItem`) carries the bill's `StatusID` *at that session*, and the session has a date. `KNS_PlenumVote` is dated and linked by `ItemID`. `KNS_BillName` holds the bill's name per stage. `KNS_DocumentBill` holds the document per stage. | The timeline can be **reconstructed for past bills** from session items and votes, not only going forward from our change log. This is better than the project description assumed. |
-| Which Knesset terms fit in Neon's 1 GB? | Everything, stored as raw JSONB, is ~1.7 GB, so not all of it. Normalised and scoped, Knesset 23-25 plus reference tables is roughly 250-350 MB. | **v1 scope: Knesset 23, 24, 25 (and 26 when it starts) for term-scoped data; all reference data.** Older terms can be added later; the scope is one config value. |
+| Which Knesset terms fit in Neon's 1 GB? | Everything, stored as raw JSONB, is ~1.7 GB, so not all of it. **Measured** after a real backfill of the v1 scope: 57 MB without vote results, ~150 MB projected with them (see "Measured after the first backfill"). | **v1 scope: Knesset 23, 24, 25 (and 26 when it starts) for term-scoped data; all reference data.** Older terms can be added later; the scope is one config value. |
 | Is `LastUpdatedDate` usable as a high-water mark? | Yes. It is present on all the entities we need, `$filter=LastUpdatedDate gt ...` works, and we saw 35 bills and 49 committee sessions change in the last week. | Incremental sync design holds. |
 
 ## API facts that shape the code
@@ -24,6 +24,8 @@ Everything below can be re-run with `phase0/explore.py` (counts, samples, field 
 - **Filters on navigation properties work**, e.g.
   `KNS_BillInitiator?$filter=KNS_Bill/KnessetNum ge 23` (35,004 rows). This lets child tables
   (initiators, documents, session items, votes) be scoped by term without a join on our side.
+- **Filters are capped at 100 nodes.** `Id eq 1 or Id eq 2 or ...` fails with HTTP 400 after about
+  20 terms ("The node count limit of '100' has been exceeded"). Batch id lookups.
 - `$apply=groupby(...)` works, but returns a bare JSON array instead of `{"value": [...]}`, and
   `aggregate($count as n)` fails with an unusual `HTTP 473`.
 - **The service document and the metadata disagree on names.** The root lists
@@ -103,8 +105,39 @@ Conclusions:
   after processing. The measurement makes it mandatory: the Phase 1 pipeline stores only a content
   hash per record, and keeps a payload only for records that failed validation (quarantine).
 - Votes are the only table that threatens the budget. Typed and scoped to Knesset 23+, they fit.
-- The estimate above is replaced by a real number (`SELECT pg_database_size(...)`) after the first
-  Phase 1 backfill into Neon.
+- The estimate above was replaced by a measurement; see the next section.
+
+## Measured after the first backfill (local Postgres 16, 8 Nov 2026)
+
+The Phase 1 pipeline backfilled the whole v1 scope except vote results, plus 10 minutes of vote
+results, into a local Postgres. No errors, no quarantined records.
+
+| | Value |
+| --- | --- |
+| Rows mirrored | 229,444 (18 entities complete, vote results partial) |
+| Requests | 2,306 in 63 minutes (with a 0.25 s politeness gap) |
+| Database size without vote results | **57 MB** |
+| Vote results | 119 B/row measured. ~550-800k rows in scope (526k since Nov 2022 alone), so **~65-95 MB** |
+| **Projected total for v1 scope** | **~150 MB, about 15% of Neon's 1 GB** |
+
+| Largest tables | Rows | Size |
+| --- | ---: | ---: |
+| parl_query (all terms) | 42,824 | 8.3 MB |
+| plenum_session_item | 24,135 | 6.5 MB |
+| committee_session_item | 20,270 | 5.7 MB |
+| bill_document | 27,062 | 5.5 MB |
+| committee_session | 16,014 | 5.5 MB |
+| bill | 14,490 | 5.2 MB |
+
+What the measurement changed:
+- The first version kept hashes in a separate `record_hash` table. It was the largest table
+  (32 MB, ~200 B/row) and would have grown past the data it describes. Hashes are now an 8-byte
+  column on each domain row.
+- There is room to widen the scope later (e.g. `MIN_KNESSET=20`) without leaving the free tier.
+- **Vote results are slow to fetch:** 2.7 s per page with the two-level navigation filter
+  (`Vote/KNS_PlenumSession/KnessetNum`), against ~0.3-1 s elsewhere, so the full vote-result
+  backfill is ~6 hours. Run it overnight from a laptop. A possible fix: filter by
+  `VoteID ge <first vote id of Knesset 23>` instead, which was fast in Phase 0 spot checks.
 
 ## Entities in v1 scope
 
