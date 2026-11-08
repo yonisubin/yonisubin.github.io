@@ -44,15 +44,8 @@ sync_state = Table(
     Column("last_reconciled_at", DateTime(timezone=True)),
 )
 
-# The content hash of each mirrored record. This replaces raw_<entity> payload tables:
-# Phase 0 measured raw JSONB at ~1.7 GB, so we keep only the hash.
-record_hash = Table(
-    "record_hash", metadata,
-    Column("entity", String(64), primary_key=True),
-    Column("knesset_id", Integer, primary_key=True),
-    Column("content_hash", String(64), nullable=False),
-    Column("fetched_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
-)
+# There is no raw_<entity> staging layer: Phase 0 measured raw JSONB at ~1.7 GB. Each domain
+# table instead has a `content_hash` BIGINT column (see entities.py), 8 bytes per row.
 
 # Records that failed to transform keep their raw payload here for debugging.
 quarantine = Table(

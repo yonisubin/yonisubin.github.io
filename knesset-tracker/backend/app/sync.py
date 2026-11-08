@@ -7,7 +7,7 @@ Per entity, a *pass* walks `$filter=LastUpdatedDate gt <mark - overlap>` ordered
 1. hash each record (excluding LastUpdatedDate, which cascades from parents);
 2. skip records whose hash is unchanged (cheap overlap window, idempotent re-runs);
 3. transform changed records, diff them against the current domain row;
-4. upsert the domain rows, store the new hashes, write change events;
+4. upsert the domain rows (with their new hash), write change events;
 5. save the pass checkpoint (the next page URL).
 
 The high-water mark advances only when the last page of a pass commits. The first
@@ -28,7 +28,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from .config import Settings
 from .entities import ENTITIES, EntitySpec, Row, to_dt
-from .models import change_event, quarantine, record_hash, sync_run, sync_state
+from .models import change_event, quarantine, sync_run, sync_state
 from .odata import ODataClient, build_url, odata_datetime
 
 log = logging.getLogger("knesset.sync")
@@ -73,10 +73,13 @@ class EntityRun:
     error: str | None = None
 
 
-def content_hash(raw: Row) -> str:
+def content_hash(raw: Row) -> int:
+    """First 8 bytes of SHA-256 as a signed BIGINT. Hashes are only ever compared with the
+    previous hash of the same record, so 64 bits is plenty and saves ~150 B/row over hex
+    strings in a separate table (measured during the first local backfill)."""
     body = {k: v for k, v in raw.items() if k != "LastUpdatedDate" and not k.startswith("@")}
     data = json.dumps(body, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-    return hashlib.sha256(data.encode()).hexdigest()
+    return int.from_bytes(hashlib.sha256(data.encode()).digest()[:8], "big", signed=True)
 
 
 def jsonable(v: Any) -> Any:
@@ -105,10 +108,9 @@ def process_page(conn: Connection, spec: EntitySpec, rows: list[Row], *,
     # The API can repeat a record across pages; keep the last copy.
     by_id = {int(r["Id"]): r for r in rows}
     hashes = {i: content_hash(r) for i, r in by_id.items()}
+    t = spec.table
     stored = dict(conn.execute(
-        select(record_hash.c.knesset_id, record_hash.c.content_hash)
-        .where(record_hash.c.entity == spec.odata, record_hash.c.knesset_id.in_(list(by_id)))
-    ).all())
+        select(t.c.id, t.c.content_hash).where(t.c.id.in_(list(by_id)))).all())
     todo = [i for i in by_id if stored.get(i) != hashes[i]]
     res.unchanged = len(by_id) - len(todo)
     if not todo:
@@ -129,7 +131,6 @@ def process_page(conn: Connection, spec: EntitySpec, rows: list[Row], *,
     if not after:
         return res
 
-    t = spec.table
     before = {r["id"]: dict(r) for r in conn.execute(
         select(t).where(t.c.id.in_(list(after)))).mappings()}
 
@@ -142,7 +143,7 @@ def process_page(conn: Connection, spec: EntitySpec, rows: list[Row], *,
             diff_before, diff_after = None, {k: jsonable(v) for k, v in new.items()}
         else:
             diff = [k for k in new if k not in volatile and old.get(k) != new[k]]
-            if not diff:  # only unmapped source fields changed
+            if not diff:  # only unmapped fields changed: upsert the new hash, no event
                 res.unchanged += 1
                 continue
             res.changed += 1
@@ -156,14 +157,9 @@ def process_page(conn: Connection, spec: EntitySpec, rows: list[Row], *,
                     "source_updated_at": to_dt(by_id[i].get("LastUpdatedDate")),
                 })
 
-    stmt = pg_insert(t).values(list(after.values()))
+    stmt = pg_insert(t).values([{**row, "content_hash": hashes[i]} for i, row in after.items()])
     conn.execute(stmt.on_conflict_do_update(
         index_elements=["id"], set_={c.name: stmt.excluded[c.name] for c in t.c if c.name != "id"}))
-    hstmt = pg_insert(record_hash).values(
-        [{"entity": spec.odata, "knesset_id": i, "content_hash": hashes[i]} for i in after])
-    conn.execute(hstmt.on_conflict_do_update(
-        index_elements=["entity", "knesset_id"],
-        set_={"content_hash": hstmt.excluded.content_hash, "fetched_at": func.now()}))
     if events:
         conn.execute(insert(change_event), events)
         res.events = len(events)
@@ -288,12 +284,11 @@ def reconcile_entity(engine: Engine, client: ODataClient, spec: EntitySpec,
             if gone:
                 ids = [g["id"] for g in gone]
                 conn.execute(delete(t).where(t.c.id.in_(ids)))
-                conn.execute(delete(record_hash).where(record_hash.c.entity == spec.odata,
-                                                       record_hash.c.knesset_id.in_(ids)))
                 conn.execute(insert(change_event), [{
                     "entity_type": spec.table_name, "entity_id": g["id"],
                     "event_type": f"{spec.table_name}.deleted",
-                    "before": {k: jsonable(v) for k, v in g.items()}, "after": None,
+                    "before": {k: jsonable(v) for k, v in g.items() if k != "content_hash"},
+                    "after": None,
                 } for g in gone])
                 run.deleted = len(gone)
                 run.events += len(gone)

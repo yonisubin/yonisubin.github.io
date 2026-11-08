@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.entities import BY_NAME
-from app.models import change_event, quarantine, record_hash, sync_run, sync_state
+from app.models import change_event, quarantine, sync_run, sync_state
 from app.sync import SchemaChanged, reconcile_entity, run_sync, sync_entity
 from tests.conftest import FakeOData, apply_day2, fixture_entities, load_day1, make_client
 
@@ -55,6 +55,11 @@ def test_day1_backfill_then_day2_produces_exact_events(engine, settings):
     assert by["KNS_PlmSessionItem"].fetched >= 1 and by["KNS_PlmSessionItem"].changed == 0
     assert by["KNS_Bill"].changed == 1 and by["KNS_Bill"].inserted == 1
 
+    # A second day-2 run finds nothing new: the hashes of the ignored rows were stored too.
+    runs = run_sync(engine, make_client(server), settings, specs)
+    assert sum(r.inserted + r.changed + r.events for r in runs) == 0
+    assert all(r.unchanged == r.fetched for r in runs)
+
     with engine.connect() as c:
         ev = c.execute(select(change_event).where(
             change_event.c.event_type == "bill.stage_changed")).one()
@@ -79,7 +84,6 @@ def test_interrupted_pass_resumes_from_checkpoint(engine, settings):
     # Now crash in the middle: the network dies after 5 pages.
     with engine.begin() as c:
         c.execute(sync_state.delete())
-        c.execute(record_hash.delete())
         c.execute(spec.table.delete())
     server2 = FakeOData(day1)
     calls = {"n": 0}

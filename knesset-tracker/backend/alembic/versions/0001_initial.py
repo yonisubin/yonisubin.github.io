@@ -1,8 +1,8 @@
-"""initial schema: pipeline and domain tables
+"""initial
 
 Revision ID: 0001
 Revises: 
-Create Date: 2026-11-08 20:10:41.374292
+Create Date: 2026-11-08 20:56:16.429716
 """
 from collections.abc import Sequence
 
@@ -29,6 +29,7 @@ def upgrade() -> None:
     sa.Column('committee_id', sa.Integer(), nullable=True),
     sa.Column('classification_desc_he', sa.Text(), nullable=True),
     sa.Column('gov_recommendation_desc_he', sa.Text(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_agenda'))
     )
     op.create_index(op.f('ix_agenda_initiator_person_id'), 'agenda', ['initiator_person_id'], unique=False)
@@ -51,6 +52,7 @@ def upgrade() -> None:
     sa.Column('is_continuation', sa.Boolean(), nullable=True),
     sa.Column('summary_he', sa.Text(), nullable=True),
     sa.Column('last_updated', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_bill'))
     )
     op.create_index(op.f('ix_bill_committee_id'), 'bill', ['committee_id'], unique=False)
@@ -63,6 +65,7 @@ def upgrade() -> None:
     sa.Column('group_type_desc_he', sa.Text(), nullable=True),
     sa.Column('format', sa.Text(), nullable=True),
     sa.Column('url', sa.Text(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_bill_document'))
     )
     op.create_index(op.f('ix_bill_document_bill_id'), 'bill_document', ['bill_id'], unique=False)
@@ -72,6 +75,7 @@ def upgrade() -> None:
     sa.Column('person_id', sa.Integer(), nullable=True),
     sa.Column('is_initiator', sa.Boolean(), nullable=True),
     sa.Column('ordinal', sa.Integer(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_bill_initiator'))
     )
     op.create_index(op.f('ix_bill_initiator_bill_id'), 'bill_initiator', ['bill_id'], unique=False)
@@ -82,6 +86,7 @@ def upgrade() -> None:
     sa.Column('name_he', sa.Text(), nullable=True),
     sa.Column('stage_type_id', sa.Integer(), nullable=True),
     sa.Column('stage_desc_he', sa.Text(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_bill_name'))
     )
     op.create_index(op.f('ix_bill_name_bill_id'), 'bill_name', ['bill_id'], unique=False)
@@ -111,6 +116,7 @@ def upgrade() -> None:
     sa.Column('start_date', sa.DateTime(timezone=True), nullable=True),
     sa.Column('finish_date', sa.DateTime(timezone=True), nullable=True),
     sa.Column('is_current', sa.Boolean(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_committee'))
     )
     op.create_index(op.f('ix_committee_knesset_num'), 'committee', ['knesset_num'], unique=False)
@@ -128,6 +134,7 @@ def upgrade() -> None:
     sa.Column('start_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('finish_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('note', sa.Text(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_committee_session'))
     )
     op.create_index(op.f('ix_committee_session_committee_id'), 'committee_session', ['committee_id'], unique=False)
@@ -140,6 +147,7 @@ def upgrade() -> None:
     sa.Column('ordinal', sa.Integer(), nullable=True),
     sa.Column('status_id', sa.Integer(), nullable=True),
     sa.Column('name_he', sa.Text(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_committee_session_item'))
     )
     op.create_index(op.f('ix_committee_session_item_item_type_id_item_id'), 'committee_session_item', ['item_type_id', 'item_id'], unique=False)
@@ -151,6 +159,7 @@ def upgrade() -> None:
     sa.Column('start_date', sa.DateTime(timezone=True), nullable=True),
     sa.Column('finish_date', sa.DateTime(timezone=True), nullable=True),
     sa.Column('is_current', sa.Boolean(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_faction'))
     )
     op.create_index(op.f('ix_faction_knesset_num'), 'faction', ['knesset_num'], unique=False)
@@ -163,6 +172,7 @@ def upgrade() -> None:
     sa.Column('plenum_start', sa.DateTime(timezone=True), nullable=True),
     sa.Column('plenum_finish', sa.DateTime(timezone=True), nullable=True),
     sa.Column('is_current', sa.Boolean(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_knesset_period'))
     )
     op.create_table('law',
@@ -176,12 +186,14 @@ def upgrade() -> None:
     sa.Column('validity_desc_he', sa.Text(), nullable=True),
     sa.Column('validity_start', sa.DateTime(timezone=True), nullable=True),
     sa.Column('validity_finish', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_law'))
     )
     op.create_table('ministry',
     sa.Column('id', sa.Integer(), autoincrement=False, nullable=False),
     sa.Column('name_he', sa.Text(), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_ministry'))
     )
     op.create_table('parl_query',
@@ -196,6 +208,7 @@ def upgrade() -> None:
     sa.Column('submitted_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('reply_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('reply_planned_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_parl_query'))
     )
     op.create_index(op.f('ix_parl_query_person_id'), 'parl_query', ['person_id'], unique=False)
@@ -207,6 +220,7 @@ def upgrade() -> None:
     sa.Column('gender_desc_he', sa.Text(), nullable=True),
     sa.Column('is_current', sa.Boolean(), nullable=True),
     sa.Column('last_updated', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_person'))
     )
     op.create_table('person_position',
@@ -225,6 +239,7 @@ def upgrade() -> None:
     sa.Column('start_date', sa.DateTime(timezone=True), nullable=True),
     sa.Column('finish_date', sa.DateTime(timezone=True), nullable=True),
     sa.Column('is_current', sa.Boolean(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_person_position'))
     )
     op.create_index(op.f('ix_person_position_committee_id'), 'person_position', ['committee_id'], unique=False)
@@ -237,6 +252,7 @@ def upgrade() -> None:
     sa.Column('start_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('finish_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('is_special', sa.Boolean(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_plenum_session'))
     )
     op.create_table('plenum_session_item',
@@ -248,6 +264,7 @@ def upgrade() -> None:
     sa.Column('status_id', sa.Integer(), nullable=True),
     sa.Column('name_he', sa.Text(), nullable=True),
     sa.Column('is_discussion', sa.Integer(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_plenum_session_item'))
     )
     op.create_index(op.f('ix_plenum_session_item_item_type_id_item_id'), 'plenum_session_item', ['item_type_id', 'item_id'], unique=False)
@@ -265,6 +282,7 @@ def upgrade() -> None:
     sa.Column('is_no_confidence', sa.Boolean(), nullable=True),
     sa.Column('for_option_desc_he', sa.Text(), nullable=True),
     sa.Column('against_option_desc_he', sa.Text(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_plenum_vote'))
     )
     op.create_index(op.f('ix_plenum_vote_item_id'), 'plenum_vote', ['item_id'], unique=False)
@@ -274,6 +292,7 @@ def upgrade() -> None:
     sa.Column('vote_id', sa.Integer(), nullable=True),
     sa.Column('person_id', sa.Integer(), nullable=True),
     sa.Column('result_code', sa.SmallInteger(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_plenum_vote_result'))
     )
     op.create_index(op.f('ix_plenum_vote_result_person_id_vote_id'), 'plenum_vote_result', ['person_id', 'vote_id'], unique=False)
@@ -282,6 +301,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), autoincrement=False, nullable=False),
     sa.Column('desc_he', sa.Text(), nullable=True),
     sa.Column('gender_id', sa.Integer(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_position'))
     )
     op.create_table('quarantine',
@@ -292,19 +312,13 @@ def upgrade() -> None:
     sa.Column('quarantined_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('entity', 'knesset_id', name=op.f('pk_quarantine'))
     )
-    op.create_table('record_hash',
-    sa.Column('entity', sa.String(length=64), nullable=False),
-    sa.Column('knesset_id', sa.Integer(), nullable=False),
-    sa.Column('content_hash', sa.String(length=64), nullable=False),
-    sa.Column('fetched_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.PrimaryKeyConstraint('entity', 'knesset_id', name=op.f('pk_record_hash'))
-    )
     op.create_table('status',
     sa.Column('id', sa.Integer(), autoincrement=False, nullable=False),
     sa.Column('desc_he', sa.Text(), nullable=True),
     sa.Column('type_id', sa.Integer(), nullable=True),
     sa.Column('type_desc_he', sa.Text(), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=True),
+    sa.Column('content_hash', sa.BigInteger(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_status'))
     )
     op.create_table('sync_run',
@@ -346,7 +360,6 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_sync_run_entity_started_at'), table_name='sync_run')
     op.drop_table('sync_run')
     op.drop_table('status')
-    op.drop_table('record_hash')
     op.drop_table('quarantine')
     op.drop_table('position')
     op.drop_index(op.f('ix_plenum_vote_result_vote_id'), table_name='plenum_vote_result')

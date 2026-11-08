@@ -11,7 +11,17 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, Column, DateTime, Index, Integer, SmallInteger, Table, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    Index,
+    Integer,
+    SmallInteger,
+    Table,
+    Text,
+)
 from sqlalchemy.types import TypeEngine
 
 from .models import metadata
@@ -133,6 +143,8 @@ class EntitySpec:
     def __post_init__(self) -> None:
         cols = [Column("id", Integer, primary_key=True, autoincrement=False)]
         cols += [Column(n, c.type, index=c.index) for n, c in self.columns.items()]
+        # Hash of the source record (sync.content_hash); unchanged records stop there.
+        cols.append(Column("content_hash", BigInteger, nullable=False))
         idx = [Index(None, *names) for names in self.indexes]
         self.table = Table(self.table_name, metadata, *cols, *idx)
 

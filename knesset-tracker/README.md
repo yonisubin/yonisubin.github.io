@@ -24,7 +24,7 @@ detect every change, and let people follow a bill, an MK or a committee.
 - **Bill history is mostly recoverable.** Plenum and committee agenda items carry the bill's
   status at each dated session, so past timelines can be rebuilt, not only future ones.
 - **Raw payloads cannot be kept.** Everything as JSONB is ~1.7 GB, more than Neon's free 1 GB. The
-  pipeline stores a content hash per record instead of `raw_*` tables.
+  pipeline stores a content hash per record (an 8-byte column on each domain table) instead of `raw_*` tables.
 - **Scope is Knesset 23 and later** (one setting, `MIN_KNESSET`), plus all reference data.
 
 ## Sync design (backend/app/sync.py)
