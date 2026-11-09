@@ -44,10 +44,26 @@ def main() -> None:
     data["KNS_BillInitiator"] = fetch("KNS_BillInitiator", any_id)
     data["KNS_PlmSessionItem"] = fetch(
         "KNS_PlmSessionItem", " or ".join(f"ItemID eq {i}" for i in ids))
+    data["KNS_CmtSessionItem"] = fetch(
+        "KNS_CmtSessionItem", " or ".join(f"ItemID eq {i}" for i in ids))
     data["KNS_PlenumVote"] = fetch("KNS_PlenumVote", "ItemID eq 2196528")
-    data["KNS_CommitteeSession"] = fetch("KNS_CommitteeSession", "KnessetNum eq 25",
-                                         orderby="Id desc", top=10)
-    people = sorted({r["PersonID"] for r in data["KNS_BillInitiator"]})
+    data["KNS_PlenumVoteResult"] = [r for v in data["KNS_PlenumVote"]
+                                    for r in fetch("KNS_PlenumVoteResult", f"VoteID eq {v['Id']}")]
+
+    def by_ids(entity: str, ids_: set[int]) -> list:
+        ids_l = sorted(ids_)
+        return [r for i in range(0, len(ids_l), 15) for r in fetch(
+            entity, " or ".join(f"Id eq {x}" for x in ids_l[i:i + 15]))]
+
+    # the sessions those agenda items belong to, so the timeline has dates
+    data["KNS_PlenumSession"] = by_ids(
+        "KNS_PlenumSession", {r["PlenumSessionID"] for r in data["KNS_PlmSessionItem"]})
+    latest = fetch("KNS_CommitteeSession", "KnessetNum eq 25", orderby="Id desc", top=10)
+    referenced = by_ids("KNS_CommitteeSession",
+                        {r["CommitteeSessionID"] for r in data["KNS_CmtSessionItem"]})
+    data["KNS_CommitteeSession"] = list({r["Id"]: r for r in latest + referenced}.values())
+    people = sorted({r["PersonID"] for r in data["KNS_BillInitiator"]} |
+                    {r["MkId"] for r in data["KNS_PlenumVoteResult"]})
     # the server rejects filters with more than 100 nodes, so ask in chunks
     data["KNS_Person"] = [r for i in range(0, len(people), 15) for r in fetch(
         "KNS_Person", " or ".join(f"Id eq {p}" for p in people[i:i + 15]))]

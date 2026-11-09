@@ -1,0 +1,142 @@
+[
+ {
+  "Id": 2198476,
+  "Number": 16,
+  "KnessetNum": 25,
+  "Name": "ישיבת מליאה בתאריך 19/12/2022 בשעה 10:00",
+  "StartDate": "2022-12-19T10:00:00+02:00",
+  "FinishDate": "2022-12-19T13:50:00+02:00",
+  "IsSpecialMeeting": false,
+  "LastUpdatedDate": "2022-12-19T08:44:47.013+02:00"
+ },
+ {
+  "Id": 2203485,
+  "Number": 61,
+  "KnessetNum": 25,
+  "Name": "ישיבת מליאה בתאריך 29/03/2023 בשעה 11:00",
+  "StartDate": "2023-03-29T11:00:00+03:00",
+  "FinishDate": "2023-03-29T13:10:00+03:00",
+  "IsSpecialMeeting": false,
+  "LastUpdatedDate": "2023-03-29T10:20:57.129+03:00"
+ },
+ {
+  "Id": 2206463,
+  "Number": 79,
+  "KnessetNum": 25,
+  "Name": "ישיבת מליאה בתאריך 12/06/2023 בשעה 16:00",
+  "StartDate": "2023-06-12T16:00:00+03:00",
+  "FinishDate": "2023-06-13T01:20:00+03:00",
+  "IsSpecialMeeting": false,
+  "LastUpdatedDate": "2023-06-12T13:53:26.55+03:00"
+ },
+ {
+  "Id": 2207083,
+  "Number": 87,
+  "KnessetNum": 25,
+  "Name": "ישיבת מליאה בתאריך 28/06/2023 בשעה 11:00",
+  "StartDate": "2023-06-28T11:00:00+03:00",
+  "FinishDate": "2023-06-28T17:10:00+03:00",
+  "IsSpecialMeeting": false,
+  "LastUpdatedDate": "2023-06-28T08:59:43.609+03:00"
+ },
+ {
+  "Id": 2219140,
+  "Number": 185,
+  "KnessetNum": 25,
+  "Name": "ישיבת מליאה בתאריך 26/06/2024 בשעה 11:00",
+  "StartDate": "2024-06-26T11:00:00+03:00",
+  "FinishDate": "2024-06-26T18:40:00+03:00",
+  "IsSpecialMeeting": false,
+  "LastUpdatedDate": "2024-06-26T18:37:56.66+03:00"
+ },
+ {
+  "Id": 2219942,
+  "Number": 191,
+  "KnessetNum": 25,
+  "Name": "ישיבת מליאה בתאריך 10/07/2024 בשעה 11:00",
+  "StartDate": "2024-07-10T11:00:00+03:00",
+  "FinishDate": "2024-07-10T19:50:00+03:00",
+  "IsSpecialMeeting": false,
+  "LastUpdatedDate": "2024-07-10T19:50:10.043+03:00"
+ },
+ {
+  "Id": 2230012,
+  "Number": 275,
+  "KnessetNum": 25,
+  "Name": "ישיבת מליאה בתאריך 25/03/2025 בשעה 16:00",
+  "StartDate": "2025-03-25T16:00:00+02:00",
+  "FinishDate": "2025-03-25T16:40:00+02:00",
+  "IsSpecialMeeting": false,
+  "LastUpdatedDate": "2025-03-25T16:37:27.783+02:00"
+ },
+ {
+  "Id": 2230339,
+  "Number": 277,
+  "KnessetNum": 25,
+  "Name": "ישיבת מליאה בתאריך 31/03/2025 בשעה 09:00",
+  "StartDate": "2025-03-31T09:00:00+03:00",
+  "FinishDate": "2025-04-01T01:20:00+03:00",
+  "IsSpecialMeeting": false,
+  "LastUpdatedDate": "2025-04-01T07:23:13.273+03:00"
+ },
+ {
+  "Id": 2230663,
+  "Number": 280,
+  "KnessetNum": 25,
+  "Name": "ישיבת מליאה בתאריך 05/05/2025 בשעה 16:00",
+  "StartDate": "2025-05-05T16:00:00+03:00",
+  "FinishDate": "2025-05-05T22:40:00+03:00",
+  "IsSpecialMeeting": false,
+  "LastUpdatedDate": "2025-05-05T22:35:00.08+03:00"
+ },
+ {
+  "Id": 2232210,
+  "Number": 294,
+  "KnessetNum": 25,
+  "Name": "ישיבת מליאה בתאריך 09/06/2025 בשעה 16:00",
+  "StartDate": "2025-06-09T16:00:00+03:00",
+  "FinishDate": "2025-06-09T20:50:00+03:00",
+  "IsSpecialMeeting": false,
+  "LastUpdatedDate": "2025-06-09T20:45:33.573+03:00"
+ },
+ {
+  "Id": 2232212,
+  "Number": 296,
+  "KnessetNum": 25,
+  "Name": "ישיבת מליאה בתאריך 11/06/2025 בשעה 11:00",
+  "StartDate": "2025-06-11T11:00:00+03:00",
+  "FinishDate": "2025-06-12T04:20:00+03:00",
+  "IsSpecialMeeting": false,
+  "LastUpdatedDate": "2025-06-12T11:05:37.92+03:00"
+ },
+ {
+  "Id": 2233500,
+  "Number": 309,
+  "KnessetNum": 25,
+  "Name": "ישיבת מליאה בתאריך 16/07/2025 בשעה 11:00",
+  "StartDate": "2025-07-16T11:00:00+03:00",
+  "FinishDate": "2025-07-16T19:20:00+03:00",
+  "IsSpecialMeeting": false,
+  "LastUpdatedDate": "2025-07-16T19:20:55.143+03:00"
+ },
+ {
+  "Id": 2234645,
+  "Number": 322,
+  "KnessetNum": 25,
+  "Name": "ישיבת מליאה בתאריך 22/10/2025 בשעה 11:00",
+  "StartDate": "2025-10-22T11:00:00+03:00",
+  "FinishDate": "2025-10-22T17:01:10+03:00",
+  "IsSpecialMeeting": false,
+  "LastUpdatedDate": "2025-10-26T11:39:52.947+02:00"
+ },
+ {
+  "Id": 2238207,
+  "Number": 353,
+  "KnessetNum": 25,
+  "Name": "ישיבת מליאה בתאריך 06/01/2026 בשעה 16:00",
+  "StartDate": "2026-01-06T16:00:00+02:00",
+  "FinishDate": "2026-01-06T18:04:25+02:00",
+  "IsSpecialMeeting": false,
+  "LastUpdatedDate": "2026-01-07T09:29:31.547+02:00"
+ }
+]

@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import hmac
 import logging
+import os
 from dataclasses import asdict
 from html import escape
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Engine, select, text
 
+from .api import router as api_router
 from .config import Settings, get_settings
 from .db import get_engine
 from .entities import BY_NAME, ENTITIES
@@ -20,7 +25,10 @@ from .odata import ODataClient
 from .sync import reconcile_entity, run_sync
 
 logging.basicConfig(level=logging.INFO, format='{"level":"%(levelname)s","msg":"%(message)s"}')
-app = FastAPI(title="Knesset Tracker", version="0.1.0")
+app = FastAPI(title="Knesset Tracker", version="0.2.0",
+              description="Public read API over a mirror of the Knesset's open data.")
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.include_router(api_router)
 
 
 def engine_dep() -> Engine:
@@ -128,3 +136,30 @@ def admin_page(engine: Engine = Depends(engine_dep)) -> str:
 
 
 assert set(BY_NAME) == {e.odata for e in ENTITIES}
+
+# The built React app (frontend/dist), served from the same Wasmer app. Any path that
+# is not an API route or a static file gets index.html, so /he/bills/123 works on reload.
+# Locally the build sits in ../frontend/dist; the deploy copies it into backend/static.
+_here = Path(__file__).resolve()
+FRONTEND = Path(os.environ.get("FRONTEND_DIST") or next(
+    (p for p in (_here.parents[1] / "static", _here.parents[2] / "frontend" / "dist")
+     if (p / "index.html").exists()), _here.parents[1] / "static"))
+if (FRONTEND / "index.html").exists():
+    class ImmutableAssets(StaticFiles):
+        # Vite puts a content hash in every asset file name, so they can be cached forever.
+        def file_response(self, *args: Any, **kwargs: Any) -> Any:
+            resp = super().file_response(*args, **kwargs)
+            resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            return resp
+
+    app.mount("/assets", ImmutableAssets(directory=FRONTEND / "assets"), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def spa(path: str) -> FileResponse:
+        if path.startswith(("api/", "internal/", "admin")):
+            raise HTTPException(status_code=404)
+        file = (FRONTEND / path).resolve()
+        if path and file.is_file() and FRONTEND.resolve() in file.parents:
+            return FileResponse(file)
+        return FileResponse(FRONTEND / "index.html",
+                            headers={"Cache-Control": "no-cache"})
