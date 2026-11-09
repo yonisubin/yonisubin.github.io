@@ -48,7 +48,8 @@ T = {name: spec.table for name, spec in BY_NAME.items()}
 CURSOR = "alerts_fanout"
 MAX_ATTEMPTS = 5
 STALE_AFTER = timedelta(minutes=10)
-KEYWORD_EVENTS = {"bill.new", "bill.stage_changed", "committee_session.scheduled", "query.new",
+KEYWORD_EVENTS = {"bill.new", "bill.stage_changed", "committee_session.scheduled",
+                  "committee_session_item.new", "query.new",
                   "query.answered", "law.new"}
 
 
@@ -91,6 +92,10 @@ def keyword_text(conn: Connection, ev: dict[str, Any]) -> str:
     et, eid = ev["event_type"], ev["entity_id"]
     if et not in KEYWORD_EVENTS:
         return ""
+    if et == "committee_session_item.new":  # an agenda item published after its session
+        item = conn.execute(select(T["KNS_CmtSessionItem"].c.name_he)
+                            .where(T["KNS_CmtSessionItem"].c.id == eid)).scalar()
+        return index_text(item)
     if et.startswith("committee_session."):
         items = T["KNS_CmtSessionItem"]
         names = conn.execute(select(items.c.name_he).where(items.c.session_id == eid)).scalars()
@@ -198,9 +203,10 @@ def _claim_email_batches(conn: Connection, frequencies: set[str], now: datetime
         # a batch that crashed keeps its id (same idempotency key on retry)
         bid = r["batch_id"] or new_ids.setdefault(r["user_id"], str(uuid.uuid4()))
         batches[bid].append(dict(r))
-        conn.execute(update(notification).where(notification.c.id == r["id"]).values(
-            status="sending", batch_id=bid, claimed_at=now,
-            attempts=notification.c.attempts + 1))
+    for bid, items in batches.items():  # one UPDATE per batch, not per notification
+        conn.execute(update(notification).where(notification.c.id.in_([i["id"] for i in items]))
+                     .values(status="sending", batch_id=bid, claimed_at=now,
+                             attempts=notification.c.attempts + 1))
     return batches
 
 

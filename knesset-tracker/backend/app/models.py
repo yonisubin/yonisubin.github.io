@@ -102,7 +102,6 @@ search_document = Table(
     Column("doc_type", String(16), primary_key=True),
     Column("doc_id", Integer, primary_key=True),
     Column("title_he", Text),
-    Column("title_en", Text),
     Column("title_norm", Text, nullable=False),
     Column("body_norm", Text, nullable=False, server_default=""),
     Column("knesset_num", Integer),

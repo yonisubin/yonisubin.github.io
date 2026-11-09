@@ -108,6 +108,12 @@ def make_emailer(s: Settings) -> Emailer:
         return SmtpEmailer(s)
     if s.email_backend == "resend":
         return ResendEmailer(s)
+    if s.email_backend == "" and s.public_base_url.startswith("https://"):
+        # A deployed site with no email backend would mark every alert "sent" and write
+        # every sign-in link to a log. Fail loudly instead.
+        raise EmailError("EMAIL_BACKEND is not set (resend, smtp, or console on purpose)")
+    if s.email_backend not in ("", "console"):
+        raise EmailError(f"unknown EMAIL_BACKEND {s.email_backend!r}")
     return _console
 
 

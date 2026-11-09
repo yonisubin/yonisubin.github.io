@@ -486,14 +486,19 @@ STALE_AFTER_MINUTES = 60
 
 def sync_status(conn: Connection, now: datetime) -> dict[str, Any]:
     """Public status: freshness per entity, from the sync's own logs."""
+    # only the regular sync counts: a successful nightly reconcile must not hide a table
+    # whose 30-minute sync keeps failing
     last_ok: dict[str, datetime] = dict(conn.execute(
         select(sync_run.c.entity, func.max(sync_run.c.finished_at))
-        .where(sync_run.c.error.is_(None), sync_run.c.finished_at.is_not(None))
+        .where(sync_run.c.kind == "incremental", sync_run.c.error.is_(None),
+               sync_run.c.finished_at.is_not(None))
         .group_by(sync_run.c.entity)).all())
-    last_err = {r["entity"]: r for r in conn.execute(
-        select(sync_run.c.entity, sync_run.c.started_at, sync_run.c.error)
-        .where(sync_run.c.error.is_not(None)).order_by(sync_run.c.id.desc()).limit(200)
-    ).mappings()}
+    last_err: dict[str, Any] = {}
+    for r in conn.execute(
+            select(sync_run.c.entity, sync_run.c.started_at, sync_run.c.error)
+            .where(sync_run.c.error.is_not(None)).order_by(sync_run.c.id.desc()).limit(200)
+    ).mappings():
+        last_err.setdefault(r["entity"], r)  # rows come newest first: keep the newest
     states = {r["entity"]: r for r in conn.execute(select(sync_state)).mappings()}
     entities: list[dict[str, Any]] = []
     for name, spec in BY_NAME.items():
@@ -507,8 +512,13 @@ def sync_status(conn: Connection, now: datetime) -> dict[str, Any]:
             # an error only counts if it is newer than the last success
             "last_error": err["error"] if err and (ok is None or err["started_at"] > ok) else None,
         })
-    oks = [v for v in last_ok.values() if v is not None]
-    newest = max(oks) if oks else None
-    healthy = newest is not None and (now - newest).total_seconds() < STALE_AFTER_MINUTES * 60
-    return {"healthy": healthy, "last_successful_sync": newest,
+    # Healthy only if *every* table that has ever started syncing succeeded recently: one
+    # stuck table must not hide behind the others. A table with nothing new still records a
+    # success on every run, so quiet tables don't raise false alarms.
+    limit = STALE_AFTER_MINUTES * 60
+    stale = sorted(name for name in states
+                   if last_ok.get(name) is None or (now - last_ok[name]).total_seconds() >= limit)
+    newest = max(last_ok.values(), default=None)
+    healthy = bool(states) and not stale
+    return {"healthy": healthy, "last_successful_sync": newest, "stale_tables": stale,
             "stale_after_minutes": STALE_AFTER_MINUTES, "checked_at": now, "entities": entities}

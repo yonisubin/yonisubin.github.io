@@ -44,7 +44,8 @@ from .models import (
 router = APIRouter(prefix="/api/v1", tags=["account"], dependencies=[Depends(require_csrf_header)])
 T = {name: spec.table for name, spec in BY_NAME.items()}
 EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,255}\.[^@\s]{2,}$")
-LINKS_PER_HOUR = 5
+LINKS_PER_HOUR = 5            # per address
+LINKS_PER_HOUR_TOTAL = 30     # across all addresses: one script can't drain the email quota
 
 
 def emailer_dep(settings: Settings = Depends(get_settings)) -> Emailer:
@@ -81,6 +82,11 @@ def request_link(body: LinkRequest, conn: Connection = Depends(tx_dep),
         login_token.c.created_at > datetime.now(UTC) - timedelta(hours=1))).scalar_one()
     if recent >= LINKS_PER_HOUR:
         raise HTTPException(429, "too many login links requested; try again later")
+    total = conn.execute(select(func.count()).select_from(login_token).where(
+        login_token.c.created_at > datetime.now(UTC) - timedelta(hours=1))).scalar_one()
+    if total >= LINKS_PER_HOUR_TOTAL:
+        raise HTTPException(429, "the site is sending too many sign-in links right now; "
+                                 "try again in an hour")
     token, token_hash = new_login_token()
     conn.execute(insert(login_token).values(
         token_hash=token_hash, email=email, locale=body.locale, next_path=safe_next(body.next),

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from app.api import conn_dep
 from app.config import Settings, get_settings
 from app.main import app, client_dep, engine_dep
 from tests.conftest import FakeOData, fixture_entities, load_day1, make_client
@@ -29,14 +30,19 @@ def test_sync_endpoint_runs_and_status_reports(engine, settings, monkeypatch):
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[engine_dep] = lambda: engine
     app.dependency_overrides[client_dep] = lambda: make_client(FakeOData(day1))
+
+    def conn():
+        with engine.connect() as c:
+            yield c
+
+    app.dependency_overrides[conn_dep] = conn
     try:
         c = TestClient(app)
         r = c.post("/internal/sync", headers={"X-Internal-Token": "secret"})
         assert r.status_code == 200, r.text
         assert all(run["pass_completed"] for run in r.json()["runs"])
         assert r.json()["alerts"]["notifications_created"] == 0  # no subscribers yet
-        status = c.get("/admin/sync-status").json()
-        assert all(s["high_water_mark"] for s in status)
-        assert c.get("/admin").status_code == 200
+        status = c.get("/api/v1/status").json()
+        assert all(e["data_up_to"] for e in status["entities"] if e["last_success"])
     finally:
         app.dependency_overrides.clear()

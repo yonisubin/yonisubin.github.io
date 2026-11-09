@@ -7,13 +7,12 @@ import logging
 import os
 from dataclasses import asdict
 from datetime import UTC, datetime
-from html import escape
 from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Engine, select, text
 
@@ -26,9 +25,9 @@ from .config import Settings, get_settings
 from .db import get_engine
 from .emailer import Emailer
 from .entities import BY_NAME, ENTITIES
-from .models import sync_run, sync_state
+from .models import sync_state
 from .odata import ODataClient
-from .ops import maybe_alert_operator, setup_logging, setup_sentry
+from .ops import maybe_alert_operator, prune, setup_logging, setup_sentry
 from .push import Pusher
 from .quality import run_checks
 from .read import sync_status as read_status
@@ -111,9 +110,10 @@ def health_sync(engine: Engine = Depends(engine_dep)) -> JSONResponse:
     catches the case the app can't report itself: the cron not firing at all."""
     with engine.connect() as conn:
         st = read_status(conn, datetime.now(UTC))
-    return JSONResponse({"healthy": st["healthy"], "last_successful_sync":
-                         st["last_successful_sync"].isoformat() if st["last_successful_sync"]
-                         else None}, status_code=200 if st["healthy"] else 503)
+    return JSONResponse({"healthy": st["healthy"], "stale_tables": st["stale_tables"],
+                         "last_successful_sync": st["last_successful_sync"].isoformat()
+                         if st["last_successful_sync"] else None},
+                        status_code=200 if st["healthy"] else 503)
 
 
 @app.post("/internal/sync", dependencies=[Depends(require_internal)], include_in_schema=False)
@@ -178,6 +178,7 @@ def internal_reconcile(engine: Engine = Depends(engine_dep),
         # the data-quality checks scan whole tables: nightly, not every 30 minutes
         with engine.begin() as conn:
             out.append({"data_quality": run_checks(conn)})
+            out.append({"pruned": prune(conn)})
     except Exception as e:  # noqa: BLE001
         logging.exception("reconcile failed")
         out.append({"error": f"{type(e).__name__}: {e}"})
@@ -185,48 +186,6 @@ def internal_reconcile(engine: Engine = Depends(engine_dep),
     finally:
         client.close()
     return JSONResponse(out, status_code=status)
-
-
-def _status_rows(engine: Engine) -> list[dict[str, Any]]:
-    with engine.connect() as conn:
-        states = {r["entity"]: dict(r) for r in conn.execute(select(sync_state)).mappings()}
-        last: dict[str, dict[str, Any]] = {}
-        for r in conn.execute(select(sync_run).order_by(sync_run.c.id.desc()).limit(500)
-                              ).mappings():
-            last.setdefault(r["entity"], dict(r))
-    rows = []
-    for spec in ENTITIES:
-        st, lr = states.get(spec.odata, {}), last.get(spec.odata, {})
-        rows.append({
-            "entity": spec.odata, "table": spec.table_name,
-            "high_water_mark": st.get("high_water_mark"),
-            "pass_in_progress": bool(st.get("pass_next_url")),
-            "last_pass_completed_at": st.get("last_pass_completed_at"),
-            "last_run_at": lr.get("started_at"), "last_run_fetched": lr.get("fetched"),
-            "last_run_changed": lr.get("changed"), "last_run_events": lr.get("events"),
-            "last_error": lr.get("error"),
-        })
-    return rows
-
-
-@app.get("/admin/sync-status", include_in_schema=False)
-def sync_status(engine: Engine = Depends(engine_dep)) -> list[dict[str, Any]]:
-    return _status_rows(engine)
-
-
-@app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
-def admin_page(engine: Engine = Depends(engine_dep)) -> str:
-    rows = _status_rows(engine)
-    cols = list(rows[0]) if rows else []
-    body = "".join(
-        "<tr>" + "".join(f"<td>{escape(str(r[c]) if r[c] is not None else '–')}</td>"
-                         for c in cols) + "</tr>" for r in rows)
-    head = "".join(f"<th>{escape(c)}</th>" for c in cols)
-    return (
-        "<!doctype html><meta charset=utf-8><title>Sync status</title>"
-        "<style>body{font:14px system-ui;margin:1rem}table{border-collapse:collapse}"
-        "td,th{border:1px solid #ccc;padding:.25rem .5rem;text-align:start}</style>"
-        f"<h1>Sync status</h1><table><tr>{head}</tr>{body}</table>")
 
 
 assert set(BY_NAME) == {e.odata for e in ENTITIES}
@@ -250,7 +209,7 @@ if (FRONTEND / "index.html").exists():
 
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str) -> FileResponse:
-        if path.startswith(("api/", "internal/", "admin")):
+        if path.startswith(("api/", "internal/")):
             raise HTTPException(status_code=404)
         file = (FRONTEND / path).resolve()
         if path and file.is_file() and FRONTEND.resolve() in file.parents:

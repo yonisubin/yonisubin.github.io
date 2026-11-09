@@ -113,4 +113,4 @@ def test_operator_is_emailed_once_when_stale(engine, settings, monkeypatch):
     assert maybe_alert_operator(engine, mail, settings) is True
     assert maybe_alert_operator(engine, mail, settings) is False  # not again for 6 hours
     assert [m.to for m in mail.outbox] == ["ops@example.com"]
-    assert "No sync has succeeded since" in mail.outbox[0].text
+    assert "These tables have not synced in the last 60 minutes" in mail.outbox[0].text

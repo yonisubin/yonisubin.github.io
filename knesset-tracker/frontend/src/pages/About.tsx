@@ -16,6 +16,7 @@ export function StatusPage() {
             <p className={s.healthy ? "status-ok" : "status-bad"} role="status">
               <strong>{s.healthy ? `✓ ${t(lang, "statusOk")}` : `⚠ ${t(lang, "statusStale")}`}</strong>
               {s.last_successful_sync && <span className="muted"> {t(lang, "lastSync")}: <DateText iso={s.last_successful_sync} withTime /></span>}
+              {s.stale_tables.length > 0 && <span className="small"><br />{t(lang, "staleTables")}: <span dir="ltr">{s.stale_tables.join(", ")}</span></span>}
             </p>
             <div className="table-wrap">
               <table className="data">

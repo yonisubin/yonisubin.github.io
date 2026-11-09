@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import Connection, select
@@ -25,8 +26,8 @@ HE_MONTHS = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "י
 NOTIFY = {
     "bill.new", "bill.stage_changed", "bill_document.new", "bill_initiator.new", "vote.recorded",
     "committee_session.scheduled", "committee_session.rescheduled",
-    "committee_session.status_changed", "mk.faction_changed", "query.new", "query.answered",
-    "law.new",
+    "committee_session.status_changed", "committee_session_item.new", "mk.faction_changed",
+    "query.new", "query.answered", "law.new",
 }
 
 
@@ -117,6 +118,15 @@ def describe(conn: Connection, ev: dict[str, Any]) -> Described:
                          f"Plenum vote on {fmt_date(v.get('voted_at'), 'en')}: {title}",
                          f"/bills/{v.get('item_id')}")
 
+    if et == "committee_session_item.new":
+        item = _row(conn, "KNS_CmtSessionItem", eid)
+        s = _row(conn, "KNS_CommitteeSession", item.get("session_id") or 0)
+        cname = _name(conn, "KNS_Committee", s.get("committee_id"))
+        name = item.get("name_he") or ""
+        return Described(f"{cname}, ישיבה ב־{fmt_date(s.get('start_at'), 'he', True)}: {name}",
+                         f"{cname}, session on {fmt_date(s.get('start_at'), 'en', True)}: {name}",
+                         f"/committees/{s.get('committee_id')}")
+
     if et.startswith("committee_session."):
         s = _row(conn, "KNS_CommitteeSession", eid)
         cname = _name(conn, "KNS_Committee", s.get("committee_id"))
@@ -157,7 +167,7 @@ def describe(conn: Connection, ev: dict[str, Any]) -> Described:
 
     if et == "law.new":
         name = _name(conn, "KNS_IsraelLaw", eid)
-        return Described(f"חוק חדש: {name}", f"New law: {name}", "/search?q=" + name)
+        return Described(f"חוק חדש: {name}", f"New law: {name}", "/search?q=" + quote(name))
 
     return Described(et, et, "/")
 

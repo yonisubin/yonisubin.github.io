@@ -143,7 +143,7 @@ export async function send<T>(method: "POST" | "PATCH" | "DELETE", path: string,
 
 export interface DataIssue { rule: string; he: string; en: string; en_translated: boolean; details: unknown; since: string }
 export interface StatusData {
-  healthy: boolean; last_successful_sync: string | null; stale_after_minutes: number; checked_at: string;
+  healthy: boolean; last_successful_sync: string | null; stale_tables: string[]; stale_after_minutes: number; checked_at: string;
   entities: { entity: string; table: string; last_success: string | null; data_up_to: string | null;
     last_reconciled: string | null; last_error: string | null }[];
 }

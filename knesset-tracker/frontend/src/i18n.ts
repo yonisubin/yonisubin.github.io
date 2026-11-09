@@ -171,7 +171,8 @@ const ui = {
   // phase 5
   statusTitle: { he: "מצב המערכת", en: "Status" },
   statusOk: { he: "המידע מעודכן", en: "Data is up to date" },
-  statusStale: { he: "הסנכרון לא הצליח בשעה האחרונה", en: "No successful sync in the last hour" },
+  statusStale: { he: "חלק מהטבלאות לא סונכרנו בשעה האחרונה", en: "Some tables haven't synced in the last hour" },
+  staleTables: { he: "טבלאות שלא סונכרנו", en: "Not synced" },
   statusIntro: {
     he: "האתר מסנכרן את המידע מהכנסת כל 30 דקות. לכל טבלה: מתי הסתיים בהצלחה הסנכרון האחרון, ועד מתי המידע עדכני.",
     en: "The site copies the Knesset's data every 30 minutes. For each table: when its last sync succeeded, and how recent its data is.",

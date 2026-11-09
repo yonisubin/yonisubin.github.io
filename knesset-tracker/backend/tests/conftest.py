@@ -127,6 +127,7 @@ def settings() -> Settings:
     return Settings(database_url=TEST_DB, odata_base_url=BASE, internal_token="secret",
                     time_budget_seconds=60, min_request_interval=0,
                     secret_key="test-secret", public_base_url="https://tracker.test",
+                    email_backend="console",
                     cookie_secure=False)
 
 

@@ -246,13 +246,24 @@ def sync_entity(engine: Engine, client: ODataClient, spec: EntitySpec, settings:
 
 def run_sync(engine: Engine, client: ODataClient, settings: Settings,
              entities: list[EntitySpec] | None = None) -> list[EntityRun]:
-    """Run every entity until the time budget is used. Stops on the first error."""
+    """Run every entity until the time budget is used. A failing entity doesn't stop the
+    others (it has written nothing: see process_page); the first error is re-raised at the
+    end, after every entity had its turn, so the run still reports failure."""
     deadline = time.monotonic() + settings.time_budget_seconds
-    runs = []
+    runs: list[EntityRun] = []
+    first_error: Exception | None = None
     for spec in entities or ENTITIES:
         if time.monotonic() >= deadline:
             break
-        runs.append(sync_entity(engine, client, spec, settings, deadline))
+        try:
+            runs.append(sync_entity(engine, client, spec, settings, deadline))
+        except Exception as e:  # noqa: BLE001 - recorded in sync_run by sync_entity
+            log.warning("sync of %s failed: %s", spec.odata, e)
+            runs.append(EntityRun(entity=spec.odata, kind="incremental",
+                                  error=f"{type(e).__name__}: {e}"[:2000]))
+            first_error = first_error or e
+    if first_error:
+        raise first_error
     return runs
 
 

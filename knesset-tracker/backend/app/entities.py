@@ -133,6 +133,12 @@ def query_events(before: Row | None, after: Row) -> list[str]:
     return ["query.updated"]
 
 
+def agenda_item_events(before: Row | None, after: Row) -> list[str]:
+    # Only new items: committees often publish a session first and its agenda later, so
+    # keyword follows are matched against each item when it appears (see alerts.py).
+    return ["committee_session_item.new"] if before is None else []
+
+
 def vote_events(before: Row | None, after: Row) -> list[str]:
     return ["vote.recorded"] if before is None else ["vote.updated"]
 
@@ -268,7 +274,7 @@ ENTITIES: list[EntitySpec] = [
         "session_id": I("CommitteeSessionID", index=True), "item_id": I("ItemID"),
         "item_type_id": I("ItemTypeID"), "ordinal": I("Ordinal"), "status_id": I("StatusID"),
         "name_he": T("Name"),
-    }, scope=term_scope("KNS_CommitteeSession/KnessetNum"),
+    }, scope=term_scope("KNS_CommitteeSession/KnessetNum"), events=agenda_item_events,
        indexes=(("item_type_id", "item_id"),)),
     EntitySpec("KNS_PlenumSession", "plenum_session", {
         "knesset_num": I("KnessetNum"), "number": I("Number"), "name_he": T("Name"),

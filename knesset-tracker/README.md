@@ -83,7 +83,7 @@ stays fast and keeps working when the Knesset API is slow or down.
 | Database and search | PostgreSQL on Neon, `pg_trgm` trigram indexes |
 | Frontend | React, Vite, TypeScript, no UI library (70 KB of gzipped JS); Frank Ruhl Libre and IBM Plex Sans Hebrew, self-hosted. Design rationale: [`docs/design.md`](docs/design.md) |
 | Email and push | Resend (idempotent sends); Web Push with VAPID, signed in pure Python |
-| CI | GitHub Actions: lint, types, migrations check, 55 backend tests, unit tests, Playwright e2e with Mailpit, Lighthouse gate |
+| CI | GitHub Actions: lint, types, migrations check, 63 backend tests, unit tests, Playwright e2e with Mailpit, Lighthouse gate |
 
 ## Measured numbers
 
@@ -305,10 +305,16 @@ this data"), and `/en/data-quality` lists every rule with counts and examples.
 
 - **Status page** (`/en/status`): the last successful sync and the source freshness for each
   table, from the sync's own logs.
-- **Two layers of alerting.** After each sync, if nothing has succeeded for an hour, the app
-  emails `OPS_EMAIL`, at most every 6 hours. `GET /health/sync` returns 503 when the mirror is
-  stale. Point a free uptime monitor at it, for the case the app can't report itself: the cron
+- **Two layers of alerting.** After each sync, if *any* table hasn't synced successfully for an
+  hour, the app emails `OPS_EMAIL` with the stale tables, at most every 6 hours. `GET
+  /health/sync` returns 503 under the same rule. A failing table never stops the others from
+  syncing, but it is reported. Point a free uptime monitor at it, for the case the app can't report itself: the cron
   not firing at all.
+- **Retention:** the nightly job deletes sync-run logs older than 90 days and expired sign-in
+  tokens, so logs don't eat the free tier.
+- **Email safety:** an https deployment with no `EMAIL_BACKEND` refuses to start sending, instead
+  of silently writing alerts and sign-in links to a log. Sign-in emails are capped per address
+  (5 an hour) and site-wide (30 an hour), so a script can't drain the daily email quota.
 - **Logs and errors:** structured JSON logs. Sentry is optional: set `SENTRY_DSN` and install
   `[sentry]`, which is pure Python.
 - **Backups:** only the account tables need them, since everything else can be rebuilt from the
@@ -337,7 +343,7 @@ python -m scripts.backfill                 # resumable; Ctrl-C and re-run any ti
 python -m scripts.backfill KNS_Bill        # or just some entities
 python -m scripts.rebuild_search           # once, after migration 0002 on an existing mirror
 INTERNAL_TOKEN=dev uvicorn app.main:app    # then: curl -XPOST -H 'X-Internal-Token: dev' :8000/internal/sync
-open http://localhost:8000/admin           # sync status per entity
+open http://localhost:8000/en/status       # sync status per table (after npm run build)
 TEST_DATABASE_URL=postgresql+psycopg://postgres@localhost/knesset_test pytest
 
 cd ../frontend && npm ci
@@ -389,7 +395,7 @@ backend/app/       sync.py, entities.py (registry), search.py, hebrew.py, alerts
                    account.py, auth.py, quality.py, read.py, api.py, main.py
 backend/scripts/   backfill, record_fixtures, seed_fixtures, inject_change, rebuild_search,
                    export_search_corpus, vapid_keys
-backend/tests/     55 tests: units, sync on recorded fixtures, alerts with fault injection,
+backend/tests/     63 tests: units, sync on recorded fixtures, alerts with fault injection,
                    accounts, search relevance on the real corpus, data quality
 frontend/          React app, Playwright e2e (incl. email via Mailpit), Lighthouse gate
 loadtest/k6.js     page-speed targets against the deployed site

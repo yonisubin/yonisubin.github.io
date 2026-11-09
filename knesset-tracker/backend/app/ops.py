@@ -13,15 +13,15 @@ import json
 import logging
 import os
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Engine, select
+from sqlalchemy import Connection, Engine, delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from .config import Settings
 from .emailer import Email, Emailer
-from .models import pipeline_cursor
+from .models import login_token, pipeline_cursor, sync_run
 from .read import sync_status
 
 ALERT_EVERY_SECONDS = 6 * 3600
@@ -60,6 +60,20 @@ def setup_sentry() -> bool:
     return True
 
 
+SYNC_RUN_KEEP_DAYS = 90
+
+
+def prune(conn: Connection, now: datetime | None = None) -> dict[str, int]:
+    """Delete logs that would otherwise grow forever: sync runs older than 90 days
+    (~1,000 rows a day) and sign-in tokens that expired more than a day ago. Nightly."""
+    now = now or datetime.now(UTC)
+    runs = conn.execute(delete(sync_run).where(
+        sync_run.c.started_at < now - timedelta(days=SYNC_RUN_KEEP_DAYS))).rowcount
+    tokens = conn.execute(delete(login_token).where(
+        login_token.c.expires_at < now - timedelta(days=1))).rowcount
+    return {"sync_runs": runs, "login_tokens": tokens}
+
+
 def maybe_alert_operator(engine: Engine, emailer: Emailer, settings: Settings,
                          now: datetime | None = None) -> bool:
     ops_email = os.environ.get("OPS_EMAIL")
@@ -78,7 +92,9 @@ def maybe_alert_operator(engine: Engine, emailer: Emailer, settings: Settings,
         conn.execute(stmt.on_conflict_do_update(index_elements=["name"],
                                                 set_={"value": stmt.excluded.value}))
     errors = [f"{e['entity']}: {e['last_error']}" for e in st["entities"] if e["last_error"]]
-    body = (f"No sync has succeeded since {st['last_successful_sync']}.\n\n"
+    body = (f"These tables have not synced in the last {st['stale_after_minutes']} minutes: "
+            f"{', '.join(st['stale_tables']) or 'all'}.\n"
+            f"Newest successful sync of any table: {st['last_successful_sync']}.\n\n"
             + ("Latest errors:\n" + "\n".join(errors[:20]) if errors else "No errors recorded.")
             + f"\n\nStatus: {settings.public_base_url.rstrip('/')}/en/status")
     emailer.send(Email(to=ops_email, subject="Knesset Tracker: sync is stale", text=body,

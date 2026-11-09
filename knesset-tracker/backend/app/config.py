@@ -34,8 +34,9 @@ class Settings:
     secret_key: str = field(default_factory=lambda: _env("SECRET_KEY", ""))
     public_base_url: str = field(
         default_factory=lambda: _env("PUBLIC_BASE_URL", "http://localhost:8000"))
-    # console (log only) | smtp (Mailpit locally, Brevo) | resend (HTTP API, idempotent)
-    email_backend: str = field(default_factory=lambda: _env("EMAIL_BACKEND", "console"))
+    # console (log only) | smtp (Mailpit locally, Brevo) | resend (HTTP API, idempotent).
+    # Unset means console for local http only; on an https site it is a configuration error.
+    email_backend: str = field(default_factory=lambda: _env("EMAIL_BACKEND", ""))
     email_from: str = field(
         default_factory=lambda: _env("EMAIL_FROM", "Knesset Tracker <alerts@localhost>"))
     smtp_host: str = field(default_factory=lambda: _env("SMTP_HOST", "localhost"))
