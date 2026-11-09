@@ -48,7 +48,7 @@ export function DateText({ iso, withTime = false, hebrew = false }: { iso: strin
   return (
     <time dateTime={iso}>
       {formatDate(iso, lang, withTime)}
-      {hebrew && <span className="hebrew-date"> · {formatHebrewDate(iso, lang)}</span>}
+      {hebrew && <span className="hebrew-date"><bdi>{formatHebrewDate(iso, lang)}</bdi></span>}
     </time>
   );
 }
@@ -122,7 +122,7 @@ export function DataNotices({ issues }: { issues: { he: string; en: string; en_t
     <aside className="notice data-notice" aria-label={t(lang, "noticeTitle")}>
       <strong>{t(lang, "noticeTitle")}:</strong>
       <ul>{issues.map((i) => <li key={i.rule}><Tr value={i} /></li>)}</ul>
-      <L to="/data-quality" className="small">{t(lang, "dataQuality")} ›</L>
+      <L to="/data-quality" className="small">{t(lang, "aboutDataQuality")}</L>
     </aside>
   );
 }

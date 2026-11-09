@@ -16,6 +16,12 @@ import { LoginPage } from "./pages/Login";
 import { SearchPage } from "./pages/Search";
 import { VerifyPage } from "./pages/Verify";
 import { ApiPage, DataQualityPage, StatusPage } from "./pages/About";
+// Self-hosted fonts (docs/design.md). unicode-range in these files means a browser only
+// downloads the Hebrew and Latin subsets a page actually uses.
+import "@fontsource/frank-ruhl-libre/500.css";
+import "@fontsource/frank-ruhl-libre/700.css";
+import "@fontsource/ibm-plex-sans-hebrew/400.css";
+import "@fontsource/ibm-plex-sans-hebrew/600.css";
 import "./styles.css";
 
 function LangGuard() {

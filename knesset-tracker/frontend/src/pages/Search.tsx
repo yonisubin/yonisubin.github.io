@@ -91,7 +91,7 @@ function Hit({ h, meta }: { h: SearchHit; meta: Meta | null }) {
   const stage = meta?.stages.find((s) => s.key === h.stage);
   return (
     <li className="list-item">
-      <span className="kind">{t(lang, `kind_${h.type}` as Key)}</span>{" "}
+      <span className={`kind kind-${h.type}`}>{t(lang, `kind_${h.type}` as Key)}</span>{" "}
       {page ? <L to={page} className="item-title"><He text={h.title} /></L>
             : <a href={h.source} className="item-title" target="_blank" rel="noopener noreferrer"><He text={h.title} /></a>}
       <div className="item-meta">

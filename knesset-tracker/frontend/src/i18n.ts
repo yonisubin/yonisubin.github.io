@@ -81,7 +81,7 @@ const ui = {
   submitted: { he: "הוגשה", en: "Submitted" },
   answered: { he: "נענתה", en: "Answered" },
   none: { he: "אין רשומות.", en: "No records." },
-  showingFirst: { he: "מוצגות {n} האחרונות מתוך {t}. לכל ההצעות ›", en: "Showing the latest {n} of {t}. See all ›" },
+  showingFirst: { he: "מוצגות {n} האחרונות מתוך {t}. להצגת כל ההצעות", en: "Showing the latest {n} of {t}. Show all of them" },
   present: { he: "היום", en: "present" },
   mkListNote: {
     he: "הרשימה ממוינת לפי שם משפחה. לכל חבר כנסת אותו מבנה דף ואותם שדות.",
@@ -101,7 +101,7 @@ const ui = {
     en: "No changes detected yet since tracking started.",
   },
   recentlyUpdated: { he: "הצעות חוק שעודכנו לאחרונה", en: "Recently updated bills" },
-  allBills: { he: "לכל הצעות החוק", en: "All bills" },
+  allBills: { he: "כל הצעות החוק", en: "Browse all bills" },
   newBill: { he: "הצעת חוק חדשה", en: "New bill" },
   // search
   search: { he: "חיפוש", en: "Search" },
@@ -125,6 +125,9 @@ const ui = {
   signIn: { he: "כניסה", en: "Sign in" },
   account: { he: "החשבון שלי", en: "My account" },
   follow: { he: "מעקב", en: "Follow" },
+  follow_bill: { he: "מעקב אחר ההצעה", en: "Follow this bill" },
+  follow_mk: { he: "מעקב אחר חבר/ת הכנסת", en: "Follow this MK" },
+  follow_committee: { he: "מעקב אחר הוועדה", en: "Follow this committee" },
   following: { he: "במעקב ✓", en: "Following ✓" },
   followHint: { he: "קבלו התראה כשמשהו משתנה", en: "Get an alert when something changes" },
   followSearch: { he: "מעקב אחר הביטוי „{q}”", en: "Follow the keyword “{q}”" },
@@ -186,6 +189,16 @@ const ui = {
   examples: { he: "דוגמאות", en: "Examples" },
   noticeTitle: { he: "הערה על המידע", en: "About this data" },
   apiTitle: { he: "ממשק API ציבורי", en: "Public API" },
+  footerNav: { he: "על האתר", en: "About the site" },
+  pageAbbr: { he: "עמ׳", en: "p." },
+  aboutDataQuality: { he: "איך אנחנו בודקים את המידע", en: "How we check the data" },
+  heroTitle: { he: "מה קורה בכנסת, צעד אחר צעד", en: "What the Knesset is doing, step by step" },
+  heroLead: {
+    he: "חפשו הצעת חוק, חבר/ת כנסת או ועדה, ראו בדיוק באיזה שלב הם נמצאים, וקבלו התראה כשמשהו זז.",
+    en: "Look up a bill, an MK or a committee, see exactly where it stands, and get an alert when it moves.",
+  },
+  latestMovement: { he: "התזוזה האחרונה בכנסת", en: "Latest movement in the Knesset" },
+  recentlyUpdatedOne: { he: "הצעת החוק שעודכנה לאחרונה", en: "Most recently updated bill" },
 } satisfies Record<string, Record<Lang, string>>;
 
 export type Key = keyof typeof ui;

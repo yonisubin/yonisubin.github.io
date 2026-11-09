@@ -44,7 +44,7 @@ export function AccountPage() {
           <ul className="list compact">
             {session.subs.map((s) => (
               <li key={s.id} className="follow-row">
-                <span className="kind">{t(lang, `kindLabel_${s.target_type}` as Key)}</span>{" "}
+                <span className={`kind kind-${s.target_type}`}>{t(lang, `kindLabel_${s.target_type}` as Key)}</span>{" "}
                 {s.target_type === "keyword" ? <strong><He text={s.keyword} /></strong>
                   : <L to={`${PAGE[s.target_type]}${s.target_id}`}><He text={s.title} /></L>}{" "}
                 <button className="link-button" onClick={() => run(() => unfollow(s.id))}>{t(lang, "unfollow")}</button>

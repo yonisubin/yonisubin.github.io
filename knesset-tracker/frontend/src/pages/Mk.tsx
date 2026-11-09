@@ -54,8 +54,7 @@ export function MkPage() {
                 <ul className="list compact">
                   {m.committees.map((c, i) => (
                     <li key={i}>
-                      <L to={`/committees/${c.committee.id}`}><He text={c.committee.name} /></L>
-                      {" · "}<Tr value={c.position} /> <span className="muted small">(<Period start={c.start} finish={c.finish} />)</span>
+                      <span className="run"><L to={`/committees/${c.committee.id}`}><He text={c.committee.name} /></L><Tr value={c.position} /><span className="muted small"><Period start={c.start} finish={c.finish} /></span></span>
                     </li>
                   ))}
                 </ul>
@@ -101,7 +100,7 @@ export function MkPage() {
                 <ul className="list compact">
                   {m.votes.items.map((v) => (
                     <li key={v.vote_id}>
-                      <DateText iso={v.date} /> · <strong><Tr value={v.result} /></strong> · {v.bill_id ? <L to={`/bills/${v.bill_id}`}><He text={v.title} /></L> : <He text={v.title} />} <SourceLink href={v.source} />
+                      <span className="run"><span className="muted small"><DateText iso={v.date} /></span><strong><Tr value={v.result} /></strong>{v.bill_id ? <L to={`/bills/${v.bill_id}`}><He text={v.title} /></L> : <He text={v.title} />}<SourceLink href={v.source} /></span>
                     </li>
                   ))}
                 </ul>

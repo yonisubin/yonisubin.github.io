@@ -13,17 +13,17 @@ export function StatusPage() {
       <Loader state={state}>
         {(s) => (
           <>
-            <p className={`card ${s.healthy ? "status-ok" : "status-bad"}`} role="status">
+            <p className={s.healthy ? "status-ok" : "status-bad"} role="status">
               <strong>{s.healthy ? `✓ ${t(lang, "statusOk")}` : `⚠ ${t(lang, "statusStale")}`}</strong>
-              {s.last_successful_sync && <> · {t(lang, "lastSync")}: <DateText iso={s.last_successful_sync} withTime /></>}
+              {s.last_successful_sync && <span className="muted"> {t(lang, "lastSync")}: <DateText iso={s.last_successful_sync} withTime /></span>}
             </p>
-            <div className="card table-wrap">
+            <div className="table-wrap">
               <table className="data">
                 <thead><tr><th>{t(lang, "entity")}</th><th>{t(lang, "lastSuccess")}</th><th>{t(lang, "dataUpTo")}</th><th>{t(lang, "lastErrorCol")}</th></tr></thead>
                 <tbody>
                   {s.entities.map((e) => (
                     <tr key={e.entity}>
-                      <td><code dir="ltr">{e.entity}</code></td>
+                      <td><span dir="ltr">{e.entity}</span></td>
                       <td><DateText iso={e.last_success} withTime /></td>
                       <td><DateText iso={e.data_up_to} withTime /></td>
                       <td>{e.last_error ? <span className="status-bad small" dir="ltr">{e.last_error.slice(0, 120)}</span> : "–"}</td>
@@ -50,13 +50,13 @@ export function DataQualityPage() {
       <p className="muted">{t(lang, "dataQualityIntro")}</p>
       <Loader state={state}>
         {(rules) => (
-          <div className="card table-wrap">
+          <div className="table-wrap">
             <table className="data">
               <thead><tr><th>{t(lang, "noticeTitle")}</th><th>{t(lang, "openIssues")}</th><th>{t(lang, "examples")}</th></tr></thead>
               <tbody>
                 {rules.map((r) => (
                   <tr key={r.rule}>
-                    <td><Tr value={r.description} /><div className="muted small"><code dir="ltr">{r.rule}</code></div></td>
+                    <td><Tr value={r.description} /><div className="ident" dir="ltr">{r.rule}</div></td>
                     <td>{r.open.toLocaleString(lang)}</td>
                     <td>{r.examples.map((id, i) => <span key={id}>{i > 0 && ", "}
                       {PAGE[r.entity_type] ? <L to={`${PAGE[r.entity_type]}${id}`}>{id}</L> : id}</span>)}</td>

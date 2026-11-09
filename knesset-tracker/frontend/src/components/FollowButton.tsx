@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import type { TargetType } from "../api";
-import { t } from "../i18n";
+import { t, type Key } from "../i18n";
 import { findSub, follow, unfollow, useSession } from "../session";
 import { L, useLang } from "./ui";
 
@@ -18,8 +18,9 @@ export function FollowButton({ type, id, keyword }: { type: TargetType; id?: num
     return <L to={`/login?next=${next}`} className="button follow">{t(lang, "signInToFollow")}</L>;
   }
   const sub = findSub(type, id ?? null, keyword);
-  const label = type === "keyword" && !sub ? t(lang, "followSearch", { q: keyword ?? "" })
-    : t(lang, sub ? "following" : "follow");
+  const label = sub ? t(lang, "following")
+    : type === "keyword" ? t(lang, "followSearch", { q: keyword ?? "" })
+    : t(lang, `follow_${type}` as Key);
   return (
     <span className="follow-wrap">
       <button className={`follow${sub ? " is-following" : ""}`} aria-pressed={!!sub} disabled={busy}

@@ -81,7 +81,7 @@ stays fast and keeps working when the Knesset API is slow or down.
 | --- | --- |
 | Backend, sync, alerts | Python 3.12, FastAPI, SQLAlchemy 2 (Core), Alembic |
 | Database and search | PostgreSQL on Neon, `pg_trgm` trigram indexes |
-| Frontend | React, Vite, TypeScript, no UI library (67 KB of gzipped JS) |
+| Frontend | React, Vite, TypeScript, no UI library (70 KB of gzipped JS); Frank Ruhl Libre and IBM Plex Sans Hebrew, self-hosted. Design rationale: [`docs/design.md`](docs/design.md) |
 | Email and push | Resend (idempotent sends); Web Push with VAPID, signed in pure Python |
 | CI | GitHub Actions: lint, types, migrations check, 55 backend tests, unit tests, Playwright e2e with Mailpit, Lighthouse gate |
 
@@ -99,7 +99,7 @@ reference data), with the production code. Numbers from the deployed site will r
 | Every bill in the 25th Knesset | all pages work | 7,491 / 7,491 | scripted check |
 | Search relevance | 30-query set passes | 30/30, MRR 0.978 | `tests/test_search_relevance.py` (CI) |
 | Search latency | p95 < 100 ms | p95 72 ms (test), 85 ms (HTTP, 4 concurrent) | same, plus HTTP run |
-| Lighthouse (mobile), both locales | 90+ | performance 94-100, accessibility 100, best practices 100, SEO 100 | 10 pages, `npm run lighthouse` (CI gate) |
+| Lighthouse (mobile), both locales | 90+ | performance 92-98, accessibility 100, best practices 100, SEO 100 | 12 pages, `npm run lighthouse` (CI gate) |
 | Duplicate or lost alerts | none across retries and crashes | none, in fault-injection tests | `tests/test_alerts.py` |
 | Data freshness | < 30 min after the API | _measure after deploy_ | `SELECT percentile_cont(.95) WITHIN GROUP (ORDER BY detected_at - source_updated_at) FROM change_event` |
 | Instant alert latency | < 5 min after detection | _measure after deploy_ | `notification.sent_at - change_event.detected_at` |
@@ -394,5 +394,5 @@ backend/tests/     55 tests: units, sync on recorded fixtures, alerts with fault
 frontend/          React app, Playwright e2e (incl. email via Mailpit), Lighthouse gate
 loadtest/k6.js     page-speed targets against the deployed site
 ops/               backup of account data
-docs/              demo GIF, launch post, CV entry
+docs/              design plan, demo GIF, launch post, CV entry
 ```

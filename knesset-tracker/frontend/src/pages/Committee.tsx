@@ -41,8 +41,7 @@ export function CommitteePage() {
               <ul className="list compact">
                 {c.members.map((m, i) => (
                   <li key={i}>
-                    <L to={`/mks/${m.person_id}`}><Name name={m.name} /></L>
-                    {" · "}<Tr value={m.role} /> <span className="muted small">(<Period start={m.start} finish={m.finish} />)</span>
+                    <span className="run"><L to={`/mks/${m.person_id}`}><Name name={m.name} /></L><Tr value={m.role} /><span className="muted small"><Period start={m.start} finish={m.finish} /></span></span>
                   </li>
                 ))}
               </ul>
@@ -62,9 +61,9 @@ function Sessions({ sessions }: { sessions: Session[] }) {
         <li key={s.id} className={s.cancelled ? "tl-cancelled" : undefined}>
           <div className="session-head">
             <strong><DateText iso={s.start} withTime hebrew /></strong>
-            {s.cancelled && <em> · {t(lang, "cancelled")}</em>}
-            {s.location && <span className="muted"> · <He text={s.location} /></span>}
-            {s.session_url && <> · <a href={s.session_url} target="_blank" rel="noopener noreferrer">{t(lang, "sessionPage")}</a></>}
+            {s.cancelled && <em>{t(lang, "cancelled")}</em>}
+            {s.location && <span className="muted"><He text={s.location} /></span>}
+            {s.session_url && <a href={s.session_url} target="_blank" rel="noopener noreferrer">{t(lang, "sessionPage")}</a>}
             {" "}<SourceLink href={s.source} />
           </div>
           {s.items.length > 0 && (

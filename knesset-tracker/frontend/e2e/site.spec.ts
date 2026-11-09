@@ -74,8 +74,8 @@ test("no horizontal scrolling", async ({ page }) => {
 
 test("search finds a bill despite niqqud and a prefix, and filters by type", async ({ page }) => {
   await page.goto("/he");
-  await page.locator("#header-q").fill("לְחוֹק עבודת נשים");
-  await page.locator("#header-q").press("Enter");
+  await page.locator("#hero-q").fill("לְחוֹק עבודת נשים");
+  await page.locator("#hero-q").press("Enter");
   await expect(page).toHaveURL(/\/he\/search\?q=/);
   const hit = page.locator(`a.item-title[href="/he/bills/${BILL}"]`);
   await expect(hit).toBeVisible();

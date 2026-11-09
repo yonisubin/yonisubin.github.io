@@ -21,7 +21,8 @@ export function Layout() {
   const navigate = useNavigate();
   const session = useSession();
   const [params] = useSearchParams();
-  const onSearch = pathname.endsWith("/search");
+  // the home page and the search page have their own large search field
+  const onSearch = pathname.endsWith("/search") || /^\/(he|en)\/?$/.test(pathname);
   const other = lang === "he" ? "en" : "he";
   const otherPath = pathname.replace(/^\/(he|en)/, `/${other}`) + search;
   const nav = (to: string, key: "bills" | "mks" | "committees") => (
@@ -39,6 +40,7 @@ export function Layout() {
             {nav("/mks", "mks")}
             {nav("/committees", "committees")}
           </nav>
+          <div className="header-tools">
           {!onSearch && (
             <form role="search" className="header-search" onSubmit={(e) => {
               e.preventDefault();
@@ -58,6 +60,7 @@ export function Layout() {
           <Link to={otherPath} className="lang-toggle" lang={other} hrefLang={other}>
             {t(lang, "otherLang")}
           </Link>
+          </div>
         </div>
       </header>
       <main id="main" className="wrap">
@@ -67,12 +70,12 @@ export function Layout() {
         <div className="wrap">
           <p>{t(lang, "footerData")}</p>
           {lang === "en" && <p>{t(lang, "translatedNote")}</p>}
-          <p>
-            {meta?.last_sync && <>{t(lang, "lastSync")}: <DateText iso={meta.last_sync} withTime /> · </>}
+          {meta?.last_sync && <p>{t(lang, "lastSync")}: <DateText iso={meta.last_sync} withTime /></p>}
+          <nav aria-label={t(lang, "footerNav")}>
             <Link to={`/${lang}/status`}>{t(lang, "statusTitle")}</Link>
-            {" · "}<Link to={`/${lang}/data-quality`}>{t(lang, "dataQuality")}</Link>
-            {" · "}<Link to={`/${lang}/api`}>{t(lang, "apiDocs")}</Link>
-          </p>
+            <Link to={`/${lang}/data-quality`}>{t(lang, "dataQuality")}</Link>
+            <Link to={`/${lang}/api`}>{t(lang, "apiDocs")}</Link>
+          </nav>
         </div>
       </footer>
     </>
