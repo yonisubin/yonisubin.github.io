@@ -33,7 +33,8 @@ def test_sync_endpoint_runs_and_status_reports(engine, settings, monkeypatch):
         c = TestClient(app)
         r = c.post("/internal/sync", headers={"X-Internal-Token": "secret"})
         assert r.status_code == 200, r.text
-        assert all(run["pass_completed"] for run in r.json())
+        assert all(run["pass_completed"] for run in r.json()["runs"])
+        assert r.json()["alerts"]["notifications_created"] == 0  # no subscribers yet
         status = c.get("/admin/sync-status").json()
         assert all(s["high_water_mark"] for s in status)
         assert c.get("/admin").status_code == 200

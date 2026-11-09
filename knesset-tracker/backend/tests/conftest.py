@@ -125,7 +125,9 @@ def make_client(server: FakeOData) -> ODataClient:
 @pytest.fixture
 def settings() -> Settings:
     return Settings(database_url=TEST_DB, odata_base_url=BASE, internal_token="secret",
-                    time_budget_seconds=60, min_request_interval=0)
+                    time_budget_seconds=60, min_request_interval=0,
+                    secret_key="test-secret", public_base_url="https://tracker.test",
+                    cookie_secure=False)
 
 
 @pytest.fixture

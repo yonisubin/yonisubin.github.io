@@ -14,7 +14,7 @@ detect every change, and let people follow a bill, an MK or a committee.
 | 1. Mirror | **Code done, not deployed yet.** Resumable backfill, incremental sync with hashing and change events, nightly reconciliation, `/admin` sync-status page, integration tests on recorded fixtures, CI. Remaining: create the Neon project and Wasmer app, run the backfill into Neon, then two weeks of unattended syncs. |
 | 2. Read-only site | **Code done, not deployed yet.** Bill pages with reconstructed timelines, MK and committee pages, committee iCal feeds, Hebrew (RTL) and English (LTR), public JSON API. Measured locally: see below. |
 | 3. Search | **Done (local).** pg_trgm search with Hebrew normalisation and filters, 30-query relevance set in CI: 30/30 pass, MRR 0.978, p95 72 ms in the test, 85 ms over HTTP. |
-| 4. Accounts and alerts | Not started |
+| 4. Accounts and alerts | **Code done, not deployed yet.** Magic-link accounts, follows (bill, MK, committee, keyword), instant/daily/weekly email, payload-less Web Push, one-click unsubscribe, account deletion. The "follow a bill, inject a change, receive the email" test passes against Mailpit. Remaining: two weeks of real use. |
 | 5. Polish and launch | Not started |
 
 ## What Phase 0 changed in the plan
@@ -107,6 +107,58 @@ with filters for type, Knesset term, stage, committee, initiator and date range.
 | Search latency over HTTP, full DB, 4 concurrent | p50 61 ms, p95 85 ms | p95 < 100 ms |
 | Index size | 40 MB for 63k documents | |
 
+## Phase 4: accounts and alerts
+
+- **Accounts without passwords.** `POST /api/v1/auth/request-link` emails a single-use link valid
+  for 20 minutes, and only a SHA-256 of the token is stored. The token travels in the URL fragment
+  (`/he/auth/verify#token=...`), so it never reaches server logs. The response is the same
+  whether or not the address has an account, and requests are limited to 5 per address per hour.
+  The session is a signed, HttpOnly, SameSite=Lax cookie. State-changing calls must send
+  `X-Requested-With`, which cross-site forms can't set. Deleting an account removes its follows,
+  notifications and devices.
+- **Follows:** a bill, an MK, a committee, or a keyword such as "חיילים בודדים". Keywords are
+  normalised like search, so prefixes and spelling marks don't matter. Following twice is a no-op.
+- **Fan-out** (`app/alerts.py`) runs at the end of every `/internal/sync`, under a Postgres
+  advisory lock so cron runs can't overlap, and wakes Neon no extra times. It reads change events
+  past a cursor and works out what each event concerns. For example, a new committee session
+  concerns its committee; a parliamentary question concerns its MK; a vote concerns its bill.
+  Keyword follows are matched against the normalised text. The step writes one notification per
+  user, event and channel, and a follow matches only events detected after it was created.
+- **Every alert says exactly what changed**, in the user's language (`app/describe.py`):
+  "<bill> moved to: Approved in committee for first reading (In committee: preparing for first
+  reading, 9 Nov 2026)", "<bill> passed its third reading on 6 Jan 2026", "<committee>: session
+  scheduled for 12 Nov 2026 10:00". Hebrew emails are RTL.
+- **Delivery:** instant emails go out right after the fan-out. Daily digests are sent every
+  morning and weekly ones on Sundays (`/internal/digest`, one cron job). Each email carries an
+  RFC 8058 one-click unsubscribe header and link.
+- **Web Push without payloads.** Encrypted payloads (RFC 8291) need native crypto libraries that
+  may not run on Wasmer's WASIX Python. Each push is an empty, VAPID-signed "tickle" instead,
+  signed with the pure-Python `ecdsa` package. The service worker then fetches the latest alert
+  from our API with the user's cookie, so alert text never passes through the browser vendor's
+  push service. Endpoints the browser has dropped (404 or 410) are deleted.
+
+**Reliability: no duplicate or lost alerts.** Each guarantee has a test (`tests/test_alerts.py`):
+
+| Failure | What happens | Test |
+| --- | --- | --- |
+| Fan-out runs twice, or its cursor write is lost | Unique `dedupe_key` (channel:user:event): `ON CONFLICT DO NOTHING` | `test_fan_out_is_idempotent_even_if_the_cursor_is_lost` |
+| Email provider down | Rows go back to `pending` and are retried on later runs, up to 5 attempts | `test_failed_send_is_retried_and_delivered_once`, `test_gives_up_after_five_attempts` |
+| Process dies after the provider accepted the email | Rows stay `sending`. After 10 minutes the batch is retried with the same `batch_id`, the provider's idempotency key, so it is delivered once | `test_crash_after_send_does_not_email_twice` |
+| A new follower | Only events after the follow was created | `test_subscriptions_dont_match_older_events` |
+| Unsubscribed user | Pending emails are skipped | `test_unsubscribed_users_get_no_email` |
+
+Exactly-once delivery relies on the provider honouring the idempotency key. Resend does; SMTP has
+no such mechanism, so with SMTP a crash between send and commit can repeat one email
+(at-least-once). Production should use `EMAIL_BACKEND=resend`.
+
+**End-to-end** (`frontend/e2e/alerts.spec.ts`, in CI against a Mailpit service):
+1. Request a sign-in link and read it from Mailpit.
+2. Sign in, choose instant alerts, and follow a bill that is in committee.
+3. Change the bill's status in the fixture data and run the real sync and alert path
+   (`scripts/inject_change.py`).
+4. Check that the alert email arrives, names the change, links to the bill, and carries the
+   one-click unsubscribe header.
+
 ## Sync design (backend/app/sync.py)
 
 One code path does the backfill, the 30-minute sync and the nightly reconciliation.
@@ -152,9 +204,11 @@ TEST_DATABASE_URL=postgresql+psycopg://postgres@localhost/knesset_test pytest
 cd ../frontend && npm ci
 npm run dev                                # http://localhost:5173/he, proxies /api to :8000
 npm test && npm run build                  # the backend serves frontend/dist at /
-# end-to-end + Lighthouse against fixture data (what CI runs):
+# end-to-end + Lighthouse against fixture data (what CI runs), with Mailpit for email:
+mailpit &                                  # https://mailpit.axllent.org, SMTP :1025, UI :8025
+export SECRET_KEY=dev EMAIL_BACKEND=smtp PUBLIC_BASE_URL=http://localhost:8000 COOKIE_SECURE=0
 (cd ../backend && DATABASE_URL=... python -m scripts.seed_fixtures)
-npx playwright test && npm run lighthouse
+MAILPIT_URL=http://localhost:8025 npx playwright test && npm run lighthouse
 ```
 
 The integration tests replay real API responses recorded by `scripts/record_fixtures.py`, through a
@@ -169,6 +223,15 @@ exactly the expected set of events.
 3. Create the Wasmer app. Check `backend/wasmer.toml` against your existing FastAPI deploy, and use
    `postgresql+pg8000://` on Wasmer, because psycopg's binary build is a native extension.
    Set `DATABASE_URL`, `INTERNAL_TOKEN` and `SYNC_TIME_BUDGET_SECONDS=240` as app secrets.
+   For accounts and alerts (Phase 4), also set:
+   - `SECRET_KEY`, a long random string;
+   - `PUBLIC_BASE_URL`, the site's https URL;
+   - `EMAIL_BACKEND=resend`, `RESEND_API_KEY` and `EMAIL_FROM`, on a domain you verify in Resend;
+   - `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY` and `VAPID_SUBJECT`, generated with
+     `python -m scripts.vapid_keys`.
+
+   Resend's free tier is limited to 100 emails a day, so digests keep the volume down. Check
+   whether Wasmer allows outbound SMTP before choosing Brevo over SMTP instead.
 4. In GitHub, add the secrets `NEON_DATABASE_URL`, `INTERNAL_TOKEN` and `WASMER_TOKEN`, then set the
    variable `WASMER_DEPLOY=true`. Pushes to `main` will then run all checks, migrate Neon, copy the
    built frontend into `backend/static`, and deploy with the cron jobs from `backend/app.yaml`.

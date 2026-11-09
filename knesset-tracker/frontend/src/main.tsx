@@ -11,7 +11,10 @@ import { HomePage } from "./pages/Home";
 import { MkPage } from "./pages/Mk";
 import { MksPage } from "./pages/Mks";
 import { NotFound } from "./pages/NotFound";
+import { AccountPage } from "./pages/Account";
+import { LoginPage } from "./pages/Login";
 import { SearchPage } from "./pages/Search";
+import { VerifyPage } from "./pages/Verify";
 import "./styles.css";
 
 function LangGuard() {
@@ -33,6 +36,9 @@ createRoot(document.getElementById("root")!).render(
           <Route path="committees" element={<CommitteesPage />} />
           <Route path="committees/:id" element={<CommitteePage />} />
           <Route path="search" element={<SearchPage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="auth/verify" element={<VerifyPage />} />
+          <Route path="account" element={<AccountPage />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

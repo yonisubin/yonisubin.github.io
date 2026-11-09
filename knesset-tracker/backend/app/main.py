@@ -16,12 +16,18 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Engine, select, text
 
+from .account import emailer_dep
+from .account import public as account_public_router
+from .account import router as account_router
+from .alerts import run_alerts, run_digest
 from .api import router as api_router
 from .config import Settings, get_settings
 from .db import get_engine
+from .emailer import Emailer
 from .entities import BY_NAME, ENTITIES
 from .models import sync_run, sync_state
 from .odata import ODataClient
+from .push import Pusher
 from .sync import reconcile_entity, run_sync
 
 logging.basicConfig(level=logging.INFO, format='{"level":"%(levelname)s","msg":"%(message)s"}')
@@ -29,6 +35,8 @@ app = FastAPI(title="Knesset Tracker", version="0.2.0",
               description="Public read API over a mirror of the Knesset's open data.")
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.include_router(api_router)
+app.include_router(account_router)
+app.include_router(account_public_router)
 
 
 def engine_dep() -> Engine:
@@ -38,6 +46,13 @@ def engine_dep() -> Engine:
 def client_dep() -> ODataClient:
     s = get_settings()
     return ODataClient(s.odata_base_url, min_interval=s.min_request_interval)
+
+
+def pusher_dep(settings: Settings = Depends(get_settings)) -> Pusher:
+    return Pusher(settings.vapid_private_key, settings.vapid_public_key, settings.vapid_subject)
+
+
+SYNC_LOCK = 724_001  # pg advisory lock id: one sync (and alert run) at a time
 
 
 def require_internal(x_internal_token: Annotated[str | None, Header()] = None,
@@ -57,19 +72,47 @@ def health(engine: Engine = Depends(engine_dep)) -> dict[str, str]:
 
 @app.post("/internal/sync", dependencies=[Depends(require_internal)])
 def internal_sync(engine: Engine = Depends(engine_dep), client: ODataClient = Depends(client_dep),
-                  settings: Settings = Depends(get_settings)) -> JSONResponse:
+                  settings: Settings = Depends(get_settings),
+                  emailer: Emailer = Depends(emailer_dep),
+                  pusher: Pusher = Depends(pusher_dep)) -> JSONResponse:
+    """Sync, then fan out and send instant alerts: one database wake-up per cycle."""
     runs: list[Any] = []
-    try:
-        runs = run_sync(engine, client, settings)
-        status = 200
-    except Exception as e:  # noqa: BLE001 - recorded in sync_run; 500 makes the cron log it
-        logging.exception("sync failed")
-        runs.append({"error": f"{type(e).__name__}: {e}"})
-        status = 500
-    finally:
-        client.close()
-    return JSONResponse([asdict(r) if not isinstance(r, dict) else r for r in runs],
-                        status_code=status)
+    alerts: dict[str, Any] = {}
+    status = 200
+    with engine.connect() as lock_conn:
+        if not lock_conn.execute(text("SELECT pg_try_advisory_lock(:k)"),
+                                 {"k": SYNC_LOCK}).scalar():
+            client.close()
+            return JSONResponse({"error": "another sync is running"}, status_code=409)
+        try:
+            try:
+                runs = run_sync(engine, client, settings)
+            except Exception as e:  # noqa: BLE001 - recorded in sync_run; 500 for the cron log
+                logging.exception("sync failed")
+                runs.append({"error": f"{type(e).__name__}: {e}"})
+                status = 500
+            # alerts run even after a sync error: events from the pages that did commit
+            try:
+                alerts = run_alerts(engine, emailer, pusher, settings)
+            except Exception as e:  # noqa: BLE001
+                logging.exception("alerts failed")
+                alerts = {"error": f"{type(e).__name__}: {e}"}
+                status = 500
+        finally:
+            client.close()
+            lock_conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": SYNC_LOCK})
+            lock_conn.commit()
+    return JSONResponse({"runs": [asdict(r) if not isinstance(r, dict) else r for r in runs],
+                         "alerts": alerts}, status_code=status)
+
+
+@app.post("/internal/digest", dependencies=[Depends(require_internal)])
+def internal_digest(engine: Engine = Depends(engine_dep),
+                    settings: Settings = Depends(get_settings),
+                    emailer: Emailer = Depends(emailer_dep)) -> JSONResponse:
+    """Daily cron: daily digests every day, weekly digests on Sundays."""
+    out = run_digest(engine, emailer, settings)
+    return JSONResponse(out, status_code=500 if out["failures"] else 200)
 
 
 @app.post("/internal/reconcile", dependencies=[Depends(require_internal)])
@@ -160,6 +203,8 @@ if (FRONTEND / "index.html").exists():
             raise HTTPException(status_code=404)
         file = (FRONTEND / path).resolve()
         if path and file.is_file() and FRONTEND.resolve() in file.parents:
-            return FileResponse(file)
+            # the service worker must be revalidated, or updates never reach browsers
+            headers = {"Cache-Control": "no-cache"} if path == "sw.js" else None
+            return FileResponse(file, headers=headers)
         return FileResponse(FRONTEND / "index.html",
                             headers={"Cache-Control": "no-cache"})

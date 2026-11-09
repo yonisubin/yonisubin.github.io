@@ -110,3 +110,32 @@ export interface SearchHit {
   knesset: number | null; stage: string | null; date: string | null; score: number; source: string;
 }
 export interface SearchResult { query: string; page: number; per_page: number; has_more: boolean; items: SearchHit[] }
+
+// ---- accounts (Phase 4). Mutations send X-Requested-With (the API's CSRF check).
+export interface Me {
+  id: number; email: string; locale: "he" | "en"; digest_frequency: "instant" | "daily" | "weekly";
+  email_enabled: boolean; push_devices: number; created_at: string;
+}
+export type TargetType = "bill" | "mk" | "committee" | "keyword";
+export interface Subscription {
+  id: number; target_type: TargetType; target_id: number | null; keyword: string | null;
+  title: Text; created_at: string;
+}
+export interface AlertItem {
+  event_id: number; event_type: string; text: { he: string; en: string }; path: string;
+  detected_at: string; notified_at: string;
+}
+
+export async function send<T>(method: "POST" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`/api/v1${path}`, {
+    method, credentials: "same-origin",
+    headers: { "Content-Type": "application/json", "X-Requested-With": "knesset-tracker", Accept: "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let detail = `${res.status}`;
+    try { detail = (await res.json()).detail ?? detail; } catch { /* not JSON */ }
+    throw new ApiError(res.status, typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+  return (res.status === 204 ? undefined : await res.json()) as T;
+}

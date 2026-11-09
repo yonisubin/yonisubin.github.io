@@ -1,6 +1,7 @@
 import { useOutletContext, useParams } from "react-router-dom";
 import type { Meta, Mk } from "../api";
 import { BillList } from "../components/BillList";
+import { FollowButton } from "../components/FollowButton";
 import { DateText, He, L, Loader, Name, Period, Section, SourceLink, Tr, useLang } from "../components/ui";
 import { t } from "../i18n";
 import { useApi } from "../useApi";
@@ -23,6 +24,7 @@ export function MkPage() {
                   .map((k) => <span key={k}>{t(lang, "knesset")} {k}</span>)}
                 <SourceLink href={m.source} />
               </p>
+              <FollowButton type="mk" id={m.id} />
             </header>
 
             <Section title={t(lang, "factions")} id="factions">

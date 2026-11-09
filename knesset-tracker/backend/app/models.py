@@ -10,8 +10,10 @@ from __future__ import annotations
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
+    ForeignKey,
     Index,
     Integer,
     MetaData,
@@ -117,4 +119,95 @@ search_document = Table(
           postgresql_ops={"title_norm": "gin_trgm_ops"},
           postgresql_where=text("doc_type IN ('person', 'committee', 'law')")),
     Index(None, "doc_type", "knesset_num"),
+)
+
+
+# ---------------------------------------------------------------- app tables (Phase 4)
+# Accounts, follows and notifications. These are the only tables that need backups:
+# the Knesset data can always be rebuilt from the API.
+
+app_user = Table(
+    "app_user", metadata,
+    Column("id", BigInteger, primary_key=True, autoincrement=True),
+    Column("email", String(320), nullable=False, unique=True),
+    Column("locale", String(2), nullable=False, server_default="he"),
+    # instant | daily | weekly. Push notifications are always instant.
+    Column("digest_frequency", String(8), nullable=False, server_default="daily"),
+    Column("email_enabled", Boolean, nullable=False, server_default=text("true")),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("last_login_at", DateTime(timezone=True)),
+)
+
+# Magic links. Only a SHA-256 of the token is stored; tokens are single-use, 20 minutes.
+login_token = Table(
+    "login_token", metadata,
+    Column("token_hash", String(64), primary_key=True),
+    Column("email", String(320), nullable=False, index=True),
+    Column("locale", String(2), nullable=False),
+    Column("next_path", String(300)),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("used_at", DateTime(timezone=True)),
+)
+
+subscription = Table(
+    "subscription", metadata,
+    Column("id", BigInteger, primary_key=True, autoincrement=True),
+    Column("user_id", BigInteger, ForeignKey("app_user.id", ondelete="CASCADE"),
+           nullable=False, index=True),
+    Column("target_type", String(16), nullable=False),  # bill | mk | committee | keyword
+    Column("target_id", Integer),
+    Column("keyword", Text),
+    Column("keyword_norm", Text),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    CheckConstraint("(target_type = 'keyword') = (keyword_norm IS NOT NULL AND target_id IS NULL)",
+                    name="ck_subscription_target_or_keyword"),
+    Index("uq_subscription_target", "user_id", "target_type", "target_id", unique=True,
+          postgresql_where=text("target_id IS NOT NULL")),
+    Index("uq_subscription_keyword", "user_id", "keyword_norm", unique=True,
+          postgresql_where=text("keyword_norm IS NOT NULL")),
+    Index(None, "target_type", "target_id"),
+)
+
+# One row per user, per event, per channel. dedupe_key is unique, so a retried fan-out
+# can never create a second notification. batch_id groups the rows sent in one email and
+# is the provider's idempotency key, so a retried send can't deliver twice either.
+notification = Table(
+    "notification", metadata,
+    Column("id", BigInteger, primary_key=True, autoincrement=True),
+    Column("user_id", BigInteger, ForeignKey("app_user.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("change_event_id", BigInteger, ForeignKey("change_event.id"), nullable=False),
+    Column("subscription_id", BigInteger, ForeignKey("subscription.id", ondelete="SET NULL")),
+    Column("channel", String(8), nullable=False),  # email | push
+    Column("status", String(8), nullable=False, server_default="pending"),
+    # pending -> sending -> sent; failures go back to pending until attempts run out
+    Column("dedupe_key", String(100), nullable=False, unique=True),
+    Column("batch_id", String(36)),
+    Column("attempts", Integer, nullable=False, server_default="0"),
+    Column("last_error", Text),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("claimed_at", DateTime(timezone=True)),
+    Column("sent_at", DateTime(timezone=True)),
+    Index(None, "status", "channel"),
+    Index(None, "user_id", "created_at"),
+    Index(None, "batch_id"),
+)
+
+push_subscription = Table(
+    "push_subscription", metadata,
+    Column("id", BigInteger, primary_key=True, autoincrement=True),
+    Column("user_id", BigInteger, ForeignKey("app_user.id", ondelete="CASCADE"),
+           nullable=False, index=True),
+    Column("endpoint", Text, nullable=False, unique=True),
+    Column("p256dh", Text, nullable=False),
+    Column("auth", Text, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+)
+
+# Small key/value table for pipeline cursors (e.g. the last change_event fanned out).
+pipeline_cursor = Table(
+    "pipeline_cursor", metadata,
+    Column("name", String(64), primary_key=True),
+    Column("value", BigInteger, nullable=False),
 )

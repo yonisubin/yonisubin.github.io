@@ -1,5 +1,6 @@
 import { useParams, useSearchParams } from "react-router-dom";
 import type { Committee, Session } from "../api";
+import { FollowButton } from "../components/FollowButton";
 import { DateText, He, L, Loader, Name, Pagination, Period, Section, SourceLink, Tr, useLang } from "../components/ui";
 import { t } from "../i18n";
 import { useApi } from "../useApi";
@@ -22,6 +23,7 @@ export function CommitteePage() {
               <a href={`/api/v1/committees/${c.id}/calendar.ics`}>iCal</a>
               <SourceLink href={c.source} />
             </p>
+            <FollowButton type="committee" id={c.id} />
           </header>
 
           <Section title={t(lang, "upcoming")} id="upcoming">

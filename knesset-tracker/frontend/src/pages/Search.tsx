@@ -1,5 +1,6 @@
 import { useOutletContext, useSearchParams } from "react-router-dom";
 import { query, type Meta, type SearchHit, type SearchResult } from "../api";
+import { FollowButton } from "../components/FollowButton";
 import { DateText, He, L, Loader, Pagination, SourceLink, Tr, useLang } from "../components/ui";
 import { ordinalKnesset, t, type Key } from "../i18n";
 import { useApi } from "../useApi";
@@ -41,6 +42,7 @@ export function SearchPage() {
         <button type="submit">{t(lang, "search")}</button>
       </form>
       <p className="muted small">{t(lang, "searchHint")}</p>
+      {q.trim().length >= 3 && <p><FollowButton type="keyword" keyword={q.trim()} /></p>}
       <div className="filters">
         <label>{t(lang, "type")}
           <select value={type} onChange={(e) => set("type", e.target.value)}>

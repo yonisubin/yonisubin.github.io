@@ -134,3 +134,19 @@ input[type="search"], input[type="date"] { font: inherit; color: var(--text); ba
 .search-form { display: flex; gap: .5rem; margin-block: .5rem; }
 .search-form input { flex: 1; min-inline-size: 0; font-size: 1.1rem; padding: .6rem .8rem; }
 .kind { display: inline-block; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); min-inline-size: 5.5rem; }
+
+.account-link { white-space: nowrap; }
+.follow { margin-block-start: .5rem; background: var(--surface); color: var(--accent); border: 2px solid var(--accent); padding: .35rem .9rem; }
+a.follow { display: inline-block; text-decoration: none; }
+.follow.is-following { background: var(--accent); color: var(--accent-text); }
+.follow-wrap { display: inline-flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.narrow { max-inline-size: 34rem; margin-inline: auto; }
+.field { display: flex; flex-direction: column; gap: .25rem; margin-block: .75rem; color: var(--muted); font-size: .9rem; }
+.field input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: .5rem .7rem; }
+.check { display: flex; gap: .5rem; align-items: center; margin-block-end: .75rem; }
+.radios { border: 0; padding: 0; margin: 0 0 .5rem; display: flex; flex-direction: column; gap: .35rem; }
+.radios legend { color: var(--muted); font-size: .9rem; margin-block-end: .25rem; }
+.radios label { display: flex; gap: .5rem; align-items: center; }
+.link-button { background: none; color: var(--link); padding: 0; text-decoration: underline; font-size: .875rem; }
+.danger-zone { display: flex; gap: .75rem; flex-wrap: wrap; }
+button.danger { background: #a3262b; color: #fff; }

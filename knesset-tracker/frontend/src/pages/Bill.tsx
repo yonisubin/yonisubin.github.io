@@ -1,5 +1,6 @@
 import { useOutletContext, useParams } from "react-router-dom";
 import type { Bill, Meta, TimelineEvent } from "../api";
+import { FollowButton } from "../components/FollowButton";
 import { Journey } from "../components/Journey";
 import { DateText, He, L, Loader, Name, Section, SourceLink, StageBadge, Tr, useLang } from "../components/ui";
 import { t, type Lang } from "../i18n";
@@ -23,6 +24,7 @@ export function BillPage() {
               {b.committee && <span>{t(lang, "committee")}: <L to={`/committees/${b.committee.id}`}><He text={b.committee.name} /></L></span>}
               <SourceLink href={b.source} />
             </p>
+            <FollowButton type="bill" id={b.id} />
           </header>
 
           <section className="card stage-card" aria-labelledby="stage-h">

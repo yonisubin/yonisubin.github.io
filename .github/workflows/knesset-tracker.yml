@@ -49,8 +49,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: frontend-dist, path: knesset-tracker/frontend/dist }
 
-  # The whole site against a database seeded from the recorded fixtures:
-  # Playwright end-to-end tests, then the Lighthouse targets (90+ in both locales).
+  # The whole site against a database seeded from the recorded fixtures: Playwright
+  # end-to-end tests (including sign-in by email -> follow a bill -> inject a change ->
+  # the alert arrives in Mailpit), then the Lighthouse targets (90+ in both locales).
   e2e:
     needs: [backend, frontend]
     runs-on: ubuntu-latest
@@ -61,9 +62,20 @@ jobs:
         ports: ["5432:5432"]
         options: >-
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+      mailpit:
+        image: axllent/mailpit:v1.21
+        ports: ["1025:1025", "8025:8025"]
     env:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/knesset_e2e
       BASE_URL: http://localhost:8000
+      PUBLIC_BASE_URL: http://localhost:8000
+      SECRET_KEY: ci-only-not-secret
+      COOKIE_SECURE: "0"
+      EMAIL_BACKEND: smtp
+      SMTP_HOST: localhost
+      SMTP_PORT: "1025"
+      MAILPIT_URL: http://localhost:8025
+      PYTHON: python
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

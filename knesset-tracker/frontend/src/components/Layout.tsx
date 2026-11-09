@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import type { Meta } from "../api";
 import { dirOf, t } from "../i18n";
+import { useSession } from "../session";
 import { loadMeta } from "../useApi";
 import { DateText, useLang } from "./ui";
 
@@ -18,6 +19,7 @@ export function Layout() {
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
 
   const navigate = useNavigate();
+  const session = useSession();
   const [params] = useSearchParams();
   const onSearch = pathname.endsWith("/search");
   const other = lang === "he" ? "en" : "he";
@@ -48,6 +50,11 @@ export function Layout() {
                      defaultValue={params.get("q") ?? ""} />
             </form>
           )}
+          {session.status === "signed-in"
+            ? <NavLink to={`/${lang}/account`} className="account-link">{t(lang, "account")}</NavLink>
+            : session.status === "anonymous"
+              ? <NavLink to={`/${lang}/login`} className="account-link">{t(lang, "signIn")}</NavLink>
+              : null}
           <Link to={otherPath} className="lang-toggle" lang={other} hrefLang={other}>
             {t(lang, "otherLang")}
           </Link>
