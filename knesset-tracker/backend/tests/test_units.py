@@ -26,6 +26,7 @@ def test_bill_transform_normalises_values():
     assert row["summary_he"] is None  # empty strings become NULL
     assert row["publication_date"] == datetime(2026, 1, 7, 13, 38, tzinfo=UTC)
     assert row["committee_id"] is None  # absent fields become NULL
+    assert BY_NAME["KNS_Bill"].transform({**raw, "CommitteeID": -1})["committee_id"] is None
 
 
 def test_document_urls_use_forward_slashes():

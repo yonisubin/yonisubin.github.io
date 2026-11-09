@@ -92,3 +92,14 @@ test("search tolerates a typo in an MK's name", async ({ page, request }) => {
   await page.goto(`/en/search?q=${encodeURIComponent(typo)}`);
   await expect(page.locator(`a.item-title[href="/en/mks/${mk.person_id}"]`)).toBeVisible();
 });
+
+test("status, data-quality and API pages render in both languages", async ({ page }) => {
+  for (const lang of ["he", "en"]) {
+    await page.goto(`/${lang}/status`);
+    await expect(page.locator("table.data tbody tr").first()).toBeVisible();
+    await page.goto(`/${lang}/data-quality`);
+    await expect(page.locator("table.data tbody tr").nth(7)).toBeVisible(); // 8+ rules
+    await page.goto(`/${lang}/api`);
+    await expect(page.locator("pre")).toContainText("/api/v1/bills");
+  }
+});

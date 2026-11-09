@@ -10,6 +10,7 @@ from sqlalchemy import Connection, Engine
 
 from . import read
 from .db import get_engine
+from .quality import summary as quality_summary
 from .search import DOC_TYPES
 from .search import search as run_search
 from .stages import STAGES
@@ -124,6 +125,20 @@ def search_endpoint(response: Response, conn: Connection = Depends(conn_dep),
             "has_more": len(items) > per_page, "items": items[:per_page]}
 
 
+@router.get("/status")
+def status_endpoint(response: Response, conn: Connection = Depends(conn_dep)) -> dict[str, Any]:
+    """Freshness of the mirror, per entity (powers the public status page)."""
+    response.headers["Cache-Control"] = "public, max-age=60"
+    return read.sync_status(conn, datetime.now(UTC))
+
+
+@router.get("/data-quality")
+def data_quality(response: Response, conn: Connection = Depends(conn_dep)) -> list[dict[str, Any]]:
+    """Open problems found in the official data, per rule, with examples."""
+    cache(response, 600)
+    return quality_summary(conn)
+
+
 @router.get("/changes")
 def changes(response: Response, conn: Connection = Depends(conn_dep),
             limit: int = Query(20, ge=1, le=100)) -> list[dict[str, Any]]:
@@ -132,7 +147,7 @@ def changes(response: Response, conn: Connection = Depends(conn_dep),
 
 
 def _ics_escape(s: str) -> str:
-    return (s.replace("\\", "\\\\").replace(";", "\;").replace(",", "\\,")
+    return (s.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,")
             .replace("\r\n", "\\n").replace("\n", "\\n"))
 
 

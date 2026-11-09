@@ -69,7 +69,9 @@ export function Layout() {
           {lang === "en" && <p>{t(lang, "translatedNote")}</p>}
           <p>
             {meta?.last_sync && <>{t(lang, "lastSync")}: <DateText iso={meta.last_sync} withTime /> · </>}
-            <a href="/docs">{t(lang, "apiDocs")}</a>
+            <Link to={`/${lang}/status`}>{t(lang, "statusTitle")}</Link>
+            {" · "}<Link to={`/${lang}/data-quality`}>{t(lang, "dataQuality")}</Link>
+            {" · "}<Link to={`/${lang}/api`}>{t(lang, "apiDocs")}</Link>
           </p>
         </div>
       </footer>

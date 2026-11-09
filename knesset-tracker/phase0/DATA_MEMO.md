@@ -77,6 +77,12 @@ Everything below can be re-run with `phase0/explore.py` (counts, samples, field 
    membership (#133). Treat committee membership from `KNS_PersonToPosition` as "as reported".
 8. `KNS_DocumentIsraelLaw` is empty (0 rows), so laws have no documents in the API.
 9. 11 bills in Knesset 25 have no `CommitteeID`.
+10. *(Found later by the Phase 5 data-quality checks.)* 12,363 bills store `CommitteeID = -1`
+    as a "no committee" placeholder. The transform now maps non-positive ids to NULL
+    (`entities.to_ref`), and migration 0004 cleans existing rows.
+11. *(Phase 5.)* 10 people share a full name with another person record, 22 bill names contain
+    doubled spaces, 73 bills have no dated steps at all, and 168 current bills have been in their
+    stage beyond the 95th percentile for that stage. These are shown on the affected pages.
 
 ## Measured size
 

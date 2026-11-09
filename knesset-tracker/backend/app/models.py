@@ -211,3 +211,20 @@ pipeline_cursor = Table(
     Column("name", String(64), primary_key=True),
     Column("value", BigInteger, nullable=False),
 )
+
+# Phase 5: the data-quality layer. One row per problem found in the official data;
+# rows that stop matching are marked resolved, not deleted, so history is kept.
+data_issue = Table(
+    "data_issue", metadata,
+    Column("id", BigInteger, primary_key=True, autoincrement=True),
+    Column("rule", String(48), nullable=False),
+    Column("entity_type", String(32), nullable=False),
+    Column("entity_id", Integer, nullable=False),
+    Column("details", JSONB),
+    Column("first_seen", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("last_seen", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    Column("resolved_at", DateTime(timezone=True)),
+    Index("uq_data_issue_open", "rule", "entity_type", "entity_id", unique=True,
+          postgresql_where=text("resolved_at IS NULL")),
+    Index(None, "entity_type", "entity_id"),
+)

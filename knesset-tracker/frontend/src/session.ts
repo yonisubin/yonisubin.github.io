@@ -8,12 +8,20 @@ let state: Session = { status: "unknown", me: null, subs: [] };
 const listeners = new Set<() => void>();
 const set = (next: Session) => { state = next; listeners.forEach((l) => l()); };
 
+// Each refresh takes a ticket; only the latest may write. Without this, the check that
+// starts when the sign-in page loads (no cookie yet, so "signed out") could land *after*
+// the sign-in itself and sign the user out again: a race the e2e test caught.
+let ticket = 0;
+
 export async function refreshSession(): Promise<void> {
+  const mine = ++ticket;
   try {
     const s = await api<{ me: Me | null; subscriptions: Subscription[] }>("/session");
+    if (mine !== ticket) return;
     set(s.me ? { status: "signed-in", me: s.me, subs: s.subscriptions }
              : { status: "anonymous", me: null, subs: [] });
   } catch {
+    if (mine !== ticket) return;
     set({ ...state, status: state.status === "unknown" ? "anonymous" : state.status });
   }
 }
@@ -54,7 +62,12 @@ export async function updateMe(patch: Partial<Pick<Me, "locale" | "digest_freque
 
 export async function signOut() {
   await send("POST", "/auth/logout");
+  ticket++;
   set({ status: "anonymous", me: null, subs: [] });
 }
 
-export function setMe(me: Me) { set({ ...state, status: "signed-in", me }); void refreshSession(); }
+export function setMe(me: Me) {
+  ticket++; // any check still in flight is now stale
+  set({ ...state, status: "signed-in", me });
+  void refreshSession();
+}

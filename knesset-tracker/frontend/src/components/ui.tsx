@@ -113,3 +113,16 @@ export function Period({ start, finish }: { start: string | null; finish: string
   const lang = useLang();
   return <><DateText iso={start} /> – {finish ? <DateText iso={finish} /> : t(lang, "present")}</>;
 }
+
+/** Problems the data-quality checks found in this record, disclosed, never hidden. */
+export function DataNotices({ issues }: { issues: { he: string; en: string; en_translated: boolean; rule: string }[] }) {
+  const lang = useLang();
+  if (!issues.length) return null;
+  return (
+    <aside className="notice data-notice" aria-label={t(lang, "noticeTitle")}>
+      <strong>{t(lang, "noticeTitle")}:</strong>
+      <ul>{issues.map((i) => <li key={i.rule}><Tr value={i} /></li>)}</ul>
+      <L to="/data-quality" className="small">{t(lang, "dataQuality")} ›</L>
+    </aside>
+  );
+}

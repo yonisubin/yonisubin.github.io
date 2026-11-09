@@ -165,6 +165,27 @@ const ui = {
   kindLabel_mk: { he: "חבר/ת כנסת", en: "MK" },
   kindLabel_committee: { he: "ועדה", en: "Committee" },
   kindLabel_keyword: { he: "ביטוי", en: "Keyword" },
+  // phase 5
+  statusTitle: { he: "מצב המערכת", en: "Status" },
+  statusOk: { he: "המידע מעודכן", en: "Data is up to date" },
+  statusStale: { he: "הסנכרון לא הצליח בשעה האחרונה", en: "No successful sync in the last hour" },
+  statusIntro: {
+    he: "האתר מסנכרן את המידע מהכנסת כל 30 דקות. לכל טבלה: מתי הסתיים בהצלחה הסנכרון האחרון, ועד מתי המידע עדכני.",
+    en: "The site copies the Knesset's data every 30 minutes. For each table: when its last sync succeeded, and how recent its data is.",
+  },
+  entity: { he: "טבלה", en: "Table" },
+  lastSuccess: { he: "סנכרון מוצלח אחרון", en: "Last successful sync" },
+  dataUpTo: { he: "עדכון אחרון במקור", en: "Latest change at the source" },
+  lastErrorCol: { he: "שגיאה", en: "Error" },
+  dataQuality: { he: "איכות המידע", en: "Data quality" },
+  dataQualityIntro: {
+    he: "בדיקות אוטומטיות שרצות כל לילה על המידע הרשמי. אנחנו מציגים בעיות שמצאנו ולא מתקנים או משלימים את המידע בניחושים.",
+    en: "Automatic checks that run every night on the official data. We show the problems we find; we never fix or fill in the data by guesswork.",
+  },
+  openIssues: { he: "פתוחות", en: "Open" },
+  examples: { he: "דוגמאות", en: "Examples" },
+  noticeTitle: { he: "הערה על המידע", en: "About this data" },
+  apiTitle: { he: "ממשק API ציבורי", en: "Public API" },
 } satisfies Record<string, Record<Lang, string>>;
 
 export type Key = keyof typeof ui;

@@ -2,7 +2,7 @@ import { useOutletContext, useParams } from "react-router-dom";
 import type { Meta, Mk } from "../api";
 import { BillList } from "../components/BillList";
 import { FollowButton } from "../components/FollowButton";
-import { DateText, He, L, Loader, Name, Period, Section, SourceLink, Tr, useLang } from "../components/ui";
+import { DataNotices, DateText, He, L, Loader, Name, Period, Section, SourceLink, Tr, useLang } from "../components/ui";
 import { t } from "../i18n";
 import { useApi } from "../useApi";
 
@@ -26,6 +26,8 @@ export function MkPage() {
               </p>
               <FollowButton type="mk" id={m.id} />
             </header>
+
+            <DataNotices issues={m.data_issues} />
 
             <Section title={t(lang, "factions")} id="factions">
               {m.factions.length === 0 ? <p className="muted">{t(lang, "none")}</p> : (

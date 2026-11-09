@@ -12,7 +12,8 @@ from sqlalchemy import Connection, and_, func, or_, select, true
 
 from .config import get_settings
 from .entities import BY_NAME
-from .models import change_event, sync_state
+from .models import change_event, sync_run, sync_state
+from .quality import issues_for
 from .stages import (
     BILL_NAME_STAGE,
     BILL_STATUS,
@@ -264,6 +265,7 @@ def get_bill(conn: Connection, bill_id: int) -> dict[str, Any] | None:
                      "format": d["format"], "url": d["url"]})
     out["documents"] = docs
     out["timeline"] = bill_timeline(conn, bill_id)
+    out["data_issues"] = issues_for(conn, "bill", bill_id)
     out["timeline_note"] = translated(
         "ציר הזמן משוחזר מסדרי היום של המליאה והוועדות, מהצבעות ומשינויי סטטוס שזיהינו. "
         "תאריכים שאינם מופיעים במידע הרשמי אינם מוצגים.",
@@ -346,6 +348,7 @@ def get_mk(conn: Connection, person_id: int) -> dict[str, Any] | None:
         .order_by(vote.c.voted_at.desc()).limit(50)).mappings().all()
 
     return {
+        "data_issues": issues_for(conn, "person", person_id),
         "id": p["id"], "name": person_name(p), "gender": {"he": p["gender_desc_he"]},
         "is_current": p["is_current"], "source": source("KNS_Person", p["id"]),
         "factions": [pos(r) | {"faction": {"id": r["faction_id"],
@@ -474,3 +477,38 @@ def recent_changes(conn: Connection, limit: int = 20) -> list[dict[str, Any]]:
              "event_type": r["event_type"], "detected_at": r["detected_at"],
              "stage": stage_json(stage_for_status((r["after"] or {}).get("status_id")))}
             for r in rows]
+
+
+# ---------------------------------------------------------------- status
+
+STALE_AFTER_MINUTES = 60
+
+
+def sync_status(conn: Connection, now: datetime) -> dict[str, Any]:
+    """Public status: freshness per entity, from the sync's own logs."""
+    last_ok: dict[str, datetime] = dict(conn.execute(
+        select(sync_run.c.entity, func.max(sync_run.c.finished_at))
+        .where(sync_run.c.error.is_(None), sync_run.c.finished_at.is_not(None))
+        .group_by(sync_run.c.entity)).all())
+    last_err = {r["entity"]: r for r in conn.execute(
+        select(sync_run.c.entity, sync_run.c.started_at, sync_run.c.error)
+        .where(sync_run.c.error.is_not(None)).order_by(sync_run.c.id.desc()).limit(200)
+    ).mappings()}
+    states = {r["entity"]: r for r in conn.execute(select(sync_state)).mappings()}
+    entities: list[dict[str, Any]] = []
+    for name, spec in BY_NAME.items():
+        st = states.get(name)
+        ok = last_ok.get(name)
+        err = last_err.get(name)
+        entities.append({
+            "entity": name, "table": spec.table_name, "last_success": ok,
+            "data_up_to": st["high_water_mark"] if st else None,
+            "last_reconciled": st["last_reconciled_at"] if st else None,
+            # an error only counts if it is newer than the last success
+            "last_error": err["error"] if err and (ok is None or err["started_at"] > ok) else None,
+        })
+    oks = [v for v in last_ok.values() if v is not None]
+    newest = max(oks) if oks else None
+    healthy = newest is not None and (now - newest).total_seconds() < STALE_AFTER_MINUTES * 60
+    return {"healthy": healthy, "last_successful_sync": newest,
+            "stale_after_minutes": STALE_AFTER_MINUTES, "checked_at": now, "entities": entities}

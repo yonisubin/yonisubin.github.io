@@ -37,7 +37,7 @@ export interface Bill extends BillSummary {
   initiators: { person_id: number; name: PersonName; is_initiator: boolean; ordinal: number | null }[];
   names: { name: Text; stage: Bi }[];
   documents: { type: Bi; format: string | null; url: string }[];
-  timeline: TimelineEvent[]; timeline_note: Bi; data_notice?: Bi;
+  timeline: TimelineEvent[]; timeline_note: Bi; data_notice?: Bi; data_issues: DataIssue[];
 }
 
 export interface MkSummary {
@@ -51,6 +51,7 @@ interface Position {
 }
 
 export interface Mk {
+  data_issues: DataIssue[];
   id: number; name: PersonName; is_current: boolean; source: string;
   factions: (Position & { faction: Ref })[];
   committees: (Position & { committee: Ref })[];
@@ -138,4 +139,14 @@ export async function send<T>(method: "POST" | "PATCH" | "DELETE", path: string,
     throw new ApiError(res.status, typeof detail === "string" ? detail : JSON.stringify(detail));
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
+}
+
+export interface DataIssue { rule: string; he: string; en: string; en_translated: boolean; details: unknown; since: string }
+export interface StatusData {
+  healthy: boolean; last_successful_sync: string | null; stale_after_minutes: number; checked_at: string;
+  entities: { entity: string; table: string; last_success: string | null; data_up_to: string | null;
+    last_reconciled: string | null; last_error: string | null }[];
+}
+export interface QualityRule {
+  rule: string; entity_type: string; open: number; description: Bi; examples: number[];
 }

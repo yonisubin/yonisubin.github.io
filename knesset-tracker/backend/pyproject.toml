@@ -16,6 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
+sentry = ["sentry-sdk>=2.14"]
 
 [tool.ruff]
 line-length = 100

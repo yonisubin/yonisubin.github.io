@@ -150,3 +150,13 @@ a.follow { display: inline-block; text-decoration: none; }
 .link-button { background: none; color: var(--link); padding: 0; text-decoration: underline; font-size: .875rem; }
 .danger-zone { display: flex; gap: .75rem; flex-wrap: wrap; }
 button.danger { background: #a3262b; color: #fff; }
+
+.data-notice ul { margin: .25rem 0; padding-inline-start: 1.25rem; }
+.table-wrap { overflow-x: auto; }
+table.data { border-collapse: collapse; inline-size: 100%; font-size: .9rem; }
+table.data th, table.data td { text-align: start; padding: .4rem .6rem; border-block-end: 1px solid var(--border); vertical-align: top; }
+table.data th { color: var(--muted); font-weight: 600; }
+.status-ok { color: var(--passed); }
+.status-bad { color: #a3262b; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .875em; }
+pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: .75rem; overflow-x: auto; direction: ltr; text-align: left; }

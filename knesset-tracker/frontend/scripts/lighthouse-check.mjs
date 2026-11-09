@@ -7,7 +7,7 @@ import * as chromeLauncher from "chrome-launcher";
 const BASE = process.env.BASE_URL ?? "http://localhost:8000";
 const MIN = { performance: 90, accessibility: 90 };
 const PAGES = ["/he", "/en", "/he/bills", "/en/bills", "/he/bills/2196528", "/en/bills/2196528",
-  "/he/committees", "/en/committees",
+  "/he/committees", "/en/committees", "/en/status", "/he/data-quality",
   `/he/search?q=${encodeURIComponent("עבודת נשים")}`, `/en/search?q=${encodeURIComponent("עבודת נשים")}`];
 
 const chrome = await chromeLauncher.launch({ chromeFlags: ["--headless=new", "--no-sandbox"] });

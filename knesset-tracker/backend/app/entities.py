@@ -54,6 +54,11 @@ def ident(v: Any) -> Any:
     return v
 
 
+def to_ref(v: Any) -> int | None:
+    # The API writes -1 for "no committee" on most bills (found by the data-quality checks)
+    return v if isinstance(v, int) and v > 0 else None
+
+
 @dataclass(frozen=True)
 class Col:
     source: str
@@ -64,6 +69,11 @@ class Col:
 
 def I(src: str, index: bool = False) -> Col:  # noqa: E743 - short helpers keep specs readable
     return Col(src, Integer, ident, index)
+
+
+def R(src: str, index: bool = False) -> Col:
+    """A reference to another entity's id; placeholder values like -1 become NULL."""
+    return Col(src, Integer, to_ref, index)
 
 
 def T(src: str) -> Col:
@@ -224,7 +234,7 @@ ENTITIES: list[EntitySpec] = [
         "knesset_num": I("KnessetNum", index=True), "name_he": T("Name"),
         "type_id": I("TypeID"), "sub_type_id": I("SubTypeID"),
         "sub_type_desc_he": T("SubTypeDesc"), "private_number": I("PrivateNumber"),
-        "number": I("Number"), "committee_id": I("CommitteeID", index=True),
+        "number": I("Number"), "committee_id": R("CommitteeID", index=True),
         "status_id": I("StatusID", index=True),
         "postponement_reason_he": T("PostponementReasonDesc"),
         "publication_date": D("PublicationDate"),

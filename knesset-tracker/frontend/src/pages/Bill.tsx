@@ -2,7 +2,7 @@ import { useOutletContext, useParams } from "react-router-dom";
 import type { Bill, Meta, TimelineEvent } from "../api";
 import { FollowButton } from "../components/FollowButton";
 import { Journey } from "../components/Journey";
-import { DateText, He, L, Loader, Name, Section, SourceLink, StageBadge, Tr, useLang } from "../components/ui";
+import { DataNotices, DateText, He, L, Loader, Name, Section, SourceLink, StageBadge, Tr, useLang } from "../components/ui";
 import { t, type Lang } from "../i18n";
 import { useApi } from "../useApi";
 
@@ -26,6 +26,8 @@ export function BillPage() {
             </p>
             <FollowButton type="bill" id={b.id} />
           </header>
+
+          <DataNotices issues={b.data_issues} />
 
           <section className="card stage-card" aria-labelledby="stage-h">
             <h2 id="stage-h">{t(lang, "currentStage")}</h2>

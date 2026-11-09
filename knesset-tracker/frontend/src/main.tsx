@@ -15,6 +15,7 @@ import { AccountPage } from "./pages/Account";
 import { LoginPage } from "./pages/Login";
 import { SearchPage } from "./pages/Search";
 import { VerifyPage } from "./pages/Verify";
+import { ApiPage, DataQualityPage, StatusPage } from "./pages/About";
 import "./styles.css";
 
 function LangGuard() {
@@ -39,6 +40,9 @@ createRoot(document.getElementById("root")!).render(
           <Route path="login" element={<LoginPage />} />
           <Route path="auth/verify" element={<VerifyPage />} />
           <Route path="account" element={<AccountPage />} />
+          <Route path="status" element={<StatusPage />} />
+          <Route path="data-quality" element={<DataQualityPage />} />
+          <Route path="api" element={<ApiPage />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
