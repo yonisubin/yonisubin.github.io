@@ -50,6 +50,9 @@ main.wrap { padding-block: 1.5rem 3rem; min-block-size: 100vh; }
 .main-nav { display: flex; gap: 1rem; flex-wrap: wrap; }
 .main-nav a { padding-block: .25rem; border-block-end: 2px solid transparent; }
 .main-nav a.active, .main-nav a:hover { border-block-end-color: currentColor; }
+.header-search { margin-inline-start: auto; }
+.header-search input { inline-size: 12rem; max-inline-size: 40vw; }
+.header-search + .lang-toggle { margin-inline-start: 0; }
 .lang-toggle { margin-inline-start: auto; border: 1px solid currentColor; border-radius: 999px; padding: .15rem .8rem; }
 
 .site-footer { border-block-start: 1px solid var(--border); color: var(--muted); font-size: .9rem; padding-block: 1.5rem; }
@@ -125,3 +128,9 @@ select { font: inherit; color: var(--text); background: var(--surface); border: 
 .sessions > li { padding-block: .6rem; border-block-end: 1px solid var(--border); }
 .sessions > li:last-child { border-block-end: 0; }
 .agenda { margin-block: .3rem 0; padding-inline-start: 1.25rem; font-size: .95rem; }
+
+input[type="search"], input[type="date"] { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: .4rem .6rem; }
+.site-header input[type="search"] { border-color: transparent; }
+.search-form { display: flex; gap: .5rem; margin-block: .5rem; }
+.search-form input { flex: 1; min-inline-size: 0; font-size: 1.1rem; padding: .6rem .8rem; }
+.kind { display: inline-block; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); min-inline-size: 5.5rem; }

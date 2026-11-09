@@ -136,6 +136,8 @@ def engine() -> Iterator[Engine]:
             conn.execute(text("SELECT 1"))
     except Exception as e:  # noqa: BLE001
         pytest.skip(f"no test database at {TEST_DB}: {e}")
+    with eng.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
     metadata.drop_all(eng)
     metadata.create_all(eng)
     yield eng

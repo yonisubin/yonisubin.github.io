@@ -104,3 +104,9 @@ export function query(params: Record<string, string | number | null | undefined>
   const s = q.toString();
   return s ? `?${s}` : "";
 }
+
+export interface SearchHit {
+  type: "bill" | "law" | "person" | "committee" | "query"; id: number; title: Text;
+  knesset: number | null; stage: string | null; date: string | null; score: number; source: string;
+}
+export interface SearchResult { query: string; page: number; per_page: number; has_more: boolean; items: SearchHit[] }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import type { Meta } from "../api";
 import { dirOf, t } from "../i18n";
 import { loadMeta } from "../useApi";
@@ -17,6 +17,9 @@ export function Layout() {
   }, [lang]);
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
 
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const onSearch = pathname.endsWith("/search");
   const other = lang === "he" ? "en" : "he";
   const otherPath = pathname.replace(/^\/(he|en)/, `/${other}`) + search;
   const nav = (to: string, key: "bills" | "mks" | "committees") => (
@@ -34,6 +37,17 @@ export function Layout() {
             {nav("/mks", "mks")}
             {nav("/committees", "committees")}
           </nav>
+          {!onSearch && (
+            <form role="search" className="header-search" onSubmit={(e) => {
+              e.preventDefault();
+              const q = new FormData(e.currentTarget).get("q");
+              if (q) navigate(`/${lang}/search?q=${encodeURIComponent(String(q))}`);
+            }}>
+              <label className="visually-hidden" htmlFor="header-q">{t(lang, "search")}</label>
+              <input id="header-q" name="q" type="search" dir="auto" placeholder={t(lang, "search")}
+                     defaultValue={params.get("q") ?? ""} />
+            </form>
+          )}
           <Link to={otherPath} className="lang-toggle" lang={other} hrefLang={other}>
             {t(lang, "otherLang")}
           </Link>

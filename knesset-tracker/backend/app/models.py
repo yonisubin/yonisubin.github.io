@@ -19,6 +19,7 @@ from sqlalchemy import (
     Table,
     Text,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -89,4 +90,31 @@ sync_run = Table(
     Column("pass_completed", Boolean, nullable=False, default=False),
     Column("error", Text),
     Index(None, "entity", "started_at"),
+)
+
+# One row per searchable thing (bill, law, MK/person, committee, parliamentary question),
+# rebuilt in the same transaction as the domain change that affects it. Text columns
+# hold app.hebrew.index_text() output and have GIN trigram indexes (pg_trgm).
+search_document = Table(
+    "search_document", metadata,
+    Column("doc_type", String(16), primary_key=True),
+    Column("doc_id", Integer, primary_key=True),
+    Column("title_he", Text),
+    Column("title_en", Text),
+    Column("title_norm", Text, nullable=False),
+    Column("body_norm", Text, nullable=False, server_default=""),
+    Column("knesset_num", Integer),
+    Column("stage_key", String(32)),
+    Column("committee_id", Integer),
+    Column("person_id", Integer),
+    Column("date", DateTime(timezone=True)),
+    Index("ix_search_document_title_trgm", "title_norm", postgresql_using="gin",
+          postgresql_ops={"title_norm": "gin_trgm_ops"}),
+    Index("ix_search_document_body_trgm", "body_norm", postgresql_using="gin",
+          postgresql_ops={"body_norm": "gin_trgm_ops"}),
+    # short names (people, committees, laws) get typo-tolerant matching on every query
+    Index("ix_search_document_short_title_trgm", "title_norm", postgresql_using="gin",
+          postgresql_ops={"title_norm": "gin_trgm_ops"},
+          postgresql_where=text("doc_type IN ('person', 'committee', 'law')")),
+    Index(None, "doc_type", "knesset_num"),
 )

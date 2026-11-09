@@ -163,6 +163,9 @@ def process_page(conn: Connection, spec: EntitySpec, rows: list[Row], *,
     if events:
         conn.execute(insert(change_event), events)
         res.events = len(events)
+    # keep search in step with the data, in the same transaction
+    from .search import reindex_rows
+    reindex_rows(conn, spec, after.values())
     return res
 
 
@@ -284,6 +287,8 @@ def reconcile_entity(engine: Engine, client: ODataClient, spec: EntitySpec,
             if gone:
                 ids = [g["id"] for g in gone]
                 conn.execute(delete(t).where(t.c.id.in_(ids)))
+                from .search import reindex_rows
+                reindex_rows(conn, spec, gone)  # drops documents whose source is gone
                 conn.execute(insert(change_event), [{
                     "entity_type": spec.table_name, "entity_id": g["id"],
                     "event_type": f"{spec.table_name}.deleted",

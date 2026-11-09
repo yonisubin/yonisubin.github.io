@@ -13,7 +13,7 @@ detect every change, and let people follow a bill, an MK or a committee.
 | 0. Explore the data | **Done.** See [`phase0/DATA_MEMO.md`](phase0/DATA_MEMO.md). |
 | 1. Mirror | **Code done, not deployed yet.** Resumable backfill, incremental sync with hashing and change events, nightly reconciliation, `/admin` sync-status page, integration tests on recorded fixtures, CI. Remaining: create the Neon project and Wasmer app, run the backfill into Neon, then two weeks of unattended syncs. |
 | 2. Read-only site | **Code done, not deployed yet.** Bill pages with reconstructed timelines, MK and committee pages, committee iCal feeds, Hebrew (RTL) and English (LTR), public JSON API. Measured locally: see below. |
-| 3. Search | Not started |
+| 3. Search | **Done (local).** pg_trgm search with Hebrew normalisation and filters, 30-query relevance set in CI: 30/30 pass, MRR 0.978, p95 72 ms in the test, 85 ms over HTTP. |
 | 4. Accounts and alerts | Not started |
 | 5. Polish and launch | Not started |
 
@@ -66,6 +66,47 @@ detect every change, and let people follow a bill, an MK or a committee.
 Latency on Neon will be higher (network round trips, and a cold start after idle). Measure it again
 after deploying.
 
+## Phase 3: search
+
+One search box covers bills, laws, MKs, committees and parliamentary questions (63,475 documents),
+with filters for type, Knesset term, stage, committee, initiator and date range.
+
+- **No Hebrew stemmer, so normalisation plus trigrams.** `app/hebrew.py` normalises documents and
+  queries the same way:
+  - it strips niqqud and cantillation;
+  - it unifies final letters, so "שלומ" finds "שלום";
+  - it drops gershayim and quotes, so תשפ"ו, תשפ״ו and תשפו all match;
+  - it adds prefix-stripped variants of each word (ה ו ב ל מ ש כ), so "לחוק" and "והחוק" find "חוק".
+
+  `pg_trgm` GIN indexes handle substring and typo-tolerant matching. No extra service is needed.
+- **Always fresh.** `search_document` is rebuilt for the affected rows inside the same transaction
+  as each sync page.
+- **Ranking:** trigram word-similarity to the title, plus boosts for exact, prefix and substring
+  matches. Summary text counts only if the title didn't already match. A law ranks above the
+  bills that amend it, and for committees and MKs, whose names repeat across terms, the current
+  term comes first.
+- **Speed came from measuring.** The first version took ~1 s per query, because an `OR` across
+  index conditions made Postgres scan the whole table. Candidates now come from a `UNION` of
+  index lookups. Fuzzy matching runs on every query for short names (people, committees, laws,
+  with their own partial index). For long titles it runs only as a fallback, when exact matching
+  can't fill the page, using strict word similarity at 0.7: 10× fewer rechecks than 0.6, with
+  nearly the same matches.
+- **Relevance test set** (`tests/test_search_relevance.py`): 30 queries, each with the result a
+  user obviously wants. Expected ids were looked up by name in the data, not copied from the
+  engine's output. The cases cover exact names, typos, spelling variants (מרב/מירב, אשה/אישה),
+  missing geresh, prefixes, niqqud, gershayim, word order and summary-only matches. They run in CI
+  against the raw text of all 63k real documents (`tests/fixtures/search_corpus.jsonl.gz`, 1.8 MB),
+  re-indexed with the current normaliser. The first run passed 25/30. Three failures were
+  ranking problems, which are fixed. Two were wrong expectations: one bill name is shared by three
+  identically named bills from different MKs, and a phrase I chose appears in other bills' titles.
+
+| Measured | Result | Target |
+| --- | --- | --- |
+| Relevance set | 30/30, MRR 0.978 | 30/30 |
+| Search latency (test DB, steady state) | p50 55 ms, p95 72 ms | p95 < 100 ms |
+| Search latency over HTTP, full DB, 4 concurrent | p50 61 ms, p95 85 ms | p95 < 100 ms |
+| Index size | 40 MB for 63k documents | |
+
 ## Sync design (backend/app/sync.py)
 
 One code path does the backfill, the 30-minute sync and the nightly reconciliation.
@@ -103,6 +144,7 @@ export DATABASE_URL=postgresql+psycopg://postgres@localhost/knesset
 alembic upgrade head
 python -m scripts.backfill                 # resumable; Ctrl-C and re-run any time
 python -m scripts.backfill KNS_Bill        # or just some entities
+python -m scripts.rebuild_search           # once, after migration 0002 on an existing mirror
 INTERNAL_TOKEN=dev uvicorn app.main:app    # then: curl -XPOST -H 'X-Internal-Token: dev' :8000/internal/sync
 open http://localhost:8000/admin           # sync status per entity
 TEST_DATABASE_URL=postgresql+psycopg://postgres@localhost/knesset_test pytest
@@ -123,6 +165,7 @@ exactly the expected set of events.
 
 1. Create the Neon project (Free plan, compute pinned to 0.25 CU) and run `alembic upgrade head`.
 2. Run the backfill from your machine against the Neon URL, then record `pg_database_size` in the memo.
+   (If the backfill ran before migration 0002, run `python -m scripts.rebuild_search` once.)
 3. Create the Wasmer app. Check `backend/wasmer.toml` against your existing FastAPI deploy, and use
    `postgresql+pg8000://` on Wasmer, because psycopg's binary build is a native extension.
    Set `DATABASE_URL`, `INTERNAL_TOKEN` and `SYNC_TIME_BUDGET_SECONDS=240` as app secrets.

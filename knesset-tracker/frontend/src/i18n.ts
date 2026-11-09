@@ -103,6 +103,24 @@ const ui = {
   recentlyUpdated: { he: "הצעות חוק שעודכנו לאחרונה", en: "Recently updated bills" },
   allBills: { he: "לכל הצעות החוק", en: "All bills" },
   newBill: { he: "הצעת חוק חדשה", en: "New bill" },
+  // search
+  search: { he: "חיפוש", en: "Search" },
+  searchPlaceholder: { he: "חיפוש הצעות חוק, חוקים, ח״כים, ועדות…", en: "Search bills, laws, MKs, committees…" },
+  searchHint: {
+    he: "אפשר לחפש בעברית עם או בלי ניקוד וקידומות (ה, ו, ב, ל…). שגיאות הקלדה קטנות נסלחות.",
+    // \u2068...\u2069 isolate the Hebrew letters so the brackets don't get reordered
+    en: "Search in Hebrew, with or without niqqud and prefixes (\u2068ה, ו, ב, ל…\u2069). Small typos are tolerated. Names in the official data are Hebrew only.",
+  },
+  noResults: { he: "לא נמצאו תוצאות.", en: "No results." },
+  allKinds: { he: "הכול", en: "Everything" },
+  kind_bill: { he: "הצעת חוק", en: "Bill" },
+  kind_law: { he: "חוק", en: "Law" },
+  kind_person: { he: "חבר/ת כנסת", en: "MK" },
+  kind_committee: { he: "ועדה", en: "Committee" },
+  kind_query: { he: "שאילתה", en: "Question" },
+  from: { he: "מתאריך", en: "From" },
+  to: { he: "עד תאריך", en: "To" },
+  moreResults: { he: "תוצאות נוספות", en: "More results" },
 } satisfies Record<string, Record<Lang, string>>;
 
 export type Key = keyof typeof ui;

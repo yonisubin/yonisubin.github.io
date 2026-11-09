@@ -10,6 +10,8 @@ from sqlalchemy import Connection, Engine
 
 from . import read
 from .db import get_engine
+from .search import DOC_TYPES
+from .search import search as run_search
 from .stages import STAGES
 
 router = APIRouter(prefix="/api/v1", tags=["read"])
@@ -92,6 +94,34 @@ def committee(committee_id: int, response: Response, conn: Connection = Depends(
         raise HTTPException(404, "no such committee")
     cache(response)
     return out
+
+
+@router.get("/search")
+def search_endpoint(response: Response, conn: Connection = Depends(conn_dep),
+                    q: str = Query(..., min_length=1, max_length=200),
+                    type: str | None = Query(None, description="bill, law, person, committee, "
+                                                              "query"),
+                    knesset: int | None = None, stage: str | None = None,
+                    committee: int | None = None, initiator: int | None = None,
+                    date_from: datetime | None = Query(None, alias="from"),
+                    date_to: datetime | None = Query(None, alias="to"),
+                    page: int = Query(1, ge=1, le=50), per_page: int = Query(20, ge=1, le=50)
+                    ) -> dict[str, Any]:
+    """Search bills, laws, MKs, committees and parliamentary questions. Hebrew prefixes,
+    niqqud, final letters and small typos are handled; see app/search.py."""
+    if type and type not in DOC_TYPES:
+        raise HTTPException(422, f"unknown type {type!r}")
+    if stage and stage not in STAGES:
+        raise HTTPException(422, f"unknown stage {stage!r}")
+    cache(response, 300)
+    out = run_search(conn, q, doc_type=type, knesset=knesset, stage=stage, committee_id=committee,
+                     initiator=initiator, date_from=date_from, date_to=date_to,
+                     limit=per_page + 1, offset=(page - 1) * per_page)
+    entity = {"bill": "KNS_Bill", "law": "KNS_IsraelLaw", "person": "KNS_Person",
+              "committee": "KNS_Committee", "query": "KNS_Query"}
+    items = [i | {"source": read.source(entity[i["type"]], i["id"])} for i in out["items"]]
+    return {"query": q, "page": page, "per_page": per_page,
+            "has_more": len(items) > per_page, "items": items[:per_page]}
 
 
 @router.get("/changes")

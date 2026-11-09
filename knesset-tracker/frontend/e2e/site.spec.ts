@@ -71,3 +71,24 @@ test("no horizontal scrolling", async ({ page }) => {
     expect(overflow, path).toBe(false);
   }
 });
+
+test("search finds a bill despite niqqud and a prefix, and filters by type", async ({ page }) => {
+  await page.goto("/he");
+  await page.locator("#header-q").fill("לְחוֹק עבודת נשים");
+  await page.locator("#header-q").press("Enter");
+  await expect(page).toHaveURL(/\/he\/search\?q=/);
+  const hit = page.locator(`a.item-title[href="/he/bills/${BILL}"]`);
+  await expect(hit).toBeVisible();
+  await page.getByLabel("סוג").selectOption("person");
+  await expect(page).toHaveURL(/type=person/);
+  await expect(hit).toHaveCount(0);
+});
+
+test("search tolerates a typo in an MK's name", async ({ page, request }) => {
+  const bill = await (await request.get(`/api/v1/bills/${BILL}`)).json();
+  const mk = bill.initiators[0];
+  const name: string = mk.name.he;
+  const typo = name.slice(0, -2) + name.slice(-1); // drop the second-to-last letter
+  await page.goto(`/en/search?q=${encodeURIComponent(typo)}`);
+  await expect(page.locator(`a.item-title[href="/en/mks/${mk.person_id}"]`)).toBeVisible();
+});

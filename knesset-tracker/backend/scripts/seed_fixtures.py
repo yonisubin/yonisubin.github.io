@@ -6,6 +6,8 @@ end-to-end tests and the Lighthouse check in CI.
 """
 from __future__ import annotations
 
+from sqlalchemy import text
+
 from app.config import Settings, get_settings
 from app.db import get_engine
 from app.models import metadata
@@ -16,6 +18,8 @@ def main() -> None:
     from app.sync import run_sync
 
     engine = get_engine()
+    with engine.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
     metadata.drop_all(engine)
     metadata.create_all(engine)
     settings = Settings(database_url=get_settings().database_url, odata_base_url=BASE,

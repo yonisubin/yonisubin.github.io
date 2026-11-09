@@ -104,3 +104,21 @@ def test_meta_lists_stages_in_order(client):
     m = client.get("/api/v1/meta").json()
     assert [s["order"] for s in m["stages"]] == sorted(s["order"] for s in m["stages"])
     assert m["current_knesset"] == 25  # no period is marked current in the fixtures: newest term
+
+
+def test_search_endpoint_finds_bills_people_and_committees(client):
+    r = client.get("/api/v1/search", params={"q": "חוק עבודת נשים"}).json()
+    assert PASSED_BILL in [i["id"] for i in r["items"] if i["type"] == "bill"]
+    # niqqud and a prefix
+    r = client.get("/api/v1/search", params={"q": "לְחוֹק עבודת נשים"}).json()
+    assert PASSED_BILL in [i["id"] for i in r["items"]]
+    person = client.get(f"/api/v1/bills/{PASSED_BILL}").json()["initiators"][0]
+    r = client.get("/api/v1/search", params={"q": person["name"]["he"], "type": "person"}).json()
+    assert r["items"][0]["id"] == person["person_id"]
+    assert client.get("/api/v1/search", params={"q": "x", "type": "nope"}).status_code == 422
+
+
+def test_search_index_follows_the_sync(client):
+    # day 2 added bill 9999001 with a new name; it is searchable straight away
+    r = client.get("/api/v1/search", params={"q": "הצעת חוק בדיקה"}).json()
+    assert r["items"][0]["id"] == 9_999_001
