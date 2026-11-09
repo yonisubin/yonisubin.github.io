@@ -1,0 +1,52 @@
+[
+ {
+  "Id": 491804,
+  "SecondaryLawId": 2067381,
+  "GroupTypeID": 0,
+  "GroupTypeDesc": "מסמכים לא משויכים",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il/\\20\\מסמכים לא משויכים\\20___491804.docx",
+  "LastUpdatedDate": "2018-03-18T18:42:54.53+02:00"
+ },
+ {
+  "Id": 491805,
+  "SecondaryLawId": 2067376,
+  "GroupTypeID": 116,
+  "GroupTypeDesc": "חומר רקע",
+  "ApplicationID": 4,
+  "ApplicationDesc": "PDF",
+  "FilePath": "https://fs.knesset.gov.il/\\20\\SecondaryLaw\\20_scl_bg_491805.pdf",
+  "LastUpdatedDate": "2018-03-18T18:43:03.81+02:00"
+ },
+ {
+  "Id": 491806,
+  "SecondaryLawId": 2067377,
+  "GroupTypeID": 116,
+  "GroupTypeDesc": "חומר רקע",
+  "ApplicationID": 4,
+  "ApplicationDesc": "PDF",
+  "FilePath": "https://fs.knesset.gov.il/\\20\\SecondaryLaw\\20_scl_bg_491806.pdf",
+  "LastUpdatedDate": "2018-03-18T18:43:13.047+02:00"
+ },
+ {
+  "Id": 491807,
+  "SecondaryLawId": 2067381,
+  "GroupTypeID": 116,
+  "GroupTypeDesc": "חומר רקע",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il/\\20\\SecondaryLaw\\20_scl_bg_491807.docx",
+  "LastUpdatedDate": "2018-03-18T18:43:22.377+02:00"
+ },
+ {
+  "Id": 491808,
+  "SecondaryLawId": 2067467,
+  "GroupTypeID": 116,
+  "GroupTypeDesc": "חומר רקע",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il/\\20\\SecondaryLaw\\20_scl_bg_491808.doc",
+  "LastUpdatedDate": "2018-03-18T18:43:31.673+02:00"
+ }
+]

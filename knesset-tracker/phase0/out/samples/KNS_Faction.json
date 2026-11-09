@@ -1,0 +1,47 @@
+[
+ {
+  "Id": 3,
+  "Name": "ישראל אחת",
+  "KnessetNum": 15,
+  "StartDate": "1999-06-07T00:00:00+03:00",
+  "FinishDate": "2001-05-15T00:00:00+03:00",
+  "IsCurrent": false,
+  "LastUpdatedDate": "2019-01-24T11:45:06.46+02:00"
+ },
+ {
+  "Id": 4,
+  "Name": "הליכוד",
+  "KnessetNum": 15,
+  "StartDate": "1999-06-07T00:00:00+03:00",
+  "FinishDate": "2003-02-17T00:00:00+02:00",
+  "IsCurrent": false,
+  "LastUpdatedDate": "2019-01-24T11:45:06.46+02:00"
+ },
+ {
+  "Id": 5,
+  "Name": "ש\"ס",
+  "KnessetNum": 15,
+  "StartDate": "1999-06-07T00:00:00+03:00",
+  "FinishDate": "2003-02-17T00:00:00+02:00",
+  "IsCurrent": false,
+  "LastUpdatedDate": "2019-01-24T11:45:06.46+02:00"
+ },
+ {
+  "Id": 6,
+  "Name": "מרצ",
+  "KnessetNum": 15,
+  "StartDate": "1999-06-07T00:00:00+03:00",
+  "FinishDate": "2003-02-17T00:00:00+02:00",
+  "IsCurrent": false,
+  "LastUpdatedDate": "2019-01-24T11:45:06.46+02:00"
+ },
+ {
+  "Id": 7,
+  "Name": "האיחוד הלאומי - ישראל ביתנו",
+  "KnessetNum": 15,
+  "StartDate": "2000-02-01T00:00:00+02:00",
+  "FinishDate": "2003-02-17T00:00:00+02:00",
+  "IsCurrent": false,
+  "LastUpdatedDate": "2022-01-23T15:10:00+02:00"
+ }
+]

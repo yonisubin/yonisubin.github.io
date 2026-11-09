@@ -1,0 +1,52 @@
+[
+ {
+  "Id": 128870,
+  "PlenumSessionID": 129232,
+  "GroupTypeID": 28,
+  "GroupTypeDesc": "דברי הכנסת",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il//16/Plenum/16_ptm_128870.doc",
+  "LastUpdatedDate": "2010-06-03T06:55:11.027+03:00"
+ },
+ {
+  "Id": 128871,
+  "PlenumSessionID": 128986,
+  "GroupTypeID": 28,
+  "GroupTypeDesc": "דברי הכנסת",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il//16/Plenum/16_ptm_128871.doc",
+  "LastUpdatedDate": "2010-06-03T06:55:11.21+03:00"
+ },
+ {
+  "Id": 128874,
+  "PlenumSessionID": 128672,
+  "GroupTypeID": 28,
+  "GroupTypeDesc": "דברי הכנסת",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il//16/Plenum/16_ptm_128874.doc",
+  "LastUpdatedDate": "2010-06-03T06:55:13.033+03:00"
+ },
+ {
+  "Id": 128875,
+  "PlenumSessionID": 128332,
+  "GroupTypeID": 28,
+  "GroupTypeDesc": "דברי הכנסת",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il//16/Plenum/16_ptm_128875.doc",
+  "LastUpdatedDate": "2010-06-03T06:55:13.237+03:00"
+ },
+ {
+  "Id": 128878,
+  "PlenumSessionID": 128152,
+  "GroupTypeID": 28,
+  "GroupTypeDesc": "דברי הכנסת",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il//16/Plenum/16_ptm_128878.doc",
+  "LastUpdatedDate": "2010-06-03T06:55:14.11+03:00"
+ }
+]

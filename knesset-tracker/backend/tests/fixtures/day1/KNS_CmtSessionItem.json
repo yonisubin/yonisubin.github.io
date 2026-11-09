@@ -1,0 +1,52 @@
+[
+ {
+  "Id": 906364,
+  "ItemID": 2205959,
+  "CommitteeSessionID": 2220608,
+  "Ordinal": 1,
+  "StatusID": 108,
+  "Name": "הצעת חוק לתיקון פקודת מסי העירייה ומסי הממשלה (פטורין) (פטור מארנונה למצללה), התשפ\"ג-2023 ",
+  "ItemTypeID": 2,
+  "LastUpdatedDate": "2026-11-01T10:27:47.143+02:00"
+ },
+ {
+  "Id": 912019,
+  "ItemID": 2196528,
+  "CommitteeSessionID": 2226440,
+  "Ordinal": 1,
+  "StatusID": 108,
+  "Name": "חוק עבודת נשים (תיקון מס' 67), התשפ\"ו–2026",
+  "ItemTypeID": 2,
+  "LastUpdatedDate": "2026-11-03T08:43:38.87+02:00"
+ },
+ {
+  "Id": 914355,
+  "ItemID": 2196528,
+  "CommitteeSessionID": 2229884,
+  "Ordinal": 1,
+  "StatusID": 108,
+  "Name": "חוק עבודת נשים (תיקון מס' 67), התשפ\"ו–2026",
+  "ItemTypeID": 2,
+  "LastUpdatedDate": "2026-11-03T08:43:38.87+02:00"
+ },
+ {
+  "Id": 916943,
+  "ItemID": 2196528,
+  "CommitteeSessionID": 2232297,
+  "Ordinal": 1,
+  "StatusID": 113,
+  "Name": "חוק עבודת נשים (תיקון מס' 67), התשפ\"ו–2026",
+  "ItemTypeID": 2,
+  "LastUpdatedDate": "2026-11-03T08:43:38.87+02:00"
+ },
+ {
+  "Id": 917391,
+  "ItemID": 2196528,
+  "CommitteeSessionID": 2232959,
+  "Ordinal": 4,
+  "StatusID": 113,
+  "Name": "חוק עבודת נשים (תיקון מס' 67), התשפ\"ו–2026",
+  "ItemTypeID": 2,
+  "LastUpdatedDate": "2026-11-03T08:43:38.87+02:00"
+ }
+]

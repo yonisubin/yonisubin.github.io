@@ -1,0 +1,32 @@
+[
+ {
+  "Id": 1,
+  "CommitteeID": 37,
+  "ParticipantCommitteeID": 21,
+  "LastUpdatedDate": "2015-03-20T12:02:57+02:00"
+ },
+ {
+  "Id": 2,
+  "CommitteeID": 37,
+  "ParticipantCommitteeID": 22,
+  "LastUpdatedDate": "2015-03-20T12:02:57+02:00"
+ },
+ {
+  "Id": 3,
+  "CommitteeID": 38,
+  "ParticipantCommitteeID": 21,
+  "LastUpdatedDate": "2015-03-20T12:02:57+02:00"
+ },
+ {
+  "Id": 4,
+  "CommitteeID": 38,
+  "ParticipantCommitteeID": 22,
+  "LastUpdatedDate": "2015-03-20T12:02:57+02:00"
+ },
+ {
+  "Id": 5,
+  "CommitteeID": 49,
+  "ParticipantCommitteeID": 21,
+  "LastUpdatedDate": "2015-03-20T12:02:57+02:00"
+ }
+]

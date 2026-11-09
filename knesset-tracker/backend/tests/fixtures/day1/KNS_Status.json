@@ -1,0 +1,740 @@
+[
+ {
+  "Id": 6,
+  "Desc": "בטיפול המשרד הנשאל",
+  "TypeID": 1,
+  "TypeDesc": "שאילתה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 8,
+  "Desc": "השר סירב לענות",
+  "TypeID": 1,
+  "TypeDesc": "שאילתה",
+  "OrderTransition": null,
+  "IsActive": false,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 9,
+  "Desc": "נענתה",
+  "TypeID": 1,
+  "TypeDesc": "שאילתה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 12,
+  "Desc": "נקבע תאריך תשובה",
+  "TypeID": 1,
+  "TypeDesc": "שאילתה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 101,
+  "Desc": "הכנה לקריאה ראשונה",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 104,
+  "Desc": "הונחה על שולחן הכנסת לדיון מוקדם",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 106,
+  "Desc": "בוועדת הכנסת לקביעת הוועדה המטפלת",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 108,
+  "Desc": "הכנה לקריאה ראשונה",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 109,
+  "Desc": "אושרה בוועדה לקריאה ראשונה",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 110,
+  "Desc": "הבקשה לדין רציפות נדחתה במליאה",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": false,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 111,
+  "Desc": "לדיון במליאה לקראת הקריאה הראשונה",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 113,
+  "Desc": "הכנה לקריאה שנייה ושלישית",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 114,
+  "Desc": "לדיון במליאה לקראת קריאה שנייה-שלישית",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 115,
+  "Desc": "הוחזרה לוועדה להכנה לקריאה שלישית",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 117,
+  "Desc": "לדיון במליאה לקראת קריאה שלישית",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 118,
+  "Desc": "התקבלה בקריאה שלישית",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 120,
+  "Desc": "לדיון במליאה על החלת דין רציפות",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 122,
+  "Desc": "מוזגה עם הצעת חוק אחרת",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 124,
+  "Desc": "הוסבה להצעה לסדר היום",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 126,
+  "Desc": "לאישור מיזוג בוועדת הכנסת",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": false,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 130,
+  "Desc": "הונחה על שולחן הכנסת לקריאה שנייה-שלישית",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 131,
+  "Desc": "הונחה על שולחן הכנסת לקריאה שלישית",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 140,
+  "Desc": "להסרה מסדר היום לבקשת ועדה",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 141,
+  "Desc": "הונחה על שולחן הכנסת לקריאה ראשונה",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 142,
+  "Desc": "בוועדת הכנסת לקביעת הוועדה המטפלת",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 143,
+  "Desc": "להסרה מסדר היום לבקשת ועדה",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 150,
+  "Desc": "במליאה לדיון מוקדם",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 158,
+  "Desc": "לאישור פיצול במליאה",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 161,
+  "Desc": "לאישור פיצול במליאה",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 162,
+  "Desc": "לאישור פיצול במליאה",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 165,
+  "Desc": "לאישור פיצול במליאה",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 167,
+  "Desc": "אושרה בוועדה לקריאה ראשונה",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": false,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 169,
+  "Desc": "לאישור מיזוג בוועדת הכנסת",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": false,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 175,
+  "Desc": "בדיון בוועדה על החלת דין רציפות",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 176,
+  "Desc": "הבקשה לדין רציפות נדחתה בוועדה",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": false,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 177,
+  "Desc": "נעצרה",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 178,
+  "Desc": "אושרה בוועדה לקריאה שנייה-שלישית",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 179,
+  "Desc": "אושרה בוועדה לקריאה שנייה-שלישית",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": false,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 181,
+  "Desc": "הודעה על בקשה להחלת דין רציפות",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2024-05-16T15:14:25.42+03:00"
+ },
+ {
+  "Id": 182,
+  "Desc": "בוועדת הכנסת לקביעת ועדה לצורך החלת דין רציפות",
+  "TypeID": 2,
+  "TypeDesc": "הצעת חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2026-10-06T16:01:44.18+03:00"
+ },
+ {
+  "Id": 190,
+  "Desc": "פעילה",
+  "TypeID": 12,
+  "TypeDesc": "ישיבת ועדה",
+  "OrderTransition": null,
+  "IsActive": false,
+  "LastUpdatedDate": "2014-02-09T00:00:00+02:00"
+ },
+ {
+  "Id": 191,
+  "Desc": "פעילה",
+  "TypeID": 12,
+  "TypeDesc": "ישיבת ועדה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-11-11T15:24:43.613+02:00"
+ },
+ {
+  "Id": 192,
+  "Desc": "פעילה",
+  "TypeID": 12,
+  "TypeDesc": "ישיבת ועדה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-11-11T15:25:15.963+02:00"
+ },
+ {
+  "Id": 193,
+  "Desc": "מבוטלת",
+  "TypeID": 12,
+  "TypeDesc": "ישיבת ועדה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-11-11T15:25:15.963+02:00"
+ },
+ {
+  "Id": 194,
+  "Desc": "בתכנון",
+  "TypeID": 5,
+  "TypeDesc": "ישיבת מליאה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-11-11T15:26:22.75+02:00"
+ },
+ {
+  "Id": 195,
+  "Desc": "פעילה",
+  "TypeID": 5,
+  "TypeDesc": "ישיבת מליאה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-11-11T15:26:22.75+02:00"
+ },
+ {
+  "Id": 304,
+  "Desc": "לדיון בוועדה",
+  "TypeID": 4,
+  "TypeDesc": "הצעה לסדר היום",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2025-07-03T15:34:52.2033333+03:00"
+ },
+ {
+  "Id": 305,
+  "Desc": "הנמקת ההצעה במליאה",
+  "TypeID": 4,
+  "TypeDesc": "הצעה לסדר היום",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2025-07-03T15:34:52.19+03:00"
+ },
+ {
+  "Id": 307,
+  "Desc": "לדיון במליאה",
+  "TypeID": 4,
+  "TypeDesc": "הצעה לסדר היום",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2025-07-03T15:34:52.22+03:00"
+ },
+ {
+  "Id": 309,
+  "Desc": "קביעת ועדה מטפלת",
+  "TypeID": 4,
+  "TypeDesc": "הצעה לסדר היום",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2025-07-03T15:34:52.19+03:00"
+ },
+ {
+  "Id": 310,
+  "Desc": "הונחו מסקנות הוועדה",
+  "TypeID": 4,
+  "TypeDesc": "הצעה לסדר היום",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2025-07-03T15:34:52.2033333+03:00"
+ },
+ {
+  "Id": 311,
+  "Desc": "הונחו כל הודעות השרים",
+  "TypeID": 4,
+  "TypeDesc": "הצעה לסדר היום",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2025-07-03T15:34:52.2033333+03:00"
+ },
+ {
+  "Id": 315,
+  "Desc": "התקיים דיון במליאה",
+  "TypeID": 4,
+  "TypeDesc": "הצעה לסדר היום",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2025-07-03T15:34:52.22+03:00"
+ },
+ {
+  "Id": 335,
+  "Desc": "נעצרה",
+  "TypeID": 4,
+  "TypeDesc": "הצעה לסדר היום",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2025-07-03T15:34:52.2366667+03:00"
+ },
+ {
+  "Id": 337,
+  "Desc": "הסתפקות חה\"כ בעמדת הממשלה",
+  "TypeID": 4,
+  "TypeDesc": "הצעה לסדר היום",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2025-07-03T15:35:02.6733333+03:00"
+ },
+ {
+  "Id": 338,
+  "Desc": "הסתפקות במסקנות הוועדה",
+  "TypeID": 4,
+  "TypeDesc": "הצעה לסדר היום",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2025-07-03T15:35:02.69+03:00"
+ },
+ {
+  "Id": 339,
+  "Desc": "במעקב - הנחת הודעת שר",
+  "TypeID": 4,
+  "TypeDesc": "הצעה לסדר היום",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2025-07-03T16:04:15.1266667+03:00"
+ },
+ {
+  "Id": 801,
+  "Desc": "פעיל",
+  "TypeID": 9,
+  "TypeDesc": "פריטי מליאה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 803,
+  "Desc": "נסגר",
+  "TypeID": 9,
+  "TypeDesc": "פריטי מליאה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 804,
+  "Desc": "בוטל",
+  "TypeID": 9,
+  "TypeDesc": "פריטי מליאה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 833,
+  "Desc": "הסתיימה",
+  "TypeID": 5,
+  "TypeDesc": "ישיבת מליאה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-11-11T15:26:22.753+02:00"
+ },
+ {
+  "Id": 941,
+  "Desc": "לדיון במליאה",
+  "TypeID": 950,
+  "TypeDesc": "שאילתה כוללת",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 1001,
+  "Desc": "חדש בוועדה",
+  "TypeID": 11,
+  "TypeDesc": "פריט ועדה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 1002,
+  "Desc": "בדיון",
+  "TypeID": 11,
+  "TypeDesc": "פריט ועדה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 1003,
+  "Desc": "נסגר",
+  "TypeID": 11,
+  "TypeDesc": "פריט ועדה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 1004,
+  "Desc": "בוטלה",
+  "TypeID": 11,
+  "TypeDesc": "פריט ועדה",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 1005,
+  "Desc": "לא נידון",
+  "TypeID": 11,
+  "TypeDesc": "פריט ועדה",
+  "OrderTransition": null,
+  "IsActive": false,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 1006,
+  "Desc": "לדיון במליאה",
+  "TypeID": 11,
+  "TypeDesc": "פריט ועדה",
+  "OrderTransition": null,
+  "IsActive": false,
+  "LastUpdatedDate": "2013-10-06T14:08:19.8+03:00"
+ },
+ {
+  "Id": 6000,
+  "Desc": "דיון במועצת המדינה הזמנית ",
+  "TypeID": 6002,
+  "TypeDesc": "חוק בן חיצוני",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2018-11-22T14:14:00.407+02:00"
+ },
+ {
+  "Id": 6011,
+  "Desc": "לדיון בוועדה",
+  "TypeID": 6000,
+  "TypeDesc": "פעולה על פי חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2021-12-22T15:22:34.9666667+02:00"
+ },
+ {
+  "Id": 6012,
+  "Desc": "החזרה להשלמה",
+  "TypeID": 6000,
+  "TypeDesc": "פעולה על פי חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2021-12-22T15:22:34.9433333+02:00"
+ },
+ {
+  "Id": 6013,
+  "Desc": "הנחה על שולחן הכנסת",
+  "TypeID": 6000,
+  "TypeDesc": "פעולה על פי חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2021-12-22T15:22:34.9766667+02:00"
+ },
+ {
+  "Id": 6014,
+  "Desc": "לדיון במליאה",
+  "TypeID": 6000,
+  "TypeDesc": "פעולה על פי חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2021-12-22T15:22:34.99+02:00"
+ },
+ {
+  "Id": 6015,
+  "Desc": null,
+  "TypeID": 6000,
+  "TypeDesc": "פעולה על פי חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2018-03-18T15:12:42.193+02:00"
+ },
+ {
+  "Id": 6016,
+  "Desc": null,
+  "TypeID": 6000,
+  "TypeDesc": "פעולה על פי חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2018-03-18T15:12:42.193+02:00"
+ },
+ {
+  "Id": 6017,
+  "Desc": null,
+  "TypeID": 6000,
+  "TypeDesc": "פעולה על פי חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2018-03-18T15:12:42.193+02:00"
+ },
+ {
+  "Id": 6018,
+  "Desc": "טופל ברשות המבצעת",
+  "TypeID": 6000,
+  "TypeDesc": "פעולה על פי חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2019-07-04T09:11:03.7333333+03:00"
+ },
+ {
+  "Id": 6019,
+  "Desc": "אושר לפרסום",
+  "TypeID": 6000,
+  "TypeDesc": "פעולה על פי חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2020-12-24T15:50:41.81+02:00"
+ },
+ {
+  "Id": 6020,
+  "Desc": "פורסם ברשומות",
+  "TypeID": 6001,
+  "TypeDesc": "תיקון טעות",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2016-05-09T15:30:56.29+03:00"
+ },
+ {
+  "Id": 6030,
+  "Desc": "פורסם ברשומות",
+  "TypeID": 6002,
+  "TypeDesc": "חוק בן חיצוני",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2016-05-09T15:30:56.29+03:00"
+ },
+ {
+  "Id": 6040,
+  "Desc": "פורסם ברשומות",
+  "TypeID": 6003,
+  "TypeDesc": "חוק אב",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2016-05-09T15:30:56.29+03:00"
+ },
+ {
+  "Id": 6050,
+  "Desc": "הונח על שולחן הוועדה",
+  "TypeID": 6000,
+  "TypeDesc": "פעולה על פי חוק",
+  "OrderTransition": null,
+  "IsActive": true,
+  "LastUpdatedDate": "2022-03-15T16:04:46.9233333+02:00"
+ }
+]

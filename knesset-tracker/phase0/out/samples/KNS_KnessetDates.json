@@ -1,0 +1,57 @@
+[
+ {
+  "Id": 1,
+  "KnessetNum": 13,
+  "Name": "השלוש-עשרה",
+  "Assembly": 1,
+  "Plenum": 2,
+  "PlenumStart": "1992-10-26T00:00:00+02:00",
+  "PlenumFinish": "1993-08-04T00:00:00+03:00",
+  "IsCurrent": false,
+  "LastUpdatedDate": "2016-02-24T14:56:01.193+02:00"
+ },
+ {
+  "Id": 2,
+  "KnessetNum": 13,
+  "Name": "השלוש-עשרה",
+  "Assembly": 2,
+  "Plenum": 2,
+  "PlenumStart": "1992-10-26T00:00:00+02:00",
+  "PlenumFinish": "1993-08-04T00:00:00+03:00",
+  "IsCurrent": false,
+  "LastUpdatedDate": "2016-02-24T14:56:16.067+02:00"
+ },
+ {
+  "Id": 3,
+  "KnessetNum": 13,
+  "Name": "השלוש-עשרה",
+  "Assembly": 1,
+  "Plenum": 3,
+  "PlenumStart": "1993-10-11T00:00:00+02:00",
+  "PlenumFinish": "1994-07-27T00:00:00+03:00",
+  "IsCurrent": false,
+  "LastUpdatedDate": "2016-02-24T14:56:27.153+02:00"
+ },
+ {
+  "Id": 4,
+  "KnessetNum": 13,
+  "Name": "השלוש-עשרה",
+  "Assembly": 2,
+  "Plenum": 3,
+  "PlenumStart": "1993-10-11T00:00:00+02:00",
+  "PlenumFinish": "1994-07-27T00:00:00+03:00",
+  "IsCurrent": false,
+  "LastUpdatedDate": "2016-02-24T14:56:27.107+02:00"
+ },
+ {
+  "Id": 5,
+  "KnessetNum": 13,
+  "Name": "השלוש-עשרה",
+  "Assembly": 1,
+  "Plenum": 4,
+  "PlenumStart": "1994-10-03T00:00:00+02:00",
+  "PlenumFinish": "1995-08-02T00:00:00+03:00",
+  "IsCurrent": false,
+  "LastUpdatedDate": "2016-02-24T14:25:35.14+02:00"
+ }
+]

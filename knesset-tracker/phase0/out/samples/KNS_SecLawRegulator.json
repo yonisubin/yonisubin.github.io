@@ -1,0 +1,47 @@
+[
+ {
+  "Id": 1,
+  "SecondaryLawID": 2067045,
+  "RegulatorTypeID": 340,
+  "RegulatorTypeDesc": "משרדים",
+  "RegulatorID": 1233,
+  "RegulatorDesc": "משרד האוצר",
+  "LastUpdatedDate": "2018-03-04T00:00:00+02:00"
+ },
+ {
+  "Id": 2,
+  "SecondaryLawID": 2067535,
+  "RegulatorTypeID": 340,
+  "RegulatorTypeDesc": "משרדים",
+  "RegulatorID": 1175,
+  "RegulatorDesc": "משרד הביטחון",
+  "LastUpdatedDate": "2018-03-04T00:00:00+02:00"
+ },
+ {
+  "Id": 3,
+  "SecondaryLawID": 2067577,
+  "RegulatorTypeID": 340,
+  "RegulatorTypeDesc": "משרדים",
+  "RegulatorID": 873,
+  "RegulatorDesc": "משרד המשפטים",
+  "LastUpdatedDate": "2018-03-04T00:00:00+02:00"
+ },
+ {
+  "Id": 4,
+  "SecondaryLawID": 2067445,
+  "RegulatorTypeID": 340,
+  "RegulatorTypeDesc": "משרדים",
+  "RegulatorID": 828,
+  "RegulatorDesc": "משרד העבודה, הרווחה והשירותים החברתיים",
+  "LastUpdatedDate": "2018-03-04T00:00:00+02:00"
+ },
+ {
+  "Id": 5,
+  "SecondaryLawID": 2067437,
+  "RegulatorTypeID": 340,
+  "RegulatorTypeDesc": "משרדים",
+  "RegulatorID": 828,
+  "RegulatorDesc": "משרד העבודה, הרווחה והשירותים החברתיים",
+  "LastUpdatedDate": "2018-03-04T00:00:00+02:00"
+ }
+]
