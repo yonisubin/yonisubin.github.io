@@ -15,8 +15,6 @@ Do not add new dependencies without asking first.
 
 ## Commands
 
-All commands run inside `city-game/` (the repo root is the existing personal site).
-
 ```bash
 npm install
 npm run dev        # local dev server
@@ -57,8 +55,8 @@ public/
 
 ## Deployment (GitHub Pages)
 
-- The repo is `yonisubin.github.io`, whose root is an existing personal site. The game source lives in `city-game/` and is served at `/city/`, so `base` in `vite.config.ts` is `'/city/'`.
-- The GitHub Actions workflow (`.github/workflows/deploy.yml`, official Pages actions) builds `city-game/`, copies the existing root site files into the Pages artifact, and puts `city-game/dist/` at `city/`. Don't break the existing root site.
+- The repo is `yonisubin.github.io` (a `username.github.io` repo), so `base` in `vite.config.ts` is `'/'` and the game is served at the site root.
+- Deploy `dist/` via a GitHub Actions workflow (`.github/workflows/deploy.yml`) using the official Pages actions.
 - Repo Settings → Pages → Source must be set to "GitHub Actions".
 - All asset paths must resolve through `import.meta.env.BASE_URL` so they work under the subpath.
 

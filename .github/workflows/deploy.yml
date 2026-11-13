@@ -1,4 +1,4 @@
-# Publishes the personal site (repo root) plus the city game built into /city/.
+# Builds the game and publishes dist/ to GitHub Pages.
 # Requires Settings → Pages → Source: "GitHub Actions".
 name: Deploy to GitHub Pages
 
@@ -26,28 +26,17 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: city-game/package-lock.json
 
-      - name: Build city game
-        working-directory: city-game
+      - name: Build
         run: |
           npm ci
           npm run build
-
-      - name: Assemble site
-        run: |
-          mkdir -p _site
-          # Existing personal site: every tracked file except the game source and repo plumbing.
-          git archive HEAD | tar -x -C _site
-          rm -rf _site/city-game _site/.github
-          mkdir -p _site/city
-          cp -r city-game/dist/. _site/city/
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: dist
 
   deploy:
     needs: build
