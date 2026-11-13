@@ -9,7 +9,9 @@ A small open-world city game that runs entirely in the browser. The player can w
 - **TypeScript** (strict mode) + **Vite**
 - **three.js** for rendering (WebGL 2)
 - **Rapier** via `@dimforge/rapier3d-compat` for physics (the compat build embeds the WASM, which avoids Vite/WASM loading issues)
-- Assets: Kenney.nl CC0 low-poly kits (city, cars, characters) as `.glb`
+- Assets: Kenney.nl CC0 low-poly kits (city, cars, characters) as `.glb` (kenney.nl is blocked from the cloud dev environment; download kits locally if needed)
+  - Player character: `public/assets/characters/soldier.glb`, the three.js "Soldier" example model (Mixamo character with Idle/Walk/Run clips; free to use in games, not CC0)
+  - Buildings, roads, sidewalks and ground are procedural (facade shader in `world/facadeMaterial.ts`, canvas textures in `world/textures.ts`), not models
 
 Do not add new dependencies without asking first.
 

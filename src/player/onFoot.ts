@@ -3,6 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import type { Input } from '../input/actions';
 import type { PlayerMode } from './state';
 import { FollowCamera } from '../camera/followCamera';
+import type { CharacterModel } from './character';
 
 // On-foot movement using Rapier's kinematic character controller.
 //
@@ -13,8 +14,8 @@ import { FollowCamera } from '../camera/followCamera';
 
 const CAPSULE_RADIUS = 0.35; // m
 const CAPSULE_HALF_HEIGHT = 0.55; // m, cylinder half-length → total height 2·(0.55+0.35) = 1.8 m
-const WALK_SPEED = 4; // m/s
-const RUN_SPEED = 7.5; // m/s
+const WALK_SPEED = 2.0; // m/s, a brisk city walk
+const RUN_SPEED = 5.5; // m/s
 const JUMP_HEIGHT = 1.2; // m, apex height of a jump from standing
 const GRAVITY = 20; // m/s². Higher than real 9.81 — games feel floaty at real gravity.
 const GROUND_ACCEL = 14; // 1/s, how fast horizontal velocity reaches its target on the ground
@@ -24,8 +25,6 @@ const FALL_RESPAWN_Y = -50; // m, respawn if we fall off the world
 
 // Takeoff speed needed to reach JUMP_HEIGHT under constant gravity: v² = 2·g·h.
 const JUMP_SPEED = Math.sqrt(2 * GRAVITY * JUMP_HEIGHT);
-
-const SPAWN = new THREE.Vector3(0, 2, 8);
 
 export class OnFootMode implements PlayerMode {
   readonly name = 'OnFoot';
@@ -43,6 +42,7 @@ export class OnFootMode implements PlayerMode {
   private readonly velocity = new THREE.Vector3();
   private grounded = false;
   private facing = 0; // rad, visual yaw of the character
+  private groundSpeed = 0; // m/s, horizontal speed actually moved last step (drives animation)
 
   // Scratch objects reused every step to avoid allocations.
   private readonly fwd = new THREE.Vector3();
@@ -55,9 +55,12 @@ export class OnFootMode implements PlayerMode {
     scene: THREE.Scene,
     camera: THREE.PerspectiveCamera,
     private readonly input: Input,
+    private readonly spawn: THREE.Vector3,
+    /** Animated model; falls back to a plain capsule if it failed to load. */
+    private readonly model: CharacterModel | null,
   ) {
     this.body = world.createRigidBody(
-      RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(SPAWN.x, SPAWN.y, SPAWN.z),
+      RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y, spawn.z),
     );
     this.collider = world.createCollider(
       RAPIER.ColliderDesc.capsule(CAPSULE_HALF_HEIGHT, CAPSULE_RADIUS),
@@ -77,11 +80,18 @@ export class OnFootMode implements PlayerMode {
     this.controller.setApplyImpulsesToDynamicBodies(true);
 
     this.cameraRig = new FollowCamera(camera, input, world, this.collider);
-    this.visual = createCharacterMesh();
+    this.visual = new THREE.Group();
+    if (model) {
+      // The model's origin is at its feet; the group's origin is the capsule centre.
+      model.root.position.y = -(CAPSULE_HALF_HEIGHT + CAPSULE_RADIUS);
+      this.visual.add(model.root);
+    } else {
+      this.visual.add(createCapsuleMesh());
+    }
     scene.add(this.visual);
 
-    this.curr.copy(SPAWN);
-    this.prev.copy(SPAWN);
+    this.curr.copy(spawn);
+    this.prev.copy(spawn);
   }
 
   enter(): void {
@@ -142,11 +152,13 @@ export class OnFootMode implements PlayerMode {
     this.prev.copy(this.curr);
     this.curr.set(this.curr.x + moved.x, this.curr.y + moved.y, this.curr.z + moved.z);
 
+    this.groundSpeed = dt > 0 ? Math.hypot(moved.x, moved.z) / dt : 0;
+
     if (this.curr.y < FALL_RESPAWN_Y) {
-      this.curr.copy(SPAWN);
-      this.prev.copy(SPAWN);
+      this.curr.copy(this.spawn);
+      this.prev.copy(this.spawn);
       this.velocity.set(0, 0, 0);
-      this.body.setTranslation(SPAWN, true);
+      this.body.setTranslation(this.spawn, true);
       this.cameraRig.reset();
       return;
     }
@@ -169,6 +181,7 @@ export class OnFootMode implements PlayerMode {
     // The mesh copies the physics position; facing is visual-only (the capsule body never rotates).
     this.visual.position.copy(this.renderPos);
     this.visual.rotation.y = this.facing;
+    this.model?.update(this.groundSpeed, this.grounded, frameDt);
 
     // Camera pivots around the character's feet + head height.
     this.renderPos.y -= CAPSULE_HALF_HEIGHT + CAPSULE_RADIUS;
@@ -181,8 +194,8 @@ export class OnFootMode implements PlayerMode {
   }
 }
 
-/** Placeholder character: a capsule with a "visor" so you can see which way it faces. */
-function createCharacterMesh(): THREE.Group {
+/** Fallback character: a capsule with a "visor" so you can see which way it faces. */
+function createCapsuleMesh(): THREE.Group {
   const group = new THREE.Group();
   const body = new THREE.Mesh(
     new THREE.CapsuleGeometry(CAPSULE_RADIUS, CAPSULE_HALF_HEIGHT * 2, 8, 16),

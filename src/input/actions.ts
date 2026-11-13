@@ -8,7 +8,8 @@ export type Action =
   | 'moveRight'
   | 'run'
   | 'jump'
-  | 'interact';
+  | 'interact'
+  | 'toggleDebug';
 
 // KeyboardEvent.code → action. `code` is layout-independent (physical key position),
 // so WASD stays in the same place on AZERTY/Hebrew keyboards.
@@ -25,6 +26,8 @@ const KEY_BINDINGS: Record<string, Action> = {
   ShiftRight: 'run',
   Space: 'jump',
   KeyE: 'interact',
+  F3: 'toggleDebug',
+  Backquote: 'toggleDebug',
 };
 
 /** Radians of camera rotation per pixel of mouse movement. */
