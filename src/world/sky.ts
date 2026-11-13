@@ -17,6 +17,48 @@ export interface SkyRig {
   update(camera: THREE.Camera, focus: THREE.Vector3): void;
 }
 
+const ENV_INTENSITY = 3.0; // tuned to match the brightness of the earlier sky-baked lighting
+
+/** Prefiltered environment map from a sky-blue-to-ground gradient, all values ≤ 1. */
+function bakeGradientEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
+  const envScene = new THREE.Scene();
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(50, 32, 16),
+    new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      uniforms: {
+        zenith: { value: new THREE.Color(0.18, 0.32, 0.6) },
+        horizon: { value: new THREE.Color(0.62, 0.68, 0.74) },
+        ground: { value: new THREE.Color(0.2, 0.19, 0.17) },
+      },
+      vertexShader: /* glsl */ `
+        varying vec3 vDir;
+        void main() {
+          vDir = normalize(position);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform vec3 zenith, horizon, ground;
+        varying vec3 vDir;
+        void main() {
+          float y = vDir.y;
+          vec3 c = y > 0.0
+            ? mix(horizon, zenith, pow(y, 0.6))
+            : mix(horizon, ground, pow(-y, 0.4));
+          gl_FragColor = vec4(c, 1.0);
+        }`,
+    }),
+  );
+  envScene.add(dome);
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const texture = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
+  pmrem.dispose();
+  dome.geometry.dispose();
+  dome.material.dispose();
+  return texture;
+}
+
 function configureSky(sky: Sky, sunDirection: THREE.Vector3): void {
   const u = sky.material.uniforms;
   u.turbidity.value = 4;
@@ -40,20 +82,12 @@ export function createSky(renderer: THREE.WebGLRenderer, scene: THREE.Scene): Sk
   configureSky(sky, sunDirection);
   scene.add(sky);
 
-  // Bake the environment map from a separate small sky at the origin.
-  const envScene = new THREE.Scene();
-  const envSky = new Sky();
-  envSky.scale.setScalar(50);
-  configureSky(envSky, sunDirection);
-  envScene.add(envSky);
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
-  // The Sky shader is very bright (HDR), so its environment light is scaled down hard;
-  // otherwise it drowns out the sun and shadows disappear.
-  scene.environmentIntensity = 0.25;
-  pmrem.dispose();
-  envSky.geometry.dispose();
-  envSky.material.dispose();
+  // Bake the environment map (used for reflections and soft sky light) from a plain
+  // low-intensity gradient, NOT from the Sky shader: the Sky's sun disc is ~19 000× too
+  // bright for the half-float textures phone GPUs use, overflows to infinity there, and
+  // turns every upward-facing surface black. The sun's light comes from `sun` below.
+  scene.environment = bakeGradientEnvironment(renderer);
+  scene.environmentIntensity = ENV_INTENSITY;
 
   // Haze toward the horizon hides the edge of the city.
   scene.fog = new THREE.Fog(0xb9c6d2, 150, 750);
@@ -73,7 +107,7 @@ export function createSky(renderer: THREE.WebGLRenderer, scene: THREE.Scene): Sk
   scene.add(sun, sun.target);
 
   // Sky/ground fill light; keeps shaded streets readable instead of murky.
-  scene.add(new THREE.HemisphereLight(0xc4d8ee, 0x5a5048, 1.0));
+  scene.add(new THREE.HemisphereLight(0xc4d8ee, 0x5a5048, 1.5));
 
   const SUN_DISTANCE = 200;
   return {
