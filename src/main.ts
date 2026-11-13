@@ -38,7 +38,7 @@ async function main(): Promise<void> {
   renderer.shadowMap.type = THREE.PCFShadowMap;
   // Filmic tone mapping compresses the bright sky and sunlit surfaces like a camera would.
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.9;
+  renderer.toneMappingExposure = 1.2;
   document.body.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();

@@ -50,7 +50,7 @@ export function createSky(renderer: THREE.WebGLRenderer, scene: THREE.Scene): Sk
   scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
   // The Sky shader is very bright (HDR), so its environment light is scaled down hard;
   // otherwise it drowns out the sun and shadows disappear.
-  scene.environmentIntensity = 0.12;
+  scene.environmentIntensity = 0.25;
   pmrem.dispose();
   envSky.geometry.dispose();
   envSky.material.dispose();
@@ -72,7 +72,8 @@ export function createSky(renderer: THREE.WebGLRenderer, scene: THREE.Scene): Sk
   sun.shadow.normalBias = 0.05;
   scene.add(sun, sun.target);
 
-  scene.add(new THREE.HemisphereLight(0xc4d8ee, 0x5a5048, 0.5));
+  // Sky/ground fill light; keeps shaded streets readable instead of murky.
+  scene.add(new THREE.HemisphereLight(0xc4d8ee, 0x5a5048, 1.0));
 
   const SUN_DISTANCE = 200;
   return {
