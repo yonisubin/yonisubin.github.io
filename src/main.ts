@@ -5,6 +5,7 @@ import { PlayerStateMachine } from './player/state';
 import { OnFootMode } from './player/onFoot';
 import { createTestLevel } from './world/ground';
 import { createHud } from './ui/hud';
+import { TouchControls, isTouchDevice } from './input/touch';
 
 // Physics runs at a fixed 60 Hz regardless of display refresh rate.
 const PHYSICS_STEP = 1 / 60; // s
@@ -48,7 +49,9 @@ async function main(): Promise<void> {
   createTestLevel(scene, world);
 
   const input = new Input(renderer.domElement);
-  createHud(input);
+  const touch = isTouchDevice();
+  if (touch) new TouchControls(input);
+  createHud(input, touch);
 
   const player = new PlayerStateMachine();
   const onFoot = new OnFootMode(world, scene, camera, input);

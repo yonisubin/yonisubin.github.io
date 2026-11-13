@@ -3,7 +3,12 @@ import type { Input } from '../input/actions';
 // "Click to play" overlay. Mouse look needs pointer lock, which browsers only grant
 // in response to a click, so we show this whenever the pointer isn't locked.
 
-export function createHud(input: Input): void {
+export function createHud(input: Input, touch: boolean): void {
+  if (touch) {
+    showTouchHint();
+    return;
+  }
+
   const overlay = document.createElement('div');
   overlay.style.cssText = [
     'position:fixed',
@@ -32,4 +37,28 @@ export function createHud(input: Input): void {
   document.addEventListener('pointerlockchange', () => {
     overlay.style.display = input.pointerLocked ? 'none' : 'flex';
   });
+}
+
+/** Brief controls hint for touch devices; fades out on its own. */
+function showTouchHint(): void {
+  const hint = document.createElement('div');
+  hint.style.cssText = [
+    'position:fixed',
+    'top:max(16px, env(safe-area-inset-top))',
+    'left:50%',
+    'transform:translateX(-50%)',
+    'z-index:20',
+    'padding:8px 14px',
+    'border-radius:999px',
+    'background:rgba(0,0,0,0.5)',
+    'color:#fff',
+    'font:14px/1.4 system-ui,sans-serif',
+    'white-space:nowrap',
+    'pointer-events:none',
+    'transition:opacity 1s',
+  ].join(';');
+  hint.textContent = 'Left: move · Right: look · Jump button';
+  document.body.appendChild(hint);
+  setTimeout(() => (hint.style.opacity = '0'), 5000);
+  setTimeout(() => hint.remove(), 6500);
 }

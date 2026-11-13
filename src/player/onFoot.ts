@@ -98,10 +98,9 @@ export class OnFootMode implements PlayerMode {
     this.cameraRig.forward(this.fwd);
     this.right.set(-this.fwd.z, 0, this.fwd.x); // forward rotated 90° clockwise (seen from above)
 
-    const ix = Number(this.input.isDown('moveRight')) - Number(this.input.isDown('moveLeft'));
-    const iz = Number(this.input.isDown('moveForward')) - Number(this.input.isDown('moveBack'));
-    this.wish.set(0, 0, 0).addScaledVector(this.fwd, iz).addScaledVector(this.right, ix);
-    if (this.wish.lengthSq() > 1) this.wish.normalize(); // diagonals aren't faster
+    // Axis length ≤ 1: full for keys, proportional for a partly pushed touch stick.
+    const axis = this.input.moveAxis();
+    this.wish.set(0, 0, 0).addScaledVector(this.fwd, axis.y).addScaledVector(this.right, axis.x);
     const speed = this.input.isDown('run') ? RUN_SPEED : WALK_SPEED;
     this.wish.multiplyScalar(speed);
 

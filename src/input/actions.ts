@@ -30,6 +30,9 @@ const KEY_BINDINGS: Record<string, Action> = {
 /** Radians of camera rotation per pixel of mouse movement. */
 const MOUSE_SENSITIVITY = 0.0025;
 
+/** Joystick deflection (0–1) beyond which the analog stick counts as "run". */
+const STICK_RUN_THRESHOLD = 0.85;
+
 export class Input {
   private readonly held = new Set<Action>();
   /** Actions pressed since the last time they were consumed (edge-triggered). */
@@ -37,6 +40,9 @@ export class Input {
   private lookX = 0;
   private lookY = 0;
   private locked = false;
+  /** Analog stick from on-screen touch controls; x = right, y = forward, length ≤ 1. */
+  private stickX = 0;
+  private stickY = 0;
 
   constructor(private readonly element: HTMLElement) {
     window.addEventListener('keydown', (e) => {
@@ -51,7 +57,10 @@ export class Input {
       if (action) this.held.delete(action);
     });
     // Losing focus means we never see the keyup; drop everything so the player doesn't run off.
-    window.addEventListener('blur', () => this.held.clear());
+    window.addEventListener('blur', () => {
+      this.held.clear();
+      this.setStick(0, 0);
+    });
 
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.element;
@@ -74,7 +83,48 @@ export class Input {
   }
 
   isDown(action: Action): boolean {
+    if (action === 'run' && Math.hypot(this.stickX, this.stickY) > STICK_RUN_THRESHOLD) return true;
     return this.held.has(action);
+  }
+
+  /**
+   * Movement direction as a 2D axis: x = right, y = forward, length ≤ 1.
+   * Keyboard gives full-length (normalized) directions; the touch stick is analog,
+   * so a half-pushed stick returns length ≈ 0.5.
+   */
+  moveAxis(): { x: number; y: number } {
+    let x = Number(this.held.has('moveRight')) - Number(this.held.has('moveLeft'));
+    let y = Number(this.held.has('moveForward')) - Number(this.held.has('moveBack'));
+    x += this.stickX;
+    y += this.stickY;
+    const len = Math.hypot(x, y);
+    if (len > 1) {
+      x /= len; // diagonals aren't faster
+      y /= len;
+    }
+    return { x, y };
+  }
+
+  // --- Hooks for on-screen touch controls (input/touch.ts) ---
+
+  setStick(x: number, y: number): void {
+    this.stickX = x;
+    this.stickY = y;
+  }
+
+  /** Add camera rotation in radians (+x = right, +y = down), same convention as the mouse. */
+  addLook(dx: number, dy: number): void {
+    this.lookX += dx;
+    this.lookY += dy;
+  }
+
+  pressAction(action: Action): void {
+    if (!this.held.has(action)) this.pressed.add(action);
+    this.held.add(action);
+  }
+
+  releaseAction(action: Action): void {
+    this.held.delete(action);
   }
 
   /**
