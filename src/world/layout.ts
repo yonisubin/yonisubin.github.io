@@ -72,6 +72,8 @@ export interface Block {
   cx: number; // centre
   cz: number;
   park: boolean;
+  /** A park with a helipad in the middle (only the block next to the spawn). */
+  helipad: boolean;
   buildings: Building[];
   roofProps: RoofProp[];
   trees: Tree[];
@@ -108,12 +110,13 @@ export function generateBlock(seed: number, bx: number, bz: number): Block {
   const maxDist = Math.hypot(blockCenter(0), blockCenter(0));
   const downtown = 1 - Math.min(1, Math.hypot(cx, cz) / maxDist);
 
-  const park = downtown < 0.85 && rng.chance(0.1);
-  const block: Block = { bx, bz, cx, cz, park, buildings: [], roofProps: [], trees: [], lamps: [] };
+  const helipad = isHelipadBlock(bx, bz);
+  const park = helipad || (downtown < 0.85 && rng.chance(0.1));
+  const block: Block = { bx, bz, cx, cz, park, helipad, buildings: [], roofProps: [], trees: [], lamps: [] };
 
   addStreetFurniture(block, rng);
   if (park) {
-    addParkTrees(block, rng);
+    addParkTrees(block, rng, helipad ? HELIPAD_CLEAR_RADIUS : 0);
     return block;
   }
 
@@ -267,16 +270,32 @@ function addStreetFurniture(block: Block, rng: Rng): void {
   }
 }
 
-function addParkTrees(block: Block, rng: Rng): void {
+/** Park trees scattered over the lot, keeping a circle of `clearRadius` m free in the middle. */
+function addParkTrees(block: Block, rng: Rng, clearRadius: number): void {
   const count = rng.int(18, 30);
   for (let i = 0; i < count; i++) {
-    block.trees.push({
-      x: block.cx + rng.range(-LOT / 2 + 3, LOT / 2 - 3),
-      z: block.cz + rng.range(-LOT / 2 + 3, LOT / 2 - 3),
-      scale: rng.range(0.9, 1.6),
-      hue: rng.float(),
-    });
+    const x = rng.range(-LOT / 2 + 3, LOT / 2 - 3);
+    const z = rng.range(-LOT / 2 + 3, LOT / 2 - 3);
+    const scale = rng.range(0.9, 1.6);
+    const hue = rng.float();
+    if (Math.hypot(x, z) < clearRadius) continue;
+    block.trees.push({ x: block.cx + x, z: block.cz + z, scale, hue });
   }
+}
+
+/** Trees stay this far (m) from the helipad centre, clear of the 5 m rotor. */
+export const HELIPAD_CLEAR_RADIUS = 14;
+
+/** The helipad park is the block just east of the spawn block. */
+function isHelipadBlock(bx: number, bz: number): boolean {
+  const mid = Math.floor(BLOCKS / 2);
+  return bx === mid + 1 && bz === mid + 2;
+}
+
+/** Centre of the helipad (ground level is the top of the block slab). */
+export function helipadPosition(layout: CityLayout): { x: number; z: number } {
+  const block = layout.blocks.find((b) => b.helipad)!;
+  return { x: block.cx, z: block.cz };
 }
 
 /**

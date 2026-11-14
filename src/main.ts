@@ -6,8 +6,9 @@ import { PlayerStateMachine } from './player/state';
 import { OnFootMode, STAND_HEIGHT } from './player/onFoot';
 import { CharacterModel } from './player/character';
 import { Car, DrivingMode } from './player/car';
+import { FlyingMode, Helicopter } from './player/heli';
 import { createCity } from './world/city';
-import { parkingSpots } from './world/layout';
+import { CURB_HEIGHT, helipadPosition, parkingSpots } from './world/layout';
 import { createSky } from './world/sky';
 import { PAINT_COLORS } from './vehicles/carModel';
 import type { SimEntity } from './sim/entity';
@@ -66,15 +67,16 @@ async function main(): Promise<void> {
   // Everything simulated each physics step besides the player.
   const entities: SimEntity[] = [];
 
-  // Parked cars the player can drive.
-  const getOut = (car: Car) => {
-    const spot = car.findExitPoint(onFoot.shape, STAND_HEIGHT);
-    if (!spot) return;
-    const fwd = car.forward(new THREE.Vector3());
+  // Getting out of any vehicle: stand beside it, camera looking the way the vehicle faces.
+  const getOut = (vehicle: Car | Helicopter) => {
+    const spot = vehicle.findExitPoint(onFoot.shape, STAND_HEIGHT);
+    const fwd = vehicle.forward(new THREE.Vector3());
     const heading = Math.atan2(-fwd.x, -fwd.z); // same convention as the camera yaw
     onFoot.placeAt(spot, heading, heading);
     player.setMode(onFoot);
   };
+
+  // Parked cars the player can drive.
   const cars = parkingSpots(city.layout).map((spot) => {
     const car = new Car(world, scene, {
       type: spot.type,
@@ -87,6 +89,13 @@ async function main(): Promise<void> {
     entities.push(car);
     return car;
   });
+
+  // The helicopter, waiting on its helipad, nose toward −Z.
+  const pad = helipadPosition(city.layout);
+  const heli = new Helicopter(world, scene, new THREE.Vector3(pad.x, CURB_HEIGHT, pad.z), Math.PI / 2);
+  heli.mode = new FlyingMode(heli, input, camera, world, getOut);
+  onFoot.enterables.push({ label: 'fly', position: () => heli.interp.currPos, radius: 4.5, mode: heli.mode });
+  entities.push(heli);
 
   player.onChange((mode) => touchControls?.setButtons(mode.touchButtons));
   player.setMode(onFoot);
@@ -104,7 +113,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { world, player, onFoot, cars, city, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { world, player, onFoot, cars, heli, city, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;

@@ -3,6 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import type { Input } from '../input/actions';
 import type { PlayerMode, TouchButton } from './state';
 import { BodyInterpolator, type SimEntity } from '../sim/entity';
+import { findFreeSpot } from '../sim/exit';
 import { ChaseCamera } from '../camera/chaseCamera';
 import { CAR_DIMENSIONS, buildCarBody, buildWheel, type CarType } from '../vehicles/carModel';
 
@@ -264,28 +265,24 @@ export class Car implements SimEntity {
    * A free spot beside the car to put the player when they get out: driver side first,
    * then passenger side, behind, in front, and finally on the roof.
    */
-  findExitPoint(shape: RAPIER.Shape, standHeight: number): THREE.Vector3 | null {
+  findExitPoint(shape: RAPIER.Shape, standHeight: number): THREE.Vector3 {
     const d = CAR_DIMENSIONS[this.type];
     const side = d.width / 2 + 0.7;
-    const candidates = [
-      new THREE.Vector3(0, 0, -side),
-      new THREE.Vector3(0, 0, side),
-      new THREE.Vector3(-d.length / 2 - 0.8, 0, 0),
-      new THREE.Vector3(d.length / 2 + 0.8, 0, 0),
-    ];
-    const pos = this.interp.currPos;
-    const identity = { x: 0, y: 0, z: 0, w: 1 };
-    for (const local of candidates) {
-      const p = local.applyQuaternion(this.interp.currQuat).add(pos);
-      p.y = pos.y + standHeight + 0.05;
-      let blocked = false;
-      this.world.intersectionsWithShape(p, identity, shape, () => {
-        blocked = true;
-        return false; // stop at the first hit
-      }, undefined, undefined, undefined, this.body);
-      if (!blocked) return p;
-    }
-    return pos.clone().add(new THREE.Vector3(0, 2.4, 0)); // on the roof
+    return findFreeSpot(
+      this.world,
+      shape,
+      standHeight,
+      this.body,
+      this.interp.currPos,
+      this.interp.currQuat,
+      [
+        new THREE.Vector3(0, 0, -side),
+        new THREE.Vector3(0, 0, side),
+        new THREE.Vector3(-d.length / 2 - 0.8, 0, 0),
+        new THREE.Vector3(d.length / 2 + 0.8, 0, 0),
+      ],
+      this.type === 'van' ? 2.1 : 1.5,
+    );
   }
 }
 

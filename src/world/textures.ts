@@ -82,3 +82,31 @@ export function grassTexture(): THREE.CanvasTexture {
     speckle(ctx, rng, 14000, ['#5c7d3a', '#44602a', '#6a8a42', '#3e5826', '#738f4a'], 2.5);
   }, 3);
 }
+
+/** Helipad marking: concrete disc, white ring and a big "H". Transparent outside the disc. */
+export function helipadTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = SIZE;
+  const ctx = canvas.getContext('2d')!;
+  const c = SIZE / 2;
+  ctx.fillStyle = '#5b5d60';
+  ctx.beginPath();
+  ctx.arc(c, c, c - 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#f2f2ee';
+  ctx.lineWidth = 18;
+  ctx.beginPath();
+  ctx.arc(c, c, c - 40, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#f2f2ee';
+  const w = 40; // stroke width of the H
+  const h = 230; // height of the H
+  const gap = 150; // distance between the H's uprights
+  ctx.fillRect(c - gap / 2 - w / 2, c - h / 2, w, h);
+  ctx.fillRect(c + gap / 2 - w / 2, c - h / 2, w, h);
+  ctx.fillRect(c - gap / 2, c - w / 2, gap, w);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}

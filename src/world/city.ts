@@ -12,7 +12,7 @@ import {
   type CityLayout,
 } from './layout';
 import { createFacadeMaterial } from './facadeMaterial';
-import { asphaltTexture, grassTexture, sidewalkTexture } from './textures';
+import { asphaltTexture, grassTexture, helipadTexture, sidewalkTexture } from './textures';
 
 // Turns the city layout into meshes and colliders.
 // Every kind of repeated object is one InstancedMesh, so the whole city is ~a dozen draw calls.
@@ -144,6 +144,28 @@ export function createCity(scene: THREE.Scene, world: RAPIER.World, seed: number
     );
     lawns.receiveShadow = true;
     parks.forEach((b, i) => setInstance(lawns, i, b.cx, CURB_HEIGHT + 0.01, b.cz));
+  }
+
+  // --- Helipad marking on its park (a flat decal; the slab underneath is the collider).
+  const pad = layout.blocks.find((b) => b.helipad);
+  if (pad) {
+    const padTex = helipadTexture();
+    disposables.push(padTex);
+    const padMesh = add(
+      new THREE.Mesh(
+        new THREE.PlaneGeometry(18, 18).rotateX(-Math.PI / 2),
+        new THREE.MeshStandardMaterial({
+          map: padTex,
+          transparent: true,
+          roughness: 0.85,
+          polygonOffset: true,
+          polygonOffsetFactor: -4,
+          polygonOffsetUnits: -4,
+        }),
+      ),
+    );
+    padMesh.position.set(pad.cx, CURB_HEIGHT + 0.02, pad.cz);
+    padMesh.receiveShadow = true;
   }
 
   // --- Buildings: one unit box stretched per instance, facades drawn by the shader.
