@@ -12,6 +12,7 @@ A small open-world city game that runs entirely in the browser. The player can w
 - Assets: Kenney.nl CC0 low-poly kits (city, cars, characters) as `.glb` (kenney.nl is blocked from the cloud dev environment; download kits locally if needed)
   - Player character: `public/assets/characters/soldier.glb`, the three.js "Soldier" example model (Mixamo character with Idle/Walk/Run clips; free to use in games, not CC0)
   - Buildings, roads, sidewalks and ground are procedural (facade shader in `world/facadeMaterial.ts`, canvas textures in `world/textures.ts`), not models
+  - Cars and the helicopter are procedural too (`vehicles/carModel.ts`, `vehicles/heliModel.ts`); pedestrians are tinted clones of the Soldier
 
 Do not add new dependencies without asking first.
 
@@ -27,20 +28,26 @@ npm run typecheck  # tsc --noEmit
 
 Before considering any task done, `npm run typecheck` and `npm run build` must both pass.
 
+For automated checks, `window.game` exposes the world, player, vehicles and NPCs, and `game.simulate(seconds)` runs fixed physics steps immediately (independent of frame rate — headless browsers render very slowly).
+
 ## Structure
 
 ```
 src/
   main.ts          # renderer setup, game loop, fixed physics step
-  world/           # city generation, chunks, road graph
+  world/           # city generation (layout, city meshes, sky), road graph + traffic lights
   player/
     state.ts       # player state machine: OnFoot | Driving | Flying
     onFoot.ts      # Rapier kinematic character controller
-    car.ts         # Rapier raycast vehicle controller
-    heli.ts        # custom helicopter forces
-  camera/          # follow camera rig per mode
-  input/           # keyboard/gamepad → abstract actions
-  ui/              # HUD, minimap, debug overlay
+    character.ts   # animated character model (player + pedestrian clones)
+    car.ts         # Rapier raycast vehicle controller + DrivingMode
+    heli.ts        # custom helicopter forces + FlyingMode
+  vehicles/        # procedural car / helicopter models
+  npc/             # traffic and pedestrians (pooled around the player)
+  sim/             # SimEntity interface, body interpolation, exit-spot helper
+  camera/          # follow camera (on foot), chase camera (vehicles)
+  input/           # keyboard/touch → abstract actions
+  ui/              # HUD, debug overlay
 public/
   assets/          # .glb models and textures
 ```
@@ -71,6 +78,8 @@ Work on one milestone at a time. Don't start the next until the current one feel
 3. **Driving.** Car using Rapier's raycast vehicle controller. Enter/exit with an interact key. Chase camera.
 4. **Flying.** Helicopter with custom forces: collective (lift), cyclic (pitch/roll), tail rotor (yaw). Should hover stably with no input. Enter/exit like the car.
 5. **Life.** NPC traffic on the road graph, pedestrians, day/night cycle, minimap.
+
+Status: milestones 1–4 are done; in 5, traffic (with traffic lights) and pedestrians are done, day/night and the minimap are not.
 
 ## Working style
 

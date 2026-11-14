@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+
+interface CharacterSource {
+  scene: THREE.Object3D;
+  animations: THREE.AnimationClip[];
+}
 
 // Animated human model (three.js "Soldier" sample, rigged with Idle / Walk / Run clips).
 //
@@ -28,15 +34,25 @@ export class CharacterModel {
   private speed = 0;
   private phase = 0;
 
-  private constructor(gltf: { scene: THREE.Object3D; animations: THREE.AnimationClip[] }) {
+  private constructor(
+    gltf: CharacterSource,
+    /** Untouched copy of the loaded model, used to make pedestrian clones. */
+    private readonly template: CharacterSource,
+  ) {
     this.root = gltf.scene;
     this.root.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (mesh.isMesh) {
         mesh.castShadow = true;
         mesh.receiveShadow = true;
-        // Skinned meshes' bounding volumes don't follow the animation; skip culling.
-        mesh.frustumCulled = false;
+        // Skinned meshes' bounds are computed from one pose and don't follow the animation,
+        // so pad them generously; with that, off-screen characters can be culled (which
+        // matters with a dozen pedestrians on a phone).
+        const skinned = mesh as THREE.SkinnedMesh;
+        if (skinned.isSkinnedMesh) {
+          skinned.computeBoundingSphere();
+          skinned.boundingSphere!.radius *= 1.6;
+        }
       }
     });
 
@@ -58,7 +74,28 @@ export class CharacterModel {
 
   static async load(): Promise<CharacterModel> {
     const gltf = await new GLTFLoader().loadAsync(MODEL_URL);
-    return new CharacterModel(gltf);
+    // Keep a pristine copy before the player's instance gets moved/parented.
+    const template = { scene: cloneSkinned(gltf.scene), animations: gltf.animations };
+    return new CharacterModel(gltf, template);
+  }
+
+  /**
+   * An independent copy with its own skeleton and animation state (for pedestrians).
+   * `tint` multiplies the outfit colours, so each copy can wear different colours.
+   */
+  clone(tint?: THREE.Color): CharacterModel {
+    // SkeletonUtils.clone rebinds the copy's skinned meshes to its own copied bones.
+    const scene = cloneSkinned(this.template.scene);
+    if (tint) {
+      scene.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const material = (mesh.material as THREE.MeshStandardMaterial).clone(); // clones share materials
+        material.color.multiply(tint);
+        mesh.material = material;
+      });
+    }
+    return new CharacterModel({ scene, animations: this.template.animations }, this.template);
   }
 
   /**

@@ -12,6 +12,8 @@ import { CURB_HEIGHT, helipadPosition, parkingSpots } from './world/layout';
 import { createSky } from './world/sky';
 import { PAINT_COLORS } from './vehicles/carModel';
 import type { SimEntity } from './sim/entity';
+import { Traffic } from './npc/traffic';
+import { Pedestrians } from './npc/pedestrians';
 import { Hud } from './ui/hud';
 import { DebugOverlay } from './ui/debug';
 
@@ -97,6 +99,18 @@ async function main(): Promise<void> {
   onFoot.enterables.push({ label: 'fly', position: () => heli.interp.currPos, radius: 4.5, mode: heli.mode });
   entities.push(heli);
 
+  // NPCs, kept in pools around wherever the player is.
+  const playerPosition = () => player.mode?.focus() ?? city.spawn;
+  const traffic = new Traffic(world, scene, city.layout, playerPosition, () => [
+    playerPosition(),
+    ...cars.map((c) => c.interp.currPos),
+    heli.interp.currPos,
+  ]);
+  entities.push(traffic);
+  // Pedestrians are copies of the player's model, so they need it to have loaded.
+  const pedestrians = model ? new Pedestrians(scene, city.layout, model, touch ? 10 : 16, playerPosition) : null;
+  if (pedestrians) entities.push(pedestrians);
+
   player.onChange((mode) => touchControls?.setButtons(mode.touchButtons));
   player.setMode(onFoot);
 
@@ -113,7 +127,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { world, player, onFoot, cars, heli, city, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { world, player, onFoot, cars, heli, traffic, pedestrians, city, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;

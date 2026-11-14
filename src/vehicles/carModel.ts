@@ -59,8 +59,8 @@ function extrudeProfile(points: [number, number][], width: number, bevel: number
     bevelEnabled: true,
     bevelThickness: bevel,
     bevelSize: bevel,
-    bevelSegments: 3,
-    curveSegments: 10,
+    bevelSegments: 2,
+    curveSegments: 6,
   });
   geo.translate(0, 0, -depth / 2);
   return geo;
@@ -250,18 +250,19 @@ export function wheelGeometry(radius: number): { tyre: THREE.BufferGeometry; rim
 export function buildCarBody(type: CarType, color: number): THREE.Group {
   const g = carGeometry(type);
   const group = new THREE.Group();
-  const add = (geometry: THREE.BufferGeometry, material: THREE.Material) => {
+  // Only the big parts cast shadows: small ones add draw calls but no visible shadow.
+  const add = (geometry: THREE.BufferGeometry, material: THREE.Material, castShadow: boolean) => {
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.castShadow = true;
+    mesh.castShadow = castShadow;
     mesh.receiveShadow = true;
     group.add(mesh);
   };
-  add(g.body, paintMaterial(type === 'taxi' ? TAXI_YELLOW : color));
-  add(g.glass, carMaterials.glass);
-  add(g.trim, carMaterials.trim);
-  add(g.headlights, carMaterials.headlight);
-  add(g.taillights, carMaterials.taillight);
-  if (g.sign) add(g.sign, carMaterials.sign);
+  add(g.body, paintMaterial(type === 'taxi' ? TAXI_YELLOW : color), true);
+  add(g.glass, carMaterials.glass, true);
+  add(g.trim, carMaterials.trim, false);
+  add(g.headlights, carMaterials.headlight, false);
+  add(g.taillights, carMaterials.taillight, false);
+  if (g.sign) add(g.sign, carMaterials.sign, false);
   return group;
 }
 
@@ -273,9 +274,7 @@ export function buildWheel(radius: number): THREE.Group {
     [tyre, carMaterials.tyre],
     [rim, carMaterials.rim],
   ] as const) {
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.castShadow = true;
-    group.add(mesh);
+    group.add(new THREE.Mesh(geometry, material)); // wheel shadows are hidden by the car's
   }
   return group;
 }
