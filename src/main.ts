@@ -25,6 +25,7 @@ import { Combat } from './game/combat';
 import { Dialogue } from './ui/dialogue';
 import { Rng } from './world/rng';
 import { Smoke } from './sim/smoke';
+import { Missions } from './game/missions';
 import { DebugOverlay } from './ui/debug';
 
 // Physics runs at a fixed 60 Hz regardless of display refresh rate.
@@ -212,6 +213,25 @@ async function main(): Promise<void> {
     pedestrians?.alarm(position, 30);
     hud.toast('Car wrecked — the driver dropped some cash!', 2.2);
   };
+
+  // Mission givers (fixed spots near the spawn; invulnerable, they never move).
+  const missions = new Missions(
+    scene,
+    world,
+    city.layout,
+    model,
+    stats,
+    traffic,
+    input,
+    playerPosition,
+    () => player.mode?.name === 'Flying',
+    new THREE.Vector3(pad.x, CURB_HEIGHT, pad.z),
+    (text, seconds) => hud.toast(text, seconds),
+    touch,
+  );
+  entities.push(missions);
+  onFoot.interactables.push(...missions.interactables);
+  stats.onDeath(() => missions.playerDied());
   const dialogue = pedestrians
     ? new Dialogue(camera, input, pedestrians, shop.door, () => dayNight.lighting.night > 0.5, touch)
     : null;
@@ -246,7 +266,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { world, camera, player, onFoot, cars, heli, traffic, pedestrians, dialogue, city, dayNight, stats, cash, shop, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { world, camera, player, onFoot, cars, heli, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -260,6 +280,8 @@ async function main(): Promise<void> {
     ...cars.map((c) => ({ kind: 'car' as const, position: c.interp.currPos })),
     { kind: 'heli', position: heli.interp.currPos },
     { kind: 'shop', position: shop.door },
+    ...missions.givers.filter((g) => g.marker.visible).map((g) => ({ kind: 'giver' as const, position: g.position })),
+    ...missions.objectives().map((position) => ({ kind: 'objective' as const, position })),
   ];
 
   loading.remove();

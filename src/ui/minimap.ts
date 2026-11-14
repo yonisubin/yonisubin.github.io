@@ -11,7 +11,7 @@ const PX_PER_M = 1; // resolution of the pre-drawn map
 const MARGIN = 60; // m of countryside drawn around the city
 const VIEW_RADIUS = 110; // m from the centre to the edge of the minimap, at ground level
 
-export type MarkerKind = 'car' | 'heli' | 'traffic' | 'shop';
+export type MarkerKind = 'car' | 'heli' | 'traffic' | 'shop' | 'giver' | 'objective';
 export interface Marker {
   kind: MarkerKind;
   position: THREE.Vector3;
@@ -93,7 +93,38 @@ export class Minimap {
     // Markers, kept a constant size on screen.
     const px = 1 / k;
     for (const m of markers) {
-      const { x, z } = m.position;
+      let { x, z } = m.position;
+      if (m.kind === 'objective') {
+        // Objectives off the edge of the map are pinned to the rim, pointing the way.
+        const dx = x - centre.x;
+        const dz = z - centre.z;
+        const d = Math.hypot(dx, dz);
+        const max = viewRadius - 8 * px;
+        if (d > max) {
+          x = centre.x + (dx / d) * max;
+          z = centre.z + (dz / d) * max;
+        }
+        ctx.fillStyle = '#ff3b5c';
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5 * px;
+        ctx.beginPath();
+        ctx.arc(x, z, 5.5 * px, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        continue;
+      }
+      if (m.kind === 'giver') {
+        ctx.fillStyle = '#ffd60a';
+        ctx.beginPath();
+        ctx.arc(x, z, 6 * px, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#222';
+        ctx.font = `bold ${10 * px}px system-ui,sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('!', x, z + 0.5 * px);
+        continue;
+      }
       if (m.kind === 'traffic') {
         ctx.fillStyle = '#d9d9d2';
         ctx.fillRect(x - 2.2 * px, z - 2.2 * px, 4.4 * px, 4.4 * px);

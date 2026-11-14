@@ -74,6 +74,8 @@ export interface TrafficCar {
   /** Seconds since it was wrecked, or −1 while it's still running. */
   wrecked: number;
   smokeTimer: number;
+  /** A mission target: never recycled for being far from the player. */
+  pinned: boolean;
 }
 
 /** Things traffic must not drive into: the player (any mode), parked player cars, etc. */
@@ -177,6 +179,7 @@ export class Traffic implements SimEntity {
         health: CAR_HEALTH,
         wrecked: -1,
         smokeTimer: 0,
+        pinned: false,
         halfLength: d.length / 2,
         prevPos: new THREE.Vector3(),
         currPos: new THREE.Vector3(),
@@ -273,7 +276,7 @@ export class Traffic implements SimEntity {
         this.respawn(car);
         continue;
       }
-      if (Math.hypot(car.currPos.x - player.x, car.currPos.z - player.z) > DESPAWN) {
+      if (!car.pinned && Math.hypot(car.currPos.x - player.x, car.currPos.z - player.z) > DESPAWN) {
         this.respawn(car);
         continue;
       }
@@ -386,6 +389,16 @@ export class Traffic implements SimEntity {
     }
     this.tyres.instanceMatrix.needsUpdate = true;
     this.rims.instanceMatrix.needsUpdate = true;
+  }
+
+  /** A running traffic car between `minDist` and `maxDist` from `from` (for missions). */
+  pickTarget(from: THREE.Vector3, minDist: number, maxDist: number): TrafficCar | null {
+    const options = this.cars.filter((c) => {
+      if (!c.active || c.wrecked >= 0 || c.pinned) return false;
+      const d = Math.hypot(c.currPos.x - from.x, c.currPos.z - from.z);
+      return d >= minDist && d <= maxDist;
+    });
+    return options.length ? options[Math.floor(Math.random() * options.length)] : null;
   }
 
   /** The traffic car this collider belongs to (e.g. what a bullet hit), if any. */
