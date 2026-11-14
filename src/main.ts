@@ -174,6 +174,29 @@ async function main(): Promise<void> {
     : null;
   if (pedestrians) entities.push(pedestrians);
 
+  // Carjacking: with a weapon out, take a stopped or slow traffic car. The driver runs off.
+  const JACK_RADIUS = 3.4;
+  const noCar = new THREE.Vector3(0, -1000, 0);
+  onFoot.interactables.push({
+    label: () => (stats.armed ? 'carjack' : 'carjack (needs a weapon)'),
+    position: () => traffic.jackable(onFoot.focus(), JACK_RADIUS)?.currPos ?? noCar,
+    radius: JACK_RADIUS,
+    activate: () => {
+      const target = traffic.jackable(onFoot.focus(), JACK_RADIUS);
+      if (!target) return;
+      if (!stats.armed) {
+        hud.toast('You need a weapon to carjack — try Guns & Ammo', 2.5);
+        return;
+      }
+      const taken = traffic.take(target);
+      const car = new Car(world, scene, { type: taken.type, color: taken.color, position: taken.position, yaw: taken.yaw });
+      addPlayerCar(car);
+      pedestrians?.alarm(taken.position, 25);
+      hud.toast('The driver ran off!');
+      player.setMode(car.mode!);
+    },
+  });
+
   // Fighting on foot, and chatting with pedestrians.
   onFoot.combat = new Combat(scene, world, camera, input, stats, pedestrians, touch, (text) => hud.toast(text));
   const dialogue = pedestrians

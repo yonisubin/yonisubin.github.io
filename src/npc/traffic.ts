@@ -47,8 +47,9 @@ const LANE_WIDTH_CHECK = 1.8; // m: things closer than this sideways are "in my 
 const STOP_LINE_BACK = 4.4; // m before the intersection edge (behind the zebra crossing)
 const TYPES: CarType[] = ['sedan', 'sedan', 'sedan', 'taxi', 'sedan', 'van'];
 
-interface TrafficCar {
+export interface TrafficCar {
   type: CarType;
+  color: number;
   slot: number; // instance index within its type's meshes
   body: RAPIER.RigidBody;
   piece: Piece;
@@ -144,6 +145,7 @@ export class Traffic implements SimEntity {
       this.meshes.get(type)![0].setColorAt(slot, new THREE.Color(color));
       this.cars.push({
         type,
+        color,
         slot,
         body,
         piece: this.graph.lane(0, 0, 0)!,
@@ -336,6 +338,32 @@ export class Traffic implements SimEntity {
     }
     this.tyres.instanceMatrix.needsUpdate = true;
     this.rims.instanceMatrix.needsUpdate = true;
+  }
+
+  /** The nearest traffic car within `radius` that's slow enough to carjack, if any. */
+  jackable(position: THREE.Vector3, radius: number): TrafficCar | null {
+    let best: TrafficCar | null = null;
+    let bestDist = radius;
+    for (const car of this.cars) {
+      if (!car.active || car.speed > 4) continue;
+      const d = Math.hypot(car.currPos.x - position.x, car.currPos.z - position.z);
+      if (d < bestDist) {
+        best = car;
+        bestDist = d;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Take a car out of traffic (it's been carjacked): returns its look and pose so a
+   * drivable car can replace it. The slot is recycled as a new traffic car elsewhere.
+   */
+  take(car: TrafficCar): { type: CarType; color: number; position: THREE.Vector3; yaw: number } {
+    const taken = { type: car.type, color: car.color, position: car.currPos.clone(), yaw: car.currYaw };
+    car.active = false;
+    car.body.setEnabled(false);
+    return taken;
   }
 
   /** Positions of active traffic cars (for pedestrians and debugging). */

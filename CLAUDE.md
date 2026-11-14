@@ -44,10 +44,11 @@ src/
     heli.ts        # custom helicopter forces + FlyingMode
   vehicles/        # procedural car / helicopter models
   npc/             # traffic and pedestrians (pooled around the player)
+  game/            # player stats (health/money/weapons), combat, cash pickups, gun store
   sim/             # SimEntity interface, body interpolation, exit-spot helper
   camera/          # follow camera (on foot), chase camera (vehicles)
   input/           # keyboard/touch → abstract actions
-  ui/              # HUD, minimap, debug overlay
+  ui/              # HUD, minimap, chat bubbles, debug overlay
 public/
   assets/          # .glb models and textures
 ```
@@ -78,6 +79,8 @@ Work on one milestone at a time. Don't start the next until the current one feel
 3. **Driving.** Car using Rapier's raycast vehicle controller. Enter/exit with an interact key. Chase camera.
 4. **Flying.** Helicopter with custom forces: collective (lift), cyclic (pitch/roll), tail rotor (yaw). Should hover stably with no input. Enter/exit like the car.
 5. **Life.** NPC traffic on the road graph, pedestrians, day/night cycle, minimap.
+
+Gameplay beyond the milestones: health (regenerates; falls and crashes hurt; death respawns at the spawn point minus 20% cash), cash pickups, a gun store (bat, pistol, rifle, ammo), melee and gun combat, pedestrians you can chat with / who flee, fight back or get knocked out (no gore), and carjacking traffic when armed.
 
 Status: all five milestones are done (day/night: `world/dayNight.ts`, 12-minute day, hold T to fast-forward; minimap: `ui/minimap.ts`, M toggles it).
 
