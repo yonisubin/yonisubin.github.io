@@ -35,7 +35,8 @@ export class Hud {
   private readonly status: HTMLDivElement;
   private readonly hint: HTMLDivElement | null;
 
-  constructor(input: Input, touch: boolean) {
+  /** `statusTop`: px from the top for the status readout (it sits under the minimap). */
+  constructor(input: Input, touch: boolean, statusTop: number) {
     this.prompt = panel([
       'left:50%',
       'transform:translateX(-50%)',
@@ -45,8 +46,8 @@ export class Hud {
     ]);
     this.status = panel([
       'right:max(12px, env(safe-area-inset-right))',
-      'top:max(12px, env(safe-area-inset-top))',
-      'font:600 22px/1.2 ui-monospace,monospace',
+      `top:calc(max(10px, env(safe-area-inset-top)) + ${statusTop}px)`,
+      'font:600 20px/1.2 ui-monospace,monospace',
     ]);
     this.hint = touch ? null : panel(['left:12px', 'bottom:12px', 'font-size:13px', 'opacity:0.85']);
     if (touch) showTouchHint();

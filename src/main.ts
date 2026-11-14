@@ -15,6 +15,9 @@ import type { SimEntity } from './sim/entity';
 import { Traffic } from './npc/traffic';
 import { Pedestrians } from './npc/pedestrians';
 import { Hud } from './ui/hud';
+import { Minimap, type Marker } from './ui/minimap';
+import { DayNight } from './world/dayNight';
+import { VehicleLight } from './sim/vehicleLight';
 import { DebugOverlay } from './ui/debug';
 
 // Physics runs at a fixed 60 Hz regardless of display refresh rate.
@@ -60,7 +63,8 @@ async function main(): Promise<void> {
   const input = new Input(renderer.domElement);
   const touch = isTouchDevice();
   const touchControls = touch ? new TouchControls(input) : null;
-  const hud = new Hud(input, touch);
+  const minimap = new Minimap(city.layout, input, touch);
+  const hud = new Hud(input, touch, minimap.size + 8);
   const debug = new DebugOverlay(renderer, input);
 
   const player = new PlayerStateMachine(input);
@@ -68,6 +72,11 @@ async function main(): Promise<void> {
 
   // Everything simulated each physics step besides the player.
   const entities: SimEntity[] = [];
+
+  // Time of day drives the sun/moon, lit windows, street lamps and vehicle lights.
+  const dayNight = new DayNight(sky, city, input);
+  entities.push(dayNight);
+  const vehicleLight = new VehicleLight(scene, () => dayNight.lighting.night);
 
   // Getting out of any vehicle: stand beside it, camera looking the way the vehicle faces.
   const getOut = (vehicle: Car | Helicopter) => {
@@ -86,7 +95,7 @@ async function main(): Promise<void> {
       position: new THREE.Vector3(spot.x, 0, spot.z),
       yaw: spot.yaw,
     });
-    car.mode = new DrivingMode(car, input, camera, world, getOut);
+    car.mode = new DrivingMode(car, input, camera, world, getOut, vehicleLight);
     onFoot.enterables.push({ label: 'drive', position: () => car.interp.currPos, radius: 3.2, mode: car.mode });
     entities.push(car);
     return car;
@@ -95,7 +104,7 @@ async function main(): Promise<void> {
   // The helicopter, waiting on its helipad, nose toward −Z.
   const pad = helipadPosition(city.layout);
   const heli = new Helicopter(world, scene, new THREE.Vector3(pad.x, CURB_HEIGHT, pad.z), Math.PI / 2);
-  heli.mode = new FlyingMode(heli, input, camera, world, getOut);
+  heli.mode = new FlyingMode(heli, input, camera, world, getOut, vehicleLight);
   onFoot.enterables.push({ label: 'fly', position: () => heli.interp.currPos, radius: 4.5, mode: heli.mode });
   entities.push(heli);
 
@@ -127,13 +136,20 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { world, player, onFoot, cars, heli, traffic, pedestrians, city, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { world, player, onFoot, cars, heli, traffic, pedestrians, city, dayNight, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
+
+  const viewDir = new THREE.Vector3();
+  const mapMarkers = (): Marker[] => [
+    ...traffic.positions().map((position) => ({ kind: 'traffic' as const, position })),
+    ...cars.map((c) => ({ kind: 'car' as const, position: c.interp.currPos })),
+    { kind: 'heli', position: heli.interp.currPos },
+  ];
 
   loading.remove();
 
@@ -160,6 +176,7 @@ async function main(): Promise<void> {
     sky.update(camera, mode.focus());
     touchControls?.update();
     hud.update(mode);
+    minimap.update(mode.focus(), camera.getWorldDirection(viewDir), mapMarkers(), dayNight.clock);
     renderer.render(scene, camera);
     debug.update(frameTime);
   });

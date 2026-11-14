@@ -12,6 +12,8 @@ export type Action =
   | 'handbrake'
   | 'ascend'
   | 'descend'
+  | 'timeSkip'
+  | 'toggleMap'
   | 'toggleDebug';
 
 // KeyboardEvent.code → actions. `code` is layout-independent (physical key position),
@@ -32,6 +34,8 @@ const KEY_BINDINGS: Record<string, Action[]> = {
   ShiftRight: ['run', 'descend'],
   Space: ['jump', 'handbrake', 'ascend'],
   KeyE: ['interact'],
+  KeyT: ['timeSkip'],
+  KeyM: ['toggleMap'],
   F3: ['toggleDebug'],
   Backquote: ['toggleDebug'],
 };

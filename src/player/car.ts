@@ -5,6 +5,7 @@ import type { PlayerMode, TouchButton } from './state';
 import { BodyInterpolator, type SimEntity } from '../sim/entity';
 import { findFreeSpot } from '../sim/exit';
 import { ChaseCamera } from '../camera/chaseCamera';
+import type { VehicleLight } from '../sim/vehicleLight';
 import { CAR_DIMENSIONS, buildCarBody, buildWheel, type CarType } from '../vehicles/carModel';
 
 // Drivable car built on Rapier's ray-cast vehicle controller.
@@ -293,6 +294,8 @@ export class DrivingMode implements PlayerMode {
   readonly touchButtons: TouchButton[];
   private readonly cameraRig: ChaseCamera;
   private readonly fwd = new THREE.Vector3();
+  private readonly lightFrom = new THREE.Vector3();
+  private readonly lightTo = new THREE.Vector3();
 
   constructor(
     private readonly car: Car,
@@ -301,6 +304,8 @@ export class DrivingMode implements PlayerMode {
     world: RAPIER.World,
     /** Called when the player gets out (the game puts them back on foot beside the car). */
     private readonly onExit: (car: Car) => void,
+    /** Headlights at night. */
+    private readonly light: VehicleLight,
   ) {
     this.cameraRig = new ChaseCamera(camera, input, world, { distance: 7.5, pivotHeight: 1.6, pitch: 0.22 }, car.body);
     this.touchButtons = [
@@ -320,6 +325,7 @@ export class DrivingMode implements PlayerMode {
   }
 
   exit(): void {
+    this.light.off();
     this.car.driven = false;
     this.car.throttle = 0;
     this.car.steerInput = 0;
@@ -336,7 +342,12 @@ export class DrivingMode implements PlayerMode {
 
   render(_alpha: number, frameDt: number): void {
     // The car's own render() has already placed its mesh at the interpolated pose.
-    this.cameraRig.update(this.car.object.position, this.car.forward(this.fwd), frameDt);
+    const obj = this.car.object;
+    this.cameraRig.update(obj.position, this.car.forward(this.fwd), frameDt);
+    // Headlights: from the front bumper, aimed down the road ahead.
+    this.lightFrom.set(2.3, 0.7, 0).applyQuaternion(obj.quaternion).add(obj.position);
+    this.lightTo.set(25, -1.5, 0).applyQuaternion(obj.quaternion).add(obj.position);
+    this.light.aim(this.lightFrom, this.lightTo, 900);
   }
 
   focus(): THREE.Vector3 {

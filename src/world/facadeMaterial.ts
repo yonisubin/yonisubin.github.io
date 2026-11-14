@@ -22,6 +22,9 @@ import { PARAPET, STYLE_METRICS } from './layout';
 const m = STYLE_METRICS;
 const f = (n: number) => n.toFixed(3);
 
+/** 0 by day … 1 at night: drives lit windows and shops (set by the day/night cycle). */
+export const facadeNight = { value: 0 };
+
 const VERTEX_PARS = /* glsl */ `
 attribute vec4 aStyle;
 varying vec3 vBoxPos;
@@ -45,6 +48,7 @@ varying vec3 vBoxPos;
 varying vec3 vBoxNormal;
 varying vec3 vSize;
 varying vec4 vStyle;
+uniform float uNight;
 float facadeGlass;
 float facadeGlassMetal;
 vec3 facadeEmissive;
@@ -119,7 +123,8 @@ const FRAGMENT_COLOR = /* glsl */ `
       float pane = 1.0 - band(fract(fx * 3.0), 0.0, 0.04);
       col = mix(col, interior, shop * pane);
       facadeGlass = shop * pane;
-      facadeEmissive = vec3(1.0, 0.8, 0.55) * 0.08 * rnd * shop * pane;
+      // Shops glow faintly by day and properly at night.
+      facadeEmissive = vec3(1.0, 0.75, 0.45) * (0.08 + 0.28 * uNight) * (0.4 + rnd) * shop * pane;
 
       // Muted shop sign band above the windows on some buildings.
       float signRnd = hash13(vec3(seed, faceKey, 7.0));
@@ -152,6 +157,10 @@ const FRAGMENT_COLOR = /* glsl */ `
       }
       col = mix(col, glass, w);
       facadeGlass = w;
+      // At night about half the windows are lit, in a mix of warm and cool interior light.
+      float litRnd = hash13(vec3(colId * 1.7 + 3.0, floorId * 2.3, seed + faceKey * 5.0));
+      vec3 roomLight = mix(vec3(1.0, 0.72, 0.4), vec3(0.75, 0.85, 1.0), step(0.75, hash13(vec3(floorId, colId, seed))));
+      facadeEmissive = roomLight * w * step(0.5, litRnd) * uNight * (0.12 + 0.22 * fract(litRnd * 7.0));
       facadeGlassMetal = style < 0.5 ? 0.6 : 0.3;
     } else {
       // Parapet with a lighter coping stone along the top edge.
@@ -167,6 +176,7 @@ const FRAGMENT_COLOR = /* glsl */ `
 export function createFacadeMaterial(): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0.0 });
   material.onBeforeCompile = (shader) => {
+    shader.uniforms.uNight = facadeNight;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${VERTEX_PARS}`)
       .replace('#include <begin_vertex>', VERTEX_MAIN);

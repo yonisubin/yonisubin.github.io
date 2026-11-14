@@ -5,6 +5,7 @@ import type { PlayerMode, TouchButton } from './state';
 import { BodyInterpolator, type SimEntity } from '../sim/entity';
 import { findFreeSpot } from '../sim/exit';
 import { ChaseCamera } from '../camera/chaseCamera';
+import type { VehicleLight } from '../sim/vehicleLight';
 import { buildHelicopter, type HeliModel } from '../vehicles/heliModel';
 
 // Helicopter: one dynamic rigid body pushed around by three kinds of force, like the real thing.
@@ -244,6 +245,8 @@ export class FlyingMode implements PlayerMode {
   readonly touchButtons: TouchButton[];
   private readonly cameraRig: ChaseCamera;
   private readonly fwd = new THREE.Vector3();
+  private readonly lightFrom = new THREE.Vector3();
+  private readonly lightTo = new THREE.Vector3();
 
   constructor(
     private readonly heli: Helicopter,
@@ -251,6 +254,8 @@ export class FlyingMode implements PlayerMode {
     camera: THREE.PerspectiveCamera,
     world: RAPIER.World,
     private readonly onExit: (heli: Helicopter) => void,
+    /** Searchlight at night. */
+    private readonly light: VehicleLight,
   ) {
     this.cameraRig = new ChaseCamera(camera, input, world, { distance: 15, pivotHeight: 2.6, pitch: 0.28 }, heli.body);
     this.touchButtons = [
@@ -267,6 +272,7 @@ export class FlyingMode implements PlayerMode {
   }
 
   exit(): void {
+    this.light.off();
     this.heli.piloted = false;
     this.heli.stickForward = 0;
     this.heli.stickTurn = 0;
@@ -282,7 +288,13 @@ export class FlyingMode implements PlayerMode {
   }
 
   render(_alpha: number, frameDt: number): void {
-    this.cameraRig.update(this.heli.model.root.position, this.heli.forward(this.fwd), frameDt);
+    const root = this.heli.model.root;
+    this.cameraRig.update(root.position, this.heli.forward(this.fwd), frameDt);
+    // Searchlight under the nose, pointing ahead and steeply down.
+    this.lightFrom.set(1.6, 0.4, 0).applyQuaternion(root.quaternion).add(root.position);
+    this.lightTo.copy(this.lightFrom).addScaledVector(this.fwd.setY(0).normalize(), 18);
+    this.lightTo.y -= 30;
+    this.light.aim(this.lightFrom, this.lightTo, 6000);
   }
 
   focus(): THREE.Vector3 {

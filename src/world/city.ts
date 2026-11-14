@@ -12,7 +12,7 @@ import {
   type CityLayout,
 } from './layout';
 import { createFacadeMaterial } from './facadeMaterial';
-import { asphaltTexture, grassTexture, helipadTexture, sidewalkTexture } from './textures';
+import { asphaltTexture, glowTexture, grassTexture, helipadTexture, sidewalkTexture } from './textures';
 
 // Turns the city layout into meshes and colliders.
 // Every kind of repeated object is one InstancedMesh, so the whole city is ~a dozen draw calls.
@@ -21,6 +21,8 @@ export interface City {
   layout: CityLayout;
   /** Where the player starts (capsule centre). */
   spawn: THREE.Vector3;
+  /** 0 by day … 1 at night: street lamps glow and light the pavement. */
+  setNight(night: number): void;
   dispose(): void;
 }
 
@@ -245,12 +247,12 @@ export function createCity(scene: THREE.Scene, world: RAPIER.World, seed: number
     );
   });
 
-  // --- Street lamps: pole + arm + luminaire merged into one geometry.
+  // --- Street lamps: pole + arm merged into one geometry; the luminaire is separate so it
+  // can glow at night.
   const lamps = layout.blocks.flatMap((b) => b.lamps);
   const lampGeo = mergeGeometries([
     new THREE.CylinderGeometry(0.07, 0.11, 7, 8).translate(0, 3.5, 0),
     new THREE.BoxGeometry(1.9, 0.08, 0.08).translate(0.95, 6.9, 0),
-    new THREE.BoxGeometry(0.7, 0.14, 0.3).translate(1.8, 6.85, 0),
   ]);
   const lampMesh = add(
     new THREE.InstancedMesh(
@@ -260,8 +262,39 @@ export function createCity(scene: THREE.Scene, world: RAPIER.World, seed: number
     ),
   );
   lampMesh.castShadow = true;
+  const LAMP_HEAD_OUT = 1.8; // m from the pole to the luminaire
+  const lampHeadMaterial = new THREE.MeshStandardMaterial({ color: 0x3a3c40, emissive: 0xffd9a0, emissiveIntensity: 0 });
+  const lampHeads = add(
+    new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.7, 0.14, 0.3).translate(LAMP_HEAD_OUT, 6.85, 0),
+      lampHeadMaterial,
+      lamps.length,
+    ),
+  );
+  // Pools of light on the ground under each lamp: soft additive discs (far cheaper than
+  // hundreds of real lights). Drawn just above the curb height so they show on the pavement.
+  const glow = glowTexture();
+  disposables.push(glow);
+  const poolMaterial = new THREE.MeshBasicMaterial({
+    map: glow,
+    color: 0xffc98a,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -6,
+    polygonOffsetUnits: -6,
+  });
+  const pools = add(new THREE.InstancedMesh(new THREE.PlaneGeometry(10, 10).rotateX(-Math.PI / 2), poolMaterial, lamps.length));
+  pools.visible = false;
   lamps.forEach((l, i) => {
     setInstance(lampMesh, i, l.x, CURB_HEIGHT, l.z, 1, 1, 1, l.yaw);
+    setInstance(lampHeads, i, l.x, CURB_HEIGHT, l.z, 1, 1, 1, l.yaw);
+    // Ground point under the luminaire: the arm's +X direction after yawing by l.yaw.
+    const gx = l.x + Math.cos(l.yaw) * LAMP_HEAD_OUT;
+    const gz = l.z - Math.sin(l.yaw) * LAMP_HEAD_OUT;
+    setInstance(pools, i, gx, CURB_HEIGHT + 0.02, gz);
     collider(RAPIER.ColliderDesc.cylinder(3.5, 0.12).setTranslation(l.x, CURB_HEIGHT + 3.5, l.z));
   });
 
@@ -269,6 +302,11 @@ export function createCity(scene: THREE.Scene, world: RAPIER.World, seed: number
   return {
     layout,
     spawn: new THREE.Vector3(sp.x, CURB_HEIGHT + 1.0, sp.z),
+    setNight(night) {
+      lampHeadMaterial.emissiveIntensity = night * 4;
+      poolMaterial.opacity = night * 0.55;
+      pools.visible = night > 0.01;
+    },
     dispose() {
       for (const o of objects) scene.remove(o);
       for (const d of disposables) d.dispose();
