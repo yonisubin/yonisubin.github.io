@@ -11,7 +11,7 @@ const PX_PER_M = 1; // resolution of the pre-drawn map
 const MARGIN = 60; // m of countryside drawn around the city
 const VIEW_RADIUS = 110; // m from the centre to the edge of the minimap, at ground level
 
-export type MarkerKind = 'car' | 'heli' | 'traffic';
+export type MarkerKind = 'car' | 'heli' | 'traffic' | 'shop';
 export interface Marker {
   kind: MarkerKind;
   position: THREE.Vector3;
@@ -97,6 +97,16 @@ export class Minimap {
       if (m.kind === 'traffic') {
         ctx.fillStyle = '#d9d9d2';
         ctx.fillRect(x - 2.2 * px, z - 2.2 * px, 4.4 * px, 4.4 * px);
+      } else if (m.kind === 'shop') {
+        ctx.fillStyle = '#f2c94c';
+        ctx.beginPath();
+        ctx.arc(x, z, 6 * px, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#222';
+        ctx.font = `bold ${9 * px}px system-ui,sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('$', x, z + 0.5 * px);
       } else if (m.kind === 'car') {
         ctx.fillStyle = '#3d8cff';
         ctx.fillRect(x - 3.5 * px, z - 3.5 * px, 7 * px, 7 * px);

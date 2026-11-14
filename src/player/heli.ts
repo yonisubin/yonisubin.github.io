@@ -6,6 +6,7 @@ import { BodyInterpolator, type SimEntity } from '../sim/entity';
 import { findFreeSpot } from '../sim/exit';
 import { ChaseCamera } from '../camera/chaseCamera';
 import type { VehicleLight } from '../sim/vehicleLight';
+import type { PlayerStats } from '../game/stats';
 import { buildHelicopter, type HeliModel } from '../vehicles/heliModel';
 
 // Helicopter: one dynamic rigid body pushed around by three kinds of force, like the real thing.
@@ -43,6 +44,10 @@ const TOP_SPEED = 42; // m/s (~150 km/h) at full tilt; sets the drag coefficient
 // Rough figures for a 1.5 t light helicopter; the long tail boom makes yaw and pitch heavier.
 const INERTIA = { x: 1400, y: 6500, z: 6000 };
 const ROTOR_SPIN = 28; // rad/s of the main rotor at full speed (~270 rpm), visual only
+// Crash damage: a sudden velocity change within one physics step. A normal landing at the
+// full descent rate is ~5 m/s, so that's still safe.
+const CRASH_THRESHOLD = 6.5; // m/s
+const CRASH_DAMAGE = 4; // health per m/s above that
 
 export class Helicopter implements SimEntity {
   readonly body: RAPIER.RigidBody;
@@ -63,6 +68,8 @@ export class Helicopter implements SimEntity {
 
   private rotorAngle = 0;
   private tailAngle = 0;
+  private readonly velBefore = new THREE.Vector3();
+  private impact = 0;
 
   constructor(
     private readonly world: RAPIER.World,
@@ -124,6 +131,7 @@ export class Helicopter implements SimEntity {
     const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
     const right = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
     const v = this.body.linvel();
+    this.velBefore.set(v.x, v.y, v.z);
     const w = this.body.angvel();
     const angVel = new THREE.Vector3(w.x, w.y, w.z);
     this.altitude = this.measureAltitude();
@@ -205,6 +213,17 @@ export class Helicopter implements SimEntity {
 
   afterStep(): void {
     this.interp.capture();
+    const v = this.body.linvel();
+    const dv = Math.hypot(v.x - this.velBefore.x, v.y - this.velBefore.y, v.z - this.velBefore.z);
+    this.impact = Math.max(this.impact, dv);
+    this.velBefore.set(v.x, v.y, v.z);
+  }
+
+  /** Read and reset the biggest crash since the last call (m/s of velocity change). */
+  takeImpact(): number {
+    const i = this.impact;
+    this.impact = 0;
+    return i;
   }
 
   render(alpha: number, frameDt: number): void {
@@ -256,6 +275,7 @@ export class FlyingMode implements PlayerMode {
     private readonly onExit: (heli: Helicopter) => void,
     /** Searchlight at night. */
     private readonly light: VehicleLight,
+    private readonly stats: PlayerStats,
   ) {
     this.cameraRig = new ChaseCamera(camera, input, world, { distance: 15, pivotHeight: 2.6, pitch: 0.28 }, heli.body);
     this.touchButtons = [
@@ -266,6 +286,7 @@ export class FlyingMode implements PlayerMode {
   }
 
   enter(): void {
+    this.heli.takeImpact();
     this.heli.piloted = true;
     this.heli.body.wakeUp();
     this.cameraRig.reset();
@@ -284,6 +305,8 @@ export class FlyingMode implements PlayerMode {
     this.heli.stickForward = axis.y;
     this.heli.stickTurn = axis.x;
     this.heli.climb = Number(this.input.isDown('ascend')) - Number(this.input.isDown('descend'));
+    const impact = this.heli.takeImpact();
+    if (impact > CRASH_THRESHOLD) this.stats.damage((impact - CRASH_THRESHOLD) * CRASH_DAMAGE);
     if (this.input.consumePressed('interact') && this.heli.landed) this.onExit(this.heli);
   }
 

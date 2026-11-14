@@ -17,7 +17,7 @@ export class DebugOverlay {
     this.el = document.createElement('div');
     this.el.style.cssText = [
       'position:fixed',
-      'top:max(8px, env(safe-area-inset-top))',
+      'top:calc(max(8px, env(safe-area-inset-top)) + 64px)', // below the health panel
       'left:max(8px, env(safe-area-inset-left))',
       'z-index:30',
       'padding:4px 8px',

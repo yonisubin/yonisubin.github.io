@@ -12,6 +12,11 @@ export type Action =
   | 'handbrake'
   | 'ascend'
   | 'descend'
+  | 'attack'
+  | 'nextWeapon'
+  | 'choice1'
+  | 'choice2'
+  | 'choice3'
   | 'timeSkip'
   | 'toggleMap'
   | 'toggleDebug';
@@ -34,6 +39,11 @@ const KEY_BINDINGS: Record<string, Action[]> = {
   ShiftRight: ['run', 'descend'],
   Space: ['jump', 'handbrake', 'ascend'],
   KeyE: ['interact'],
+  KeyF: ['attack'],
+  KeyQ: ['nextWeapon'],
+  Digit1: ['choice1'],
+  Digit2: ['choice2'],
+  Digit3: ['choice3'],
   KeyT: ['timeSkip'],
   KeyM: ['toggleMap'],
   F3: ['toggleDebug'],
@@ -53,6 +63,8 @@ export class Input {
   private lookX = 0;
   private lookY = 0;
   private locked = false;
+  /** While a menu (shop, chat) is open, gameplay sees no movement or held actions. */
+  private blocked = false;
   /** Analog stick from on-screen touch controls; x = right, y = forward, length ≤ 1. */
   private stickX = 0;
   private stickY = 0;
@@ -60,7 +72,7 @@ export class Input {
   constructor(private readonly element: HTMLElement) {
     window.addEventListener('keydown', (e) => {
       const actions = KEY_BINDINGS[e.code];
-      if (!actions) return;
+      if (!actions || this.blocked) return;
       e.preventDefault(); // stop Space/arrows from scrolling the page
       for (const action of actions) {
         if (!e.repeat) this.pressed.add(action);
@@ -79,6 +91,15 @@ export class Input {
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.element;
     });
+    // Left mouse button attacks (only while playing, i.e. with the pointer locked).
+    document.addEventListener('mousedown', (e) => {
+      if (!this.locked || e.button !== 0) return;
+      this.pressed.add('attack');
+      this.held.add('attack');
+    });
+    document.addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.held.delete('attack');
+    });
     document.addEventListener('mousemove', (e) => {
       if (!this.locked) return;
       this.lookX += e.movementX * MOUSE_SENSITIVITY;
@@ -96,7 +117,27 @@ export class Input {
     if (result instanceof Promise) result.catch(() => {});
   }
 
+  /** Block (or unblock) gameplay input while a menu is open. */
+  setBlocked(blocked: boolean): void {
+    this.blocked = blocked;
+    if (blocked) {
+      this.held.clear();
+      this.pressed.clear();
+      this.setStick(0, 0);
+    }
+  }
+
+  get isBlocked(): boolean {
+    return this.blocked;
+  }
+
+  /** Release the mouse (e.g. to click in a menu). */
+  exitPointerLock(): void {
+    if (this.locked) document.exitPointerLock();
+  }
+
   isDown(action: Action): boolean {
+    if (this.blocked) return false;
     if (action === 'run' && Math.hypot(this.stickX, this.stickY) > STICK_RUN_THRESHOLD) return true;
     return this.held.has(action);
   }
@@ -107,6 +148,7 @@ export class Input {
    * so a half-pushed stick returns length ≈ 0.5.
    */
   moveAxis(): { x: number; y: number } {
+    if (this.blocked) return { x: 0, y: 0 };
     let x = Number(this.held.has('moveRight')) - Number(this.held.has('moveLeft'));
     let y = Number(this.held.has('moveForward')) - Number(this.held.has('moveBack'));
     x += this.stickX;

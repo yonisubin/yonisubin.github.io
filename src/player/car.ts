@@ -6,6 +6,7 @@ import { BodyInterpolator, type SimEntity } from '../sim/entity';
 import { findFreeSpot } from '../sim/exit';
 import { ChaseCamera } from '../camera/chaseCamera';
 import type { VehicleLight } from '../sim/vehicleLight';
+import type { PlayerStats } from '../game/stats';
 import { CAR_DIMENSIONS, buildCarBody, buildWheel, type CarType } from '../vehicles/carModel';
 
 // Drivable car built on Rapier's ray-cast vehicle controller.
@@ -49,6 +50,10 @@ const MAX_STEER = 0.6; // rad of front-wheel lock at standstill
 const MIN_STEER = 0.14; // rad at top speed (less lock at speed keeps the car stable)
 const STEER_RATE = 2.2; // rad/s, how fast the wheels turn toward the requested angle
 const FLIP_DELAY = 2; // s upside down (and slow) before the car is put back on its wheels
+// Crash damage to the driver. A crash shows up as a sudden change of velocity within one
+// physics step; normal driving changes it by well under 1 m/s per step.
+const CRASH_THRESHOLD = 4; // m/s of sudden velocity change before it hurts
+const CRASH_DAMAGE = 3.5; // health per m/s above that (a 70 km/h head-on wall hit ≈ 55)
 
 export interface CarOptions {
   type: CarType;
@@ -75,6 +80,9 @@ export class Car implements SimEntity {
   private readonly wheels: THREE.Group[] = [];
   private steer = 0;
   private flipTimer = 0;
+  private readonly velBefore = new THREE.Vector3();
+  /** Largest sudden velocity change (m/s) since takeImpact() was last called. */
+  private impact = 0;
   private readonly mass: number;
   private readonly wheelConnections: THREE.Vector3[] = [];
 
@@ -170,6 +178,8 @@ export class Car implements SimEntity {
   fixedUpdate(dt: number): void {
     // A parked car at rest sleeps; skip it entirely until something bumps it awake.
     if (!this.driven && this.body.isSleeping()) return;
+    const v0 = this.body.linvel();
+    this.velBefore.set(v0.x, v0.y, v0.z);
 
     const speed = this.speed;
     const absSpeed = Math.abs(speed);
@@ -246,6 +256,17 @@ export class Car implements SimEntity {
 
   afterStep(): void {
     this.interp.capture();
+    const v = this.body.linvel();
+    const dv = Math.hypot(v.x - this.velBefore.x, v.y - this.velBefore.y, v.z - this.velBefore.z);
+    this.impact = Math.max(this.impact, dv);
+    this.velBefore.set(v.x, v.y, v.z);
+  }
+
+  /** Read and reset the biggest crash since the last call (m/s of velocity change). */
+  takeImpact(): number {
+    const i = this.impact;
+    this.impact = 0;
+    return i;
   }
 
   render(alpha: number): void {
@@ -306,6 +327,7 @@ export class DrivingMode implements PlayerMode {
     private readonly onExit: (car: Car) => void,
     /** Headlights at night. */
     private readonly light: VehicleLight,
+    private readonly stats: PlayerStats,
   ) {
     this.cameraRig = new ChaseCamera(camera, input, world, { distance: 7.5, pivotHeight: 1.6, pitch: 0.22 }, car.body);
     this.touchButtons = [
@@ -319,6 +341,7 @@ export class DrivingMode implements PlayerMode {
   }
 
   enter(): void {
+    this.car.takeImpact(); // ignore anything from before we got in
     this.car.driven = true;
     this.car.body.wakeUp();
     this.cameraRig.reset();
@@ -337,6 +360,8 @@ export class DrivingMode implements PlayerMode {
     this.car.throttle = axis.y;
     this.car.steerInput = axis.x;
     this.car.handbrake = this.input.isDown('handbrake');
+    const impact = this.car.takeImpact();
+    if (impact > CRASH_THRESHOLD) this.stats.damage((impact - CRASH_THRESHOLD) * CRASH_DAMAGE);
     if (this.input.consumePressed('interact') && this.canExit()) this.onExit(this.car);
   }
 

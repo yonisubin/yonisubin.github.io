@@ -18,6 +18,9 @@ import { Hud } from './ui/hud';
 import { Minimap, type Marker } from './ui/minimap';
 import { DayNight } from './world/dayNight';
 import { VehicleLight } from './sim/vehicleLight';
+import { PlayerStats } from './game/stats';
+import { Cash } from './game/pickups';
+import { Shop } from './game/shop';
 import { DebugOverlay } from './ui/debug';
 
 // Physics runs at a fixed 60 Hz regardless of display refresh rate.
@@ -68,10 +71,11 @@ async function main(): Promise<void> {
   const debug = new DebugOverlay(renderer, input);
 
   const player = new PlayerStateMachine(input);
-  const onFoot = new OnFootMode(world, scene, camera, input, city.spawn, model, (m) => player.setMode(m));
+  const stats = new PlayerStats();
+  const onFoot = new OnFootMode(world, scene, camera, input, city.spawn, model, stats);
 
   // Everything simulated each physics step besides the player.
-  const entities: SimEntity[] = [];
+  const entities: SimEntity[] = [stats];
 
   // Time of day drives the sun/moon, lit windows, street lamps and vehicle lights.
   const dayNight = new DayNight(sky, city, input);
@@ -87,26 +91,66 @@ async function main(): Promise<void> {
     player.setMode(onFoot);
   };
 
-  // Parked cars the player can drive.
-  const cars = parkingSpots(city.layout).map((spot) => {
-    const car = new Car(world, scene, {
-      type: spot.type,
-      color: PAINT_COLORS[spot.colorIndex],
-      position: new THREE.Vector3(spot.x, 0, spot.z),
-      yaw: spot.yaw,
+  // Cars the player can drive: the parked ones near the spawn (and later, jacked ones).
+  const cars: Car[] = [];
+  const addPlayerCar = (car: Car) => {
+    const mode = new DrivingMode(car, input, camera, world, getOut, vehicleLight, stats);
+    car.mode = mode;
+    onFoot.interactables.push({
+      label: () => 'drive',
+      position: () => car.interp.currPos,
+      radius: 3.2,
+      activate: () => player.setMode(mode),
     });
-    car.mode = new DrivingMode(car, input, camera, world, getOut, vehicleLight);
-    onFoot.enterables.push({ label: 'drive', position: () => car.interp.currPos, radius: 3.2, mode: car.mode });
     entities.push(car);
-    return car;
-  });
+    cars.push(car);
+  };
+  for (const spot of parkingSpots(city.layout)) {
+    addPlayerCar(
+      new Car(world, scene, {
+        type: spot.type,
+        color: PAINT_COLORS[spot.colorIndex],
+        position: new THREE.Vector3(spot.x, 0, spot.z),
+        yaw: spot.yaw,
+      }),
+    );
+  }
 
   // The helicopter, waiting on its helipad, nose toward −Z.
   const pad = helipadPosition(city.layout);
   const heli = new Helicopter(world, scene, new THREE.Vector3(pad.x, CURB_HEIGHT, pad.z), Math.PI / 2);
-  heli.mode = new FlyingMode(heli, input, camera, world, getOut, vehicleLight);
-  onFoot.enterables.push({ label: 'fly', position: () => heli.interp.currPos, radius: 4.5, mode: heli.mode });
+  const flying = new FlyingMode(heli, input, camera, world, getOut, vehicleLight, stats);
+  heli.mode = flying;
+  onFoot.interactables.push({
+    label: () => 'fly',
+    position: () => heli.interp.currPos,
+    radius: 4.5,
+    activate: () => player.setMode(flying),
+  });
   entities.push(heli);
+
+  // Cash lying around (collected on foot only), and the gun store near the spawn.
+  const cash = new Cash(scene, city.layout, stats, () => (player.mode === onFoot ? onFoot.focus() : null));
+  cash.onCollect((amount) => hud.toast(`+$${amount}`));
+  entities.push(cash);
+  const shop = new Shop(scene, city.layout, city.spawn, stats, input);
+  onFoot.interactables.push(shop.interactable);
+
+  // Damage feedback and death: fade out, wake up at the spawn point with full health,
+  // minus some cash (weapons are kept).
+  stats.onDamage((amount) => hud.hurt(amount));
+  stats.onDeath(() => {
+    input.setBlocked(true);
+    hud.setFade(true, 'You were knocked out');
+    window.setTimeout(() => {
+      stats.respawn();
+      onFoot.placeAt(city.spawn, 0, 0);
+      player.setMode(onFoot); // leaves any vehicle where it is
+      input.setBlocked(false);
+      hud.setFade(false);
+      hud.toast(`Lost some cash — $${stats.money} left`, 3);
+    }, 2500);
+  });
 
   // NPCs, kept in pools around wherever the player is.
   const playerPosition = () => player.mode?.focus() ?? city.spawn;
@@ -136,7 +180,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { world, player, onFoot, cars, heli, traffic, pedestrians, city, dayNight, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { world, player, onFoot, cars, heli, traffic, pedestrians, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -149,6 +193,7 @@ async function main(): Promise<void> {
     ...traffic.positions().map((position) => ({ kind: 'traffic' as const, position })),
     ...cars.map((c) => ({ kind: 'car' as const, position: c.interp.currPos })),
     { kind: 'heli', position: heli.interp.currPos },
+    { kind: 'shop', position: shop.door },
   ];
 
   loading.remove();
@@ -175,7 +220,8 @@ async function main(): Promise<void> {
     const mode = player.mode!;
     sky.update(camera, mode.focus());
     touchControls?.update();
-    hud.update(mode);
+    hud.update(mode, stats, frameTime);
+    shop.render(frameTime);
     minimap.update(mode.focus(), camera.getWorldDirection(viewDir), mapMarkers(), dayNight.clock);
     renderer.render(scene, camera);
     debug.update(frameTime);

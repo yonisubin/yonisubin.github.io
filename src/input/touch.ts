@@ -2,7 +2,7 @@ import type { Action, Input } from './actions';
 
 /** A button requested by the current player mode (see player/state.ts TouchButton). */
 export interface TouchButtonSpec {
-  label: string;
+  label: string | (() => string);
   action: Action;
   visible?: () => boolean;
 }
@@ -125,7 +125,7 @@ export class TouchControls {
         'justify-content:center',
         'letter-spacing:0.04em',
       ]);
-      button.textContent = spec.label;
+      button.textContent = typeof spec.label === 'string' ? spec.label : spec.label();
       let pointer: number | null = null;
       button.addEventListener('pointerdown', (e) => {
         e.stopPropagation(); // don't also start a look drag
@@ -154,6 +154,10 @@ export class TouchControls {
       const show = b.spec.visible ? b.spec.visible() : true;
       const display = show ? 'flex' : 'none';
       if (b.el.style.display !== display) b.el.style.display = display;
+      if (show && typeof b.spec.label === 'function') {
+        const text = b.spec.label();
+        if (b.el.textContent !== text) b.el.textContent = text;
+      }
     }
   }
 

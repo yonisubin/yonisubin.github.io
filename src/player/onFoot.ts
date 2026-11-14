@@ -4,6 +4,7 @@ import type { Input } from '../input/actions';
 import type { PlayerMode, TouchButton } from './state';
 import { FollowCamera } from '../camera/followCamera';
 import type { CharacterModel } from './character';
+import type { PlayerStats } from '../game/stats';
 
 // On-foot movement using Rapier's kinematic character controller.
 //
@@ -29,27 +30,36 @@ const JUMP_SPEED = Math.sqrt(2 * GRAVITY * JUMP_HEIGHT);
 /** Distance from the capsule centre down to the feet. */
 export const STAND_HEIGHT = CAPSULE_HALF_HEIGHT + CAPSULE_RADIUS;
 
-/** Something the player can get into (a car, the helicopter). */
-export interface Enterable {
-  /** Verb for the prompt: "drive", "fly". */
-  label: string;
-  /** Current centre of the vehicle. */
+// Falling: landing faster than this is safe; above it, damage grows with the extra speed.
+// Under this game's gravity a 3 m drop lands at ~11 m/s (no damage), 5 m at ~14 m/s
+// (~25 damage), 10 m at 20 m/s (~65 damage) and ~15 m is fatal.
+const SAFE_FALL_SPEED = 11; // m/s
+const FALL_DAMAGE = 7; // health per m/s over the safe speed
+
+/** Something the player can use with E: a vehicle, a person, the shop… */
+export interface Interactable {
+  /** Verb for the prompt: "drive", "talk", "shop". */
+  label(): string;
+  /** Current position. */
   position(): THREE.Vector3;
   /** How close (m, horizontally) the player must be. */
   radius: number;
-  mode: PlayerMode;
+  /** False hides it (e.g. carjacking without a weapon). */
+  available?(): boolean;
+  activate(): void;
 }
 
 export class OnFootMode implements PlayerMode {
   readonly name = 'OnFoot';
-  readonly controlsHint = 'WASD move · Shift run · Space jump · E get in · Mouse look';
+  readonly controlsHint = 'WASD move · Shift run · Space jump · E use · Q weapon · F/click attack';
   readonly touchButtons: TouchButton[] = [
     { label: 'JUMP', action: 'jump' },
-    { label: 'ENTER', action: 'interact', visible: () => this.nearest !== null },
+    { label: 'WEAPON', action: 'nextWeapon', visible: () => this.stats.owned.size > 1 },
+    { label: () => this.nearest?.label().toUpperCase() ?? '', action: 'interact', visible: () => this.nearest !== null },
   ];
-  /** Vehicles the player can get into; filled in by the game. */
-  readonly enterables: Enterable[] = [];
-  private nearest: Enterable | null = null;
+  /** Things the player can use with E; filled in by the game. */
+  readonly interactables: Interactable[] = [];
+  private nearest: Interactable | null = null;
 
   private readonly body: RAPIER.RigidBody;
   private readonly collider: RAPIER.Collider;
@@ -80,8 +90,7 @@ export class OnFootMode implements PlayerMode {
     private readonly spawn: THREE.Vector3,
     /** Animated model; falls back to a plain capsule if it failed to load. */
     private readonly model: CharacterModel | null,
-    /** Hands control to another mode (the state machine's setMode). */
-    private readonly switchMode: (mode: PlayerMode) => void,
+    private readonly stats: PlayerStats,
   ) {
     this.body = world.createRigidBody(
       RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y, spawn.z),
@@ -149,10 +158,11 @@ export class OnFootMode implements PlayerMode {
     this.cameraRig.yaw = cameraYaw;
   }
 
-  private findNearest(): Enterable | null {
-    let best: Enterable | null = null;
+  private findNearest(): Interactable | null {
+    let best: Interactable | null = null;
     let bestDist = Infinity;
-    for (const e of this.enterables) {
+    for (const e of this.interactables) {
+      if (e.available && !e.available()) continue;
       const p = e.position();
       const dist = Math.hypot(p.x - this.curr.x, p.z - this.curr.z);
       if (dist < e.radius && dist < bestDist && Math.abs(p.y - this.curr.y) < 3) {
@@ -165,8 +175,9 @@ export class OnFootMode implements PlayerMode {
 
   update(dt: number): void {
     this.nearest = this.findNearest();
+    if (this.input.consumePressed('nextWeapon')) this.stats.cycleWeapon();
     if (this.input.consumePressed('interact') && this.nearest) {
-      this.switchMode(this.nearest.mode);
+      this.nearest.activate();
       return;
     }
 
@@ -199,9 +210,15 @@ export class OnFootMode implements PlayerMode {
       y: this.velocity.y * dt,
       z: this.velocity.z * dt,
     };
+    const wasAirborne = !this.grounded;
+    const fallSpeed = -this.velocity.y;
     this.controller.computeColliderMovement(this.collider, desired);
     const moved = this.controller.computedMovement();
     this.grounded = this.controller.computedGrounded();
+    // Landing hard hurts.
+    if (wasAirborne && this.grounded && fallSpeed > SAFE_FALL_SPEED) {
+      this.stats.damage((fallSpeed - SAFE_FALL_SPEED) * FALL_DAMAGE);
+    }
 
     // Standing on something: cancel downward velocity so it doesn't build up forever.
     // We still apply one step of gravity next frame, which is what keeps us "touching"
@@ -259,7 +276,7 @@ export class OnFootMode implements PlayerMode {
   }
 
   prompt(): string | null {
-    return this.nearest ? `E — ${this.nearest.label}` : null;
+    return this.nearest ? `E — ${this.nearest.label()}` : null;
   }
 
   status(): string | null {

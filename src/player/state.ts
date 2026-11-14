@@ -7,7 +7,8 @@ import type { Action, Input } from '../input/actions';
 
 /** An on-screen button for touch devices, defined by the mode that needs it. */
 export interface TouchButton {
-  label: string;
+  /** Text on the button; a function for labels that change (ENTER / TALK / SHOP…). */
+  label: string | (() => string);
   action: Action;
   /** Shown only while this returns true (e.g. ENTER only near a vehicle). */
   visible?: () => boolean;
