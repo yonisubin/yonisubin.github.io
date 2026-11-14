@@ -57,6 +57,7 @@ export class OnFootMode implements PlayerMode {
   readonly touchButtons: TouchButton[] = [
     { label: 'JUMP', action: 'jump' },
     { label: 'ATTACK', action: 'attack' },
+    { label: 'SCOPE', action: 'aimToggle', visible: () => this.stats.scoped },
     { label: 'WEAPON', action: 'nextWeapon', visible: () => this.stats.owned.size > 1 },
     { label: () => this.nearest?.label().toUpperCase() ?? '', action: 'interact', visible: () => this.nearest !== null },
   ];
@@ -69,6 +70,8 @@ export class OnFootMode implements PlayerMode {
   private weaponHolder: THREE.Group | null = null;
   private heldWeapon: WeaponId | null = null;
   private swing = 0; // seconds left of a melee swing
+  private scopeToggled = false; // touch screens toggle the scope instead of holding a button
+  private scoping = false;
 
   private readonly body: RAPIER.RigidBody;
   private readonly collider: RAPIER.Collider;
@@ -143,7 +146,14 @@ export class OnFootMode implements PlayerMode {
     this.cameraRig.reset();
   }
 
+  scopedIn(): boolean {
+    return this.scoping;
+  }
+
   exit(): void {
+    this.scoping = false;
+    this.scopeToggled = false;
+    this.cameraRig.resetZoom();
     // Inside a vehicle: hide the body and take the capsule out of the physics world.
     this.visual.visible = false;
     this.collider.setEnabled(false);
@@ -209,7 +219,13 @@ export class OnFootMode implements PlayerMode {
 
   update(dt: number): void {
     this.nearest = this.findNearest();
-    if (this.input.consumePressed('nextWeapon')) this.stats.cycleWeapon();
+    if (this.input.consumePressed('nextWeapon')) {
+      this.stats.cycleWeapon();
+      this.scopeToggled = false;
+    }
+    // Aiming through a scope: hold right mouse, or toggle the SCOPE button on touch.
+    if (this.input.consumePressed('aimToggle')) this.scopeToggled = !this.scopeToggled;
+    this.scoping = this.stats.scoped && (this.input.isDown('aim') || this.scopeToggled);
 
     // Attacks: turn to face where we're hitting/shooting.
     const chest = this.tmpChest.copy(this.curr);
@@ -232,7 +248,10 @@ export class OnFootMode implements PlayerMode {
     // Axis length ≤ 1: full for keys, proportional for a partly pushed touch stick.
     const axis = this.input.moveAxis();
     this.wish.set(0, 0, 0).addScaledVector(this.fwd, axis.y).addScaledVector(this.right, axis.x);
-    const speed = this.input.isDown('run') ? RUN_SPEED : WALK_SPEED;
+    // Weapon in hand changes speed (guns are heavier; a light grip is quicker). You can't run
+    // while looking through a scope.
+    const running = this.input.isDown('run') && !this.scoping;
+    const speed = (running ? RUN_SPEED : WALK_SPEED) * this.stats.moveSpeedMultiplier;
     this.wish.multiplyScalar(speed);
 
     // Exponential approach: v += (target − v)·(1 − e^(−k·dt)). Frame-rate independent.
@@ -315,8 +334,10 @@ export class OnFootMode implements PlayerMode {
 
     // Camera pivots around the character's feet + head height.
     this.renderPos.y -= CAPSULE_HALF_HEIGHT + CAPSULE_RADIUS;
-    // With a gun out, look over the right shoulder so the crosshair has a clear view.
-    this.cameraRig.update(this.renderPos, frameDt, this.stats.weapon.melee ? 0 : 0.85);
+    // With a gun out, look over the right shoulder so the crosshair has a clear view;
+    // through a scope, zoom 4× and hide the character (it would fill the view).
+    this.cameraRig.update(this.renderPos, frameDt, this.stats.weapon.melee ? 0 : 0.85, this.scoping ? 4 : 1);
+    this.visual.visible = !this.scoping;
   }
 
   focus(): THREE.Vector3 {

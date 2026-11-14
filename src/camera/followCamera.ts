@@ -29,6 +29,9 @@ function smoothing(sharpness: number, dt: number): number {
 export class FollowCamera {
   yaw = 0;
   pitch = 0.3;
+  /** Current zoom factor (1 = normal, 4 = through a 4× scope), eased toward the request. */
+  private zoom = 1;
+  private readonly baseFov: number;
 
   private readonly pivot = new THREE.Vector3();
   private currentDistance = DISTANCE;
@@ -41,7 +44,16 @@ export class FollowCamera {
     private readonly world: RAPIER.World,
     /** Collider to ignore in the wall raycast (the player's own capsule). */
     private readonly ignore: RAPIER.Collider,
-  ) {}
+  ) {
+    this.baseFov = camera.fov;
+  }
+
+  /** Back to the normal field of view at once (e.g. when leaving on-foot mode). */
+  resetZoom(): void {
+    this.zoom = 1;
+    this.camera.fov = this.baseFov;
+    this.camera.updateProjectionMatrix();
+  }
 
   /** Snap straight to the target next frame instead of smoothing (e.g. after teleport). */
   reset(): void {
@@ -59,12 +71,21 @@ export class FollowCamera {
   /**
    * @param shoulder metres to shift the view to the right — an over-the-shoulder view so
    *                 the crosshair (screen centre) isn't covered by the character when aiming.
+   * @param zoom     magnification (4 for a 4× scope)
    */
-  update(target: THREE.Vector3, dt: number, shoulder = 0): void {
+  update(target: THREE.Vector3, dt: number, shoulder = 0, zoom = 1): void {
     this.shoulder += (shoulder - this.shoulder) * smoothing(8, dt);
+    // Zoom by narrowing the field of view: an N× zoom divides tan(fov/2) by N.
+    this.zoom += (zoom - this.zoom) * smoothing(14, dt);
+    const fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(this.baseFov / 2)) / this.zoom));
+    if (Math.abs(fov - this.camera.fov) > 0.01) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
+    // Turn more slowly when zoomed in, so aiming stays steady.
     const look = this.input.consumeLook();
-    this.yaw -= look.x;
-    this.pitch = THREE.MathUtils.clamp(this.pitch + look.y, MIN_PITCH, MAX_PITCH);
+    this.yaw -= look.x / this.zoom;
+    this.pitch = THREE.MathUtils.clamp(this.pitch + look.y / this.zoom, MIN_PITCH, MAX_PITCH);
 
     // Camera-right on the ground plane is (cos yaw, 0, −sin yaw).
     const desiredPivot = this.offset.set(

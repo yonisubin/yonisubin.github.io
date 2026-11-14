@@ -24,6 +24,7 @@ import { Shop } from './game/shop';
 import { Combat } from './game/combat';
 import { Dialogue } from './ui/dialogue';
 import { Rng } from './world/rng';
+import { Smoke } from './sim/smoke';
 import { DebugOverlay } from './ui/debug';
 
 // Physics runs at a fixed 60 Hz regardless of display refresh rate.
@@ -198,7 +199,19 @@ async function main(): Promise<void> {
   });
 
   // Fighting on foot, and chatting with pedestrians.
-  onFoot.combat = new Combat(scene, world, camera, input, stats, pedestrians, touch, (text) => hud.toast(text));
+  onFoot.combat = new Combat(scene, world, camera, input, stats, pedestrians, traffic, touch, (text) => hud.toast(text));
+
+  // Shot-up traffic smokes; a wrecked car's driver bails out, dropping cash beside it.
+  const smoke = new Smoke(scene);
+  traffic.smoke = smoke;
+  traffic.onWreck = (position) => {
+    const side = position.clone();
+    side.x += 2.2;
+    side.y = 0;
+    cash.drop(side, 10 * dropRng.int(3, 8)); // $30–80
+    pedestrians?.alarm(position, 30);
+    hud.toast('Car wrecked — the driver dropped some cash!', 2.2);
+  };
   const dialogue = pedestrians
     ? new Dialogue(camera, input, pedestrians, shop.door, () => dayNight.lighting.night > 0.5, touch)
     : null;
@@ -276,6 +289,7 @@ async function main(): Promise<void> {
     hud.update(mode, stats, frameTime);
     shop.render(frameTime);
     onFoot.combat?.render(frameTime);
+    smoke.update(frameTime);
     dialogue?.update(frameTime, mode.focus());
     minimap.update(mode.focus(), camera.getWorldDirection(viewDir), mapMarkers(), dayNight.clock);
     renderer.render(scene, camera);

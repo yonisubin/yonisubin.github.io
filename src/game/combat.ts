@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { Input } from '../input/actions';
 import type { Pedestrians } from '../npc/pedestrians';
+import type { Traffic } from '../npc/traffic';
 import type { PlayerStats } from './stats';
 
 // On-foot combat. Melee weapons hit the nearest pedestrian in a cone in front of the
 // player; guns fire a ray from the camera through the centre of the screen (where the
-// crosshair is), stopped by the first wall. Shots leave a brief tracer and muzzle flash.
-// Violence alarms nearby pedestrians, who run off.
+// crosshair is). The bullet hits the first thing along it: a pedestrian, a traffic car
+// (damaging it) or a wall. Armour-piercing rounds, if bought, are fired first and do more
+// damage. Shots leave a brief tracer and muzzle flash; violence alarms nearby pedestrians.
 
 const MELEE_ALARM_RADIUS = 12; // m
 const GUN_ALARM_RADIUS = 45; // m
@@ -40,6 +42,7 @@ export class Combat {
     private readonly input: Input,
     private readonly stats: PlayerStats,
     private readonly peds: Pedestrians | null,
+    private readonly traffic: Traffic,
     private readonly touch: boolean,
     /** Short on-screen message. */
     private readonly notify: (text: string) => void,
@@ -76,7 +79,8 @@ export class Combat {
       return { facing, melee: true };
     }
 
-    if (this.stats.ammo[w.id] <= 0) {
+    const damage = this.stats.fireRound(); // AP rounds first
+    if (damage === null) {
       if (this.outOfAmmoShown <= 0) {
         this.notify('Out of ammo — buy more at Guns & Ammo');
         this.outOfAmmoShown = 1;
@@ -85,7 +89,6 @@ export class Combat {
       return null;
     }
     this.outOfAmmoShown = 0;
-    this.stats.ammo[w.id]--;
 
     // Aim: from the camera through the screen centre. On touch screens, snap to a nearby
     // pedestrian in a small cone, since precise aiming with a thumb is hard.
@@ -102,7 +105,13 @@ export class Combat {
     const wallHit = this.world.castRay(new RAPIER.Ray(start, dir), w.range, true, undefined, undefined, exclude);
     const wallDist = wallHit ? wallHit.timeOfImpact : w.range;
     const pedHit = this.peds?.raycast(start, dir, wallDist) ?? null;
-    if (pedHit) this.peds!.damage(pedHit.ped, w.damage, 'gun');
+    if (pedHit) {
+      this.peds!.damage(pedHit.ped, damage, 'gun');
+    } else if (wallHit) {
+      // Whatever solid thing the bullet hit: if it's a traffic car, it takes the damage.
+      const car = this.traffic.carForCollider(wallHit.collider);
+      if (car) this.traffic.damage(car, damage);
+    }
     const hitDist = pedHit ? pedHit.dist : wallDist;
     const end = start.clone().addScaledVector(dir, hitDist);
 

@@ -39,6 +39,7 @@ export class Hud {
   private readonly moneyText: HTMLSpanElement;
   private readonly weaponText: HTMLDivElement;
   private readonly crosshair: HTMLDivElement;
+  private readonly scope: HTMLDivElement;
   private readonly vignette: HTMLDivElement;
   private readonly toastBox: HTMLDivElement;
   private readonly fade: HTMLDivElement;
@@ -101,6 +102,25 @@ export class Hud {
     ].join(';');
     document.body.appendChild(this.crosshair);
 
+    // Scope view: black outside a circle, with fine cross-hairs.
+    this.scope = document.createElement('div');
+    this.scope.style.cssText = [
+      'position:fixed',
+      'inset:0',
+      'pointer-events:none',
+      'z-index:14',
+      'display:none',
+      'background:radial-gradient(circle at center, transparent 0, transparent 37vmin, rgba(0,0,0,0.92) 38vmin)',
+    ].join(';');
+    const hair = (css: string) => {
+      const line = document.createElement('div');
+      line.style.cssText = `position:absolute;background:rgba(0,0,0,0.85);${css}`;
+      this.scope.appendChild(line);
+    };
+    hair('left:50%;top:calc(50% - 37vmin);width:2px;height:74vmin;margin-left:-1px');
+    hair('top:50%;left:calc(50% - 37vmin);height:2px;width:74vmin;margin-top:-1px');
+    document.body.appendChild(this.scope);
+
     // Red edge flash when hurt.
     this.vignette = document.createElement('div');
     this.vignette.style.cssText = [
@@ -151,10 +171,13 @@ export class Hud {
     const money = `$${stats.money}`;
     if (this.moneyText.textContent !== money) this.moneyText.textContent = money;
     const w = stats.weapon;
-    const weapon = w.melee ? w.name : `${w.name} ${stats.ammo[w.id]}`;
+    const ap = stats.apAmmo[w.id];
+    const weapon = w.melee ? w.name : `${w.name} ${stats.ammo[w.id]}${ap ? ` +${ap} AP` : ''}`;
     if (this.weaponText.textContent !== weapon) this.weaponText.textContent = weapon;
-    const showCrosshair = mode.name === 'OnFoot' && !w.melee;
+    const scoped = mode.scopedIn?.() ?? false;
+    const showCrosshair = mode.name === 'OnFoot' && !w.melee && !scoped;
     this.crosshair.style.display = showCrosshair ? '' : 'none';
+    this.scope.style.display = scoped ? '' : 'none';
 
     this.flash = Math.max(0, this.flash - frameDt * 1.8);
     this.vignette.style.opacity = this.flash.toFixed(2);

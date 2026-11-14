@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { SimEntity } from '../sim/entity';
+import type { Smoke } from '../sim/smoke';
 import { Rng } from '../world/rng';
 import { CURB_HEIGHT, ROAD_WIDTH, type CityLayout } from '../world/layout';
 import {
@@ -46,6 +47,12 @@ const MIN_GAP = 2.5; // m bumper-to-bumper when stopped
 const LANE_WIDTH_CHECK = 1.8; // m: things closer than this sideways are "in my lane"
 const STOP_LINE_BACK = 4.4; // m before the intersection edge (behind the zebra crossing)
 const TYPES: CarType[] = ['sedan', 'sedan', 'sedan', 'taxi', 'sedan', 'van'];
+// Gunfire damage. Cars have more health than people; a wreck stays put for a while.
+const CAR_HEALTH = 150;
+const WRECK_TIME = 20; // s before a wreck is cleared away
+// Wrecks swap their glossy paint body for a matte, burnt one (glossy black paint would
+// still reflect the sky and read as silver).
+const charredMaterial = new THREE.MeshStandardMaterial({ color: 0x161514, roughness: 1, metalness: 0 });
 
 export interface TrafficCar {
   type: CarType;
@@ -63,6 +70,10 @@ export interface TrafficCar {
   prevYaw: number;
   currYaw: number;
   active: boolean;
+  health: number;
+  /** Seconds since it was wrecked, or −1 while it's still running. */
+  wrecked: number;
+  smokeTimer: number;
 }
 
 /** Things traffic must not drive into: the player (any mode), parked player cars, etc. */
@@ -73,6 +84,8 @@ export class Traffic implements SimEntity {
   private readonly cars: TrafficCar[] = [];
   private readonly rng = new Rng(4242);
   private readonly meshes = new Map<CarType, THREE.InstancedMesh[]>();
+  /** Burnt body per type, shown instead of the painted one for wrecks. */
+  private readonly wreckBodies = new Map<CarType, THREE.InstancedMesh>();
   private readonly tyres: THREE.InstancedMesh;
   private readonly rims: THREE.InstancedMesh;
   private readonly lights: TrafficLights;
@@ -84,6 +97,10 @@ export class Traffic implements SimEntity {
   private readonly mat = new THREE.Matrix4();
   private readonly quat = new THREE.Quaternion();
   private readonly one = new THREE.Vector3(1, 1, 1);
+  /** Smoke puffs for damaged cars (set by the game). */
+  smoke: Smoke | null = null;
+  /** Called when gunfire wrecks a car (drop cash, scare people…). */
+  onWreck: ((position: THREE.Vector3) => void) | null = null;
 
   constructor(
     world: RAPIER.World,
@@ -125,6 +142,11 @@ export class Traffic implements SimEntity {
         return m;
       });
       this.meshes.set(type, list);
+      const wreck = new THREE.InstancedMesh(g.body, charredMaterial, count);
+      wreck.castShadow = true;
+      wreck.frustumCulled = false;
+      scene.add(wreck);
+      this.wreckBodies.set(type, wreck);
     }
     const wheel = wheelGeometry(1); // unit radius, scaled per car type
     this.tyres = new THREE.InstancedMesh(wheel.tyre, carMaterials.tyre, POOL_SIZE * 4);
@@ -152,6 +174,9 @@ export class Traffic implements SimEntity {
         s: 0,
         speed: 0,
         wheelSpin: 0,
+        health: CAR_HEALTH,
+        wrecked: -1,
+        smokeTimer: 0,
         halfLength: d.length / 2,
         prevPos: new THREE.Vector3(),
         currPos: new THREE.Vector3(),
@@ -182,6 +207,8 @@ export class Traffic implements SimEntity {
       car.s = s;
       car.speed = CRUISE_SPEED * 0.6;
       car.active = true;
+      car.health = CAR_HEALTH;
+      car.wrecked = -1;
       this.place(car);
       car.prevPos.copy(car.currPos);
       car.prevYaw = car.currYaw;
@@ -250,6 +277,15 @@ export class Traffic implements SimEntity {
         this.respawn(car);
         continue;
       }
+      if (car.wrecked >= 0) {
+        // Wrecks sit still (other traffic queues behind them), then get cleared away.
+        car.wrecked += dt;
+        car.prevPos.copy(car.currPos);
+        car.prevYaw = car.currYaw;
+        car.speed = 0;
+        if (car.wrecked > WRECK_TIME) this.respawn(car);
+        continue;
+      }
 
       // Speed control: cruise (slower in turns), but never faster than lets us stop within
       // the free distance ahead: v_max = √(2·a·d) is the speed you can brake from in d metres.
@@ -288,14 +324,16 @@ export class Traffic implements SimEntity {
 
   afterStep(): void {}
 
-  render(alpha: number): void {
+  render(alpha: number, frameDt: number): void {
     const pos = this.tmp;
+    this.emitSmoke(frameDt);
     for (const car of this.cars) {
       const meshes = this.meshes.get(car.type)!;
       if (!car.active) {
         // Hidden: zero scale.
         this.mat.makeScale(0, 0, 0);
         for (const m of meshes) m.setMatrixAt(car.slot, this.mat);
+        this.wreckBodies.get(car.type)!.setMatrixAt(car.slot, this.mat);
         continue;
       }
       pos.lerpVectors(car.prevPos, car.currPos, alpha);
@@ -304,6 +342,14 @@ export class Traffic implements SimEntity {
       this.quat.setFromAxisAngle(UP, car.prevYaw + dyaw * alpha);
       this.mat.compose(pos, this.quat, this.one);
       for (const m of meshes) m.setMatrixAt(car.slot, this.mat);
+      // Wrecked: show the burnt body in place of the painted one.
+      const wreck = this.wreckBodies.get(car.type)!;
+      if (car.wrecked >= 0) {
+        wreck.setMatrixAt(car.slot, this.mat);
+        meshes[0].setMatrixAt(car.slot, this.mat.clone().scale(ZERO));
+      } else {
+        wreck.setMatrixAt(car.slot, this.mat.clone().scale(ZERO));
+      }
     }
     // Wheels: four per car, positioned in the car's frame and spun about their axle.
     const carMat = new THREE.Matrix4();
@@ -319,7 +365,8 @@ export class Traffic implements SimEntity {
         }
         return;
       }
-      this.meshes.get(car.type)![0].getMatrixAt(car.slot, carMat);
+      // Wheels follow whichever body is showing (the burnt one for wrecks).
+      (car.wrecked >= 0 ? this.wreckBodies.get(car.type)! : this.meshes.get(car.type)![0]).getMatrixAt(car.slot, carMat);
       spin.makeRotationZ(-car.wheelSpin);
       for (let w = 0; w < 4; w++) {
         const x = w < 2 ? d.wheelBase / 2 : -d.wheelBase / 2;
@@ -330,6 +377,7 @@ export class Traffic implements SimEntity {
         this.rims.setMatrixAt(k * 4 + w, this.mat);
       }
     });
+    for (const m of this.wreckBodies.values()) m.instanceMatrix.needsUpdate = true;
     for (const list of this.meshes.values()) {
       for (const m of list) {
         m.instanceMatrix.needsUpdate = true;
@@ -340,12 +388,30 @@ export class Traffic implements SimEntity {
     this.rims.instanceMatrix.needsUpdate = true;
   }
 
+  /** The traffic car this collider belongs to (e.g. what a bullet hit), if any. */
+  carForCollider(collider: RAPIER.Collider): TrafficCar | null {
+    const body = collider.parent();
+    if (!body) return null;
+    return this.cars.find((c) => c.active && c.body.handle === body.handle) ?? null;
+  }
+
+  /** Gunfire hit a car. At zero health it's wrecked: stops dead, charred, smoking. */
+  damage(car: TrafficCar, amount: number): void {
+    if (!car.active || car.wrecked >= 0) return;
+    car.health -= amount;
+    if (car.health > 0) return;
+    car.health = 0;
+    car.wrecked = 0;
+    car.speed = 0;
+    this.onWreck?.(car.currPos);
+  }
+
   /** The nearest traffic car within `radius` that's slow enough to carjack, if any. */
   jackable(position: THREE.Vector3, radius: number): TrafficCar | null {
     let best: TrafficCar | null = null;
     let bestDist = radius;
     for (const car of this.cars) {
-      if (!car.active || car.speed > 4) continue;
+      if (!car.active || car.speed > 4 || car.wrecked >= 0) continue;
       const d = Math.hypot(car.currPos.x - position.x, car.currPos.z - position.z);
       if (d < bestDist) {
         best = car;
@@ -366,6 +432,26 @@ export class Traffic implements SimEntity {
     return taken;
   }
 
+  /** Damaged cars smoke from the bonnet: more and darker the worse the damage. */
+  private emitSmoke(frameDt: number): void {
+    if (!this.smoke) return;
+    for (const car of this.cars) {
+      if (!car.active) continue;
+      const damage = car.wrecked >= 0 ? 1 : 1 - car.health / CAR_HEALTH;
+      if (damage < 0.35) continue;
+      // Puffs per second grow with damage; a wreck billows.
+      const rate = car.wrecked >= 0 ? 14 : 3 + damage * 8;
+      car.smokeTimer -= frameDt;
+      if (car.smokeTimer > 0) continue;
+      car.smokeTimer = 1 / rate;
+      const ahead = car.wrecked >= 0 ? 0.2 : 1.5; // engine bay, or the whole car when wrecked
+      const p = this.tmp2.set(Math.cos(car.currYaw) * ahead, 1.1, -Math.sin(car.currYaw) * ahead).add(car.currPos);
+      p.x += (Math.random() - 0.5) * 0.8;
+      p.z += (Math.random() - 0.5) * 0.8;
+      this.smoke.emit(p, car.wrecked >= 0 ? 0.9 : damage * 0.7, car.wrecked >= 0 ? 1.4 : 0.8);
+    }
+  }
+
   /** Positions of active traffic cars (for pedestrians and debugging). */
   positions(): THREE.Vector3[] {
     return this.cars.filter((c) => c.active).map((c) => c.currPos);
@@ -378,6 +464,7 @@ export class Traffic implements SimEntity {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
+const ZERO = new THREE.Vector3(0, 0, 0);
 const IDENTITY_QUAT = new THREE.Quaternion();
 const SCALE = new THREE.Vector3();
 

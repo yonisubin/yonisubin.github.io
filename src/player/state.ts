@@ -36,6 +36,8 @@ export interface PlayerMode {
   readonly controlsHint: string;
   /** Buttons shown on touch screens (besides the joystick and look area). */
   readonly touchButtons: TouchButton[];
+  /** True while looking through a weapon scope (the HUD draws the scope overlay). */
+  scopedIn?(): boolean;
 }
 
 export class PlayerStateMachine {

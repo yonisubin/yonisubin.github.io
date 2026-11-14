@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Input } from '../input/actions';
 import type { Interactable } from '../player/onFoot';
 import { CURB_HEIGHT, type CityLayout } from '../world/layout';
-import { WEAPONS, type PlayerStats, type WeaponId } from './stats';
+import { ADDONS, AP_AMMO, AP_DAMAGE, WEAPONS, type AddonId, type PlayerStats, type WeaponId } from './stats';
 
 // The gun store: a shopfront on the building nearest the spawn point, with a lit sign and a
 // glowing marker at the door. E at the door opens a buy menu (weapons and ammo).
@@ -167,12 +167,36 @@ export class Shop {
       const info = document.createElement('div');
       info.style.flex = '1';
       const kind = w.melee ? 'melee' : w.auto ? 'automatic' : 'semi-automatic';
-      info.innerHTML = `<div style="font-weight:600">${w.name}</div><div style="opacity:0.7;font-size:13px">${kind} · damage ${w.damage}${owned && !w.melee ? ` · ${s.ammo[id]} rounds` : ''}</div>`;
+      const rounds = owned && !w.melee ? ` · ${s.ammo[id]} rounds${s.apAmmo[id] ? ` + ${s.apAmmo[id]} AP` : ''}` : '';
+      info.innerHTML = `<div style="font-weight:600">${w.name}</div><div style="opacity:0.7;font-size:13px">${kind} · damage ${w.damage}${rounds}</div>`;
       row.appendChild(info);
       if (!owned) row.appendChild(this.button(`Buy $${w.price}`, s.money >= w.price, () => s.buyWeapon(id)));
       else if (w.ammoPrice) row.appendChild(this.button(`+${w.ammoPack} ammo $${w.ammoPrice}`, s.money >= w.ammoPrice, () => s.buyAmmo(id)));
       else row.appendChild(this.label('Owned'));
       panel.appendChild(row);
+
+      // Add-ons appear once you own the weapon.
+      if (!owned) continue;
+      for (const addon of Object.keys(ADDONS) as AddonId[]) {
+        const def = ADDONS[addon];
+        const price = def.price[id];
+        if (price === undefined) continue;
+        const has = s.hasAddon(id, addon);
+        panel.appendChild(
+          this.subRow(`${def.name}`, def.description, has ? this.label('Fitted') : this.button(`$${price}`, s.money >= price, () => s.buyAddon(id, addon))),
+        );
+      }
+      const ap = AP_AMMO[id];
+      if (ap) {
+        const perRound = (ap.price / ap.pack).toFixed(2);
+        panel.appendChild(
+          this.subRow(
+            'Armour-piercing rounds',
+            `+${Math.round((AP_DAMAGE - 1) * 100)}% damage · $${perRound} a round · fired first`,
+            this.button(`+${ap.pack} $${ap.price}`, s.money >= ap.price, () => s.buyApAmmo(id)),
+          ),
+        );
+      }
     }
 
     const footer = document.createElement('div');
@@ -204,6 +228,17 @@ export class Shop {
       this.redraw();
     });
     return b;
+  }
+
+  /** An indented add-on line under its weapon. */
+  private subRow(name: string, description: string, action: HTMLElement): HTMLDivElement {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:5px 0 5px 16px';
+    const info = document.createElement('div');
+    info.style.flex = '1';
+    info.innerHTML = `<div style="font-size:14px">↳ ${name}</div><div style="opacity:0.6;font-size:12px">${description}</div>`;
+    row.append(info, action);
+    return row;
   }
 
   private label(text: string): HTMLSpanElement {

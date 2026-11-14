@@ -13,6 +13,8 @@ export type Action =
   | 'ascend'
   | 'descend'
   | 'attack'
+  | 'aim'
+  | 'aimToggle'
   | 'nextWeapon'
   | 'choice1'
   | 'choice2'
@@ -91,14 +93,22 @@ export class Input {
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.element;
     });
-    // Left mouse button attacks (only while playing, i.e. with the pointer locked).
+    // Left mouse button attacks, right mouse button aims (only while playing, i.e. with the
+    // pointer locked).
+    const MOUSE_BUTTONS: Record<number, Action> = { 0: 'attack', 2: 'aim' };
     document.addEventListener('mousedown', (e) => {
-      if (!this.locked || e.button !== 0) return;
-      this.pressed.add('attack');
-      this.held.add('attack');
+      const action = MOUSE_BUTTONS[e.button];
+      if (!this.locked || !action || this.blocked) return;
+      this.pressed.add(action);
+      this.held.add(action);
     });
     document.addEventListener('mouseup', (e) => {
-      if (e.button === 0) this.held.delete('attack');
+      const action = MOUSE_BUTTONS[e.button];
+      if (action) this.held.delete(action);
+    });
+    // No browser context menu on right-click while playing.
+    document.addEventListener('contextmenu', (e) => {
+      if (this.locked) e.preventDefault();
     });
     document.addEventListener('mousemove', (e) => {
       if (!this.locked) return;

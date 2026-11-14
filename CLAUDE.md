@@ -80,7 +80,7 @@ Work on one milestone at a time. Don't start the next until the current one feel
 4. **Flying.** Helicopter with custom forces: collective (lift), cyclic (pitch/roll), tail rotor (yaw). Should hover stably with no input. Enter/exit like the car.
 5. **Life.** NPC traffic on the road graph, pedestrians, day/night cycle, minimap.
 
-Gameplay beyond the milestones: health (regenerates; falls and crashes hurt; death respawns at the spawn point minus 20% cash), cash pickups, a gun store (bat, pistol, rifle, ammo), melee and gun combat, pedestrians you can chat with / who flee, fight back or get knocked out (no gore), and carjacking traffic when armed.
+Gameplay beyond the milestones: health (regenerates; falls and crashes hurt; death respawns at the spawn point minus 20% cash), cash pickups, a gun store (bat, pistol, rifle, ammo, plus per-weapon add-ons once you own the weapon: 4× scope, light grip for run speed, armour-piercing rounds), melee and gun combat, shootable traffic cars (smoke, wreck, driver drops cash), pedestrians you can chat with / who flee, fight back or get knocked out (no gore), and carjacking traffic when armed.
 
 Status: all five milestones are done (day/night: `world/dayNight.ts`, 12-minute day, hold T to fast-forward; minimap: `ui/minimap.ts`, M toggles it).
 

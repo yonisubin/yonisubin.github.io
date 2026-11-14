@@ -32,6 +32,37 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
 };
 export const WEAPON_ORDER: WeaponId[] = ['fists', 'bat', 'pistol', 'rifle'];
 
+// --- Weapon add-ons, sold at the store once you own the weapon.
+//  scope — 4× zoom while aiming (guns only)
+//  grip  — light grip / sling: run faster while that weapon is in hand
+//  AP rounds — armour-piercing ammo: +50% damage, ~2.5× the price per bullet; separate
+//              rounds that are fired before normal ones.
+export type AddonId = 'scope' | 'grip';
+
+export interface AddonDef {
+  id: AddonId;
+  name: string;
+  description: string;
+  price: Partial<Record<WeaponId, number>>; // which weapons can take it, and the price
+}
+
+export const ADDONS: Record<AddonId, AddonDef> = {
+  scope: { id: 'scope', name: 'Scope', description: '4× zoom while aiming', price: { pistol: 150, rifle: 200 } },
+  grip: { id: 'grip', name: 'Light grip', description: '+20% run speed', price: { bat: 60, pistol: 80, rifle: 120 } },
+};
+
+/** Armour-piercing rounds: damage multiplier, and price/pack per gun (normal ammo is $2.50/$2 a round). */
+export const AP_DAMAGE = 1.5;
+export const AP_AMMO: Partial<Record<WeaponId, { price: number; pack: number }>> = {
+  pistol: { price: 75, pack: 12 }, // $6.25 a round
+  rifle: { price: 150, pack: 30 }, // $5 a round
+};
+
+// Moving with a weapon in hand: guns weigh you down a little; a light grip makes any weapon
+// quicker to run with.
+const CARRY_SPEED: Record<WeaponId, number> = { fists: 1, bat: 1, pistol: 0.95, rifle: 0.9 };
+const GRIP_SPEED = 1.2;
+
 export const MAX_HEALTH = 100;
 // Economy targets: bat straight away, pistol after ~1–2 min of collecting cash, rifle after
 // ~4–5 min. Everything together costs ~45% of the cash lying around the city at once.
@@ -45,6 +76,10 @@ export class PlayerStats implements SimEntity {
   money = START_MONEY;
   readonly owned = new Set<WeaponId>(['fists']);
   readonly ammo: Record<WeaponId, number> = { fists: 0, bat: 0, pistol: 0, rifle: 0 };
+  /** Armour-piercing rounds, fired before normal ammo. */
+  readonly apAmmo: Record<WeaponId, number> = { fists: 0, bat: 0, pistol: 0, rifle: 0 };
+  /** Owned add-ons, as "weapon:addon" keys. */
+  readonly addons = new Set<string>();
   current: WeaponId = 'fists';
   dead = false;
 
@@ -96,6 +131,58 @@ export class PlayerStats implements SimEntity {
     this.ammo[id] += w.startAmmo ?? 0;
     this.current = id;
     return true;
+  }
+
+  hasAddon(weapon: WeaponId, addon: AddonId): boolean {
+    return this.addons.has(`${weapon}:${addon}`);
+  }
+
+  buyAddon(weapon: WeaponId, addon: AddonId): boolean {
+    const price = ADDONS[addon].price[weapon];
+    if (price === undefined || !this.owned.has(weapon) || this.hasAddon(weapon, addon) || this.money < price) return false;
+    this.money -= price;
+    this.addons.add(`${weapon}:${addon}`);
+    return true;
+  }
+
+  buyApAmmo(id: WeaponId): boolean {
+    const ap = AP_AMMO[id];
+    if (!ap || !this.owned.has(id) || this.money < ap.price) return false;
+    this.money -= ap.price;
+    this.apAmmo[id] += ap.pack;
+    return true;
+  }
+
+  /** Total rounds left for a gun (AP + normal). */
+  roundsLeft(id: WeaponId): number {
+    return this.ammo[id] + this.apAmmo[id];
+  }
+
+  /**
+   * Use up one round of the current gun and return its damage (AP rounds first), or null
+   * if it's out of ammo.
+   */
+  fireRound(): number | null {
+    const w = this.weapon;
+    if (this.apAmmo[w.id] > 0) {
+      this.apAmmo[w.id]--;
+      return w.damage * AP_DAMAGE;
+    }
+    if (this.ammo[w.id] > 0) {
+      this.ammo[w.id]--;
+      return w.damage;
+    }
+    return null;
+  }
+
+  /** Running/walking speed multiplier for the weapon in hand. */
+  get moveSpeedMultiplier(): number {
+    return this.hasAddon(this.current, 'grip') ? GRIP_SPEED : CARRY_SPEED[this.current];
+  }
+
+  /** True if the weapon in hand has a scope fitted. */
+  get scoped(): boolean {
+    return this.hasAddon(this.current, 'scope');
   }
 
   buyAmmo(id: WeaponId): boolean {
