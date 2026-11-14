@@ -72,6 +72,11 @@ export class CharacterModel {
     this.setWeights(1, 0, 0);
   }
 
+  /** The right-hand bone, for holding weapons (null if the rig doesn't have one). */
+  rightHand(): THREE.Object3D | null {
+    return this.root.getObjectByName('mixamorigRightHand') ?? null;
+  }
+
   static async load(): Promise<CharacterModel> {
     const gltf = await new GLTFLoader().loadAsync(MODEL_URL);
     // Keep a pristine copy before the player's instance gets moved/parented.

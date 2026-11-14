@@ -21,6 +21,9 @@ import { VehicleLight } from './sim/vehicleLight';
 import { PlayerStats } from './game/stats';
 import { Cash } from './game/pickups';
 import { Shop } from './game/shop';
+import { Combat } from './game/combat';
+import { Dialogue } from './ui/dialogue';
+import { Rng } from './world/rng';
 import { DebugOverlay } from './ui/debug';
 
 // Physics runs at a fixed 60 Hz regardless of display refresh rate.
@@ -161,8 +164,35 @@ async function main(): Promise<void> {
   ]);
   entities.push(traffic);
   // Pedestrians are copies of the player's model, so they need it to have loaded.
-  const pedestrians = model ? new Pedestrians(scene, city.layout, model, touch ? 10 : 16, playerPosition) : null;
+  const dropRng = new Rng(31337);
+  const pedestrians = model
+    ? new Pedestrians(scene, city.layout, model, touch ? 10 : 16, {
+        player: () => ({ position: playerPosition(), onFoot: player.mode === onFoot }),
+        hitPlayer: (damage) => stats.damage(damage),
+        knockedOut: (position) => cash.drop(position, 5 * dropRng.int(1, 8)),
+      })
+    : null;
   if (pedestrians) entities.push(pedestrians);
+
+  // Fighting on foot, and chatting with pedestrians.
+  onFoot.combat = new Combat(scene, world, camera, input, stats, pedestrians, touch, (text) => hud.toast(text));
+  const dialogue = pedestrians
+    ? new Dialogue(camera, input, pedestrians, shop.door, () => dayNight.lighting.night > 0.5, touch)
+    : null;
+  if (pedestrians && dialogue) {
+    const TALK_RADIUS = 2.4;
+    const nobody = new THREE.Vector3(0, -1000, 0);
+    onFoot.interactables.push({
+      label: () => 'talk',
+      position: () => pedestrians.nearestTalkable(onFoot.focus(), TALK_RADIUS)?.currPos ?? nobody,
+      radius: TALK_RADIUS,
+      available: () => !dialogue.active,
+      activate: () => {
+        const ped = pedestrians.nearestTalkable(onFoot.focus(), TALK_RADIUS);
+        if (ped) dialogue.start(ped);
+      },
+    });
+  }
 
   player.onChange((mode) => touchControls?.setButtons(mode.touchButtons));
   player.setMode(onFoot);
@@ -180,7 +210,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { world, player, onFoot, cars, heli, traffic, pedestrians, city, dayNight, stats, cash, shop, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { world, camera, player, onFoot, cars, heli, traffic, pedestrians, dialogue, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -222,6 +252,8 @@ async function main(): Promise<void> {
     touchControls?.update();
     hud.update(mode, stats, frameTime);
     shop.render(frameTime);
+    onFoot.combat?.render(frameTime);
+    dialogue?.update(frameTime, mode.focus());
     minimap.update(mode.focus(), camera.getWorldDirection(viewDir), mapMarkers(), dayNight.clock);
     renderer.render(scene, camera);
     debug.update(frameTime);

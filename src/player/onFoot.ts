@@ -4,7 +4,9 @@ import type { Input } from '../input/actions';
 import type { PlayerMode, TouchButton } from './state';
 import { FollowCamera } from '../camera/followCamera';
 import type { CharacterModel } from './character';
-import type { PlayerStats } from '../game/stats';
+import type { PlayerStats, WeaponId } from '../game/stats';
+import type { Combat } from '../game/combat';
+import { buildWeaponModel } from '../game/weaponModels';
 
 // On-foot movement using Rapier's kinematic character controller.
 //
@@ -54,12 +56,19 @@ export class OnFootMode implements PlayerMode {
   readonly controlsHint = 'WASD move · Shift run · Space jump · E use · Q weapon · F/click attack';
   readonly touchButtons: TouchButton[] = [
     { label: 'JUMP', action: 'jump' },
+    { label: 'ATTACK', action: 'attack' },
     { label: 'WEAPON', action: 'nextWeapon', visible: () => this.stats.owned.size > 1 },
     { label: () => this.nearest?.label().toUpperCase() ?? '', action: 'interact', visible: () => this.nearest !== null },
   ];
   /** Things the player can use with E; filled in by the game. */
   readonly interactables: Interactable[] = [];
+  /** Attacks (set by the game once the pedestrians exist). */
+  combat: Combat | null = null;
   private nearest: Interactable | null = null;
+  // Weapon held in the right hand.
+  private weaponHolder: THREE.Group | null = null;
+  private heldWeapon: WeaponId | null = null;
+  private swing = 0; // seconds left of a melee swing
 
   private readonly body: RAPIER.RigidBody;
   private readonly collider: RAPIER.Collider;
@@ -81,6 +90,7 @@ export class OnFootMode implements PlayerMode {
   private readonly right = new THREE.Vector3();
   private readonly wish = new THREE.Vector3();
   private readonly renderPos = new THREE.Vector3();
+  private readonly tmpChest = new THREE.Vector3();
 
   constructor(
     world: RAPIER.World,
@@ -141,6 +151,30 @@ export class OnFootMode implements PlayerMode {
     this.groundSpeed = 0;
   }
 
+  /** Show the current weapon in the right hand, and swing melee weapons when attacking. */
+  private updateHeldWeapon(): void {
+    const hand = this.model?.rightHand();
+    if (!hand) return;
+    if (!this.weaponHolder) {
+      // The rig is scaled down (it was modelled in centimetres), so undo the hand's world
+      // scale to build weapons in metres.
+      this.weaponHolder = new THREE.Group();
+      hand.add(this.weaponHolder);
+      hand.updateWorldMatrix(true, false);
+      const s = new THREE.Vector3();
+      hand.getWorldScale(s);
+      this.weaponHolder.scale.setScalar(1 / s.x);
+    }
+    if (this.heldWeapon !== this.stats.current) {
+      this.heldWeapon = this.stats.current;
+      this.weaponHolder.clear();
+      const model = buildWeaponModel(this.heldWeapon);
+      if (model) this.weaponHolder.add(model);
+    }
+    // Melee swing: a quick rotation of the weapon about the hand.
+    this.weaponHolder.rotation.x = this.swing > 0 ? -Math.sin((this.swing / 0.3) * Math.PI) * 1.6 : 0;
+  }
+
   /** The capsule's collision shape, for checking where the player can stand. */
   get shape(): RAPIER.Shape {
     return this.collider.shape;
@@ -176,6 +210,16 @@ export class OnFootMode implements PlayerMode {
   update(dt: number): void {
     this.nearest = this.findNearest();
     if (this.input.consumePressed('nextWeapon')) this.stats.cycleWeapon();
+
+    // Attacks: turn to face where we're hitting/shooting.
+    const chest = this.tmpChest.copy(this.curr);
+    chest.y += 0.4;
+    const attack = this.combat?.update(dt, chest, this.collider) ?? null;
+    if (attack) {
+      this.facing = Math.atan2(-attack.facing.x, -attack.facing.z);
+      if (attack.melee) this.swing = 0.3;
+    }
+    this.swing = Math.max(0, this.swing - dt);
     if (this.input.consumePressed('interact') && this.nearest) {
       this.nearest.activate();
       return;
@@ -249,9 +293,11 @@ export class OnFootMode implements PlayerMode {
     // Applied during the following world.step().
     this.body.setNextKinematicTranslation(this.curr);
 
-    // Visual facing: turn toward horizontal movement direction.
-    if (this.wish.lengthSq() > 0.01) {
-      const targetYaw = Math.atan2(-this.wish.x, -this.wish.z);
+    // Visual facing: with a gun, face where the camera looks (to aim); otherwise turn
+    // toward the movement direction.
+    const aiming = !this.stats.weapon.melee;
+    if (aiming || this.wish.lengthSq() > 0.01) {
+      const targetYaw = aiming ? Math.atan2(-this.fwd.x, -this.fwd.z) : Math.atan2(-this.wish.x, -this.wish.z);
       // Shortest signed angle difference, wrapped to (−π, π].
       let diff = targetYaw - this.facing;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
@@ -265,10 +311,12 @@ export class OnFootMode implements PlayerMode {
     this.visual.position.copy(this.renderPos);
     this.visual.rotation.y = this.facing;
     this.model?.update(this.groundSpeed, this.grounded, frameDt);
+    this.updateHeldWeapon();
 
     // Camera pivots around the character's feet + head height.
     this.renderPos.y -= CAPSULE_HALF_HEIGHT + CAPSULE_RADIUS;
-    this.cameraRig.update(this.renderPos, frameDt);
+    // With a gun out, look over the right shoulder so the crosshair has a clear view.
+    this.cameraRig.update(this.renderPos, frameDt, this.stats.weapon.melee ? 0 : 0.85);
   }
 
   focus(): THREE.Vector3 {

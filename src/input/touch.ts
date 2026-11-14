@@ -89,7 +89,10 @@ export class TouchControls {
       'bottom:max(28px, env(safe-area-inset-bottom))',
       'display:flex',
       'flex-direction:column-reverse', // first button at the bottom, nearest the thumb
+      'flex-wrap:wrap-reverse', // overflow into a second column to the left
+      'max-height:min(62vh, 260px)',
       'align-items:flex-end',
+      'align-content:flex-end',
       `gap:${BUTTON_GAP}px`,
     ]);
 

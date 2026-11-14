@@ -53,12 +53,25 @@ export class FollowCamera {
     return out.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
   }
 
-  update(target: THREE.Vector3, dt: number): void {
+  /** Current sideways shift of the view (m to the right), eased toward the requested one. */
+  private shoulder = 0;
+
+  /**
+   * @param shoulder metres to shift the view to the right — an over-the-shoulder view so
+   *                 the crosshair (screen centre) isn't covered by the character when aiming.
+   */
+  update(target: THREE.Vector3, dt: number, shoulder = 0): void {
+    this.shoulder += (shoulder - this.shoulder) * smoothing(8, dt);
     const look = this.input.consumeLook();
     this.yaw -= look.x;
     this.pitch = THREE.MathUtils.clamp(this.pitch + look.y, MIN_PITCH, MAX_PITCH);
 
-    const desiredPivot = this.offset.set(target.x, target.y + PIVOT_HEIGHT, target.z);
+    // Camera-right on the ground plane is (cos yaw, 0, −sin yaw).
+    const desiredPivot = this.offset.set(
+      target.x + Math.cos(this.yaw) * this.shoulder,
+      target.y + PIVOT_HEIGHT,
+      target.z - Math.sin(this.yaw) * this.shoulder,
+    );
     if (!this.initialized) {
       this.pivot.copy(desiredPivot);
       this.currentDistance = DISTANCE;
