@@ -9,25 +9,31 @@ export type Action =
   | 'run'
   | 'jump'
   | 'interact'
+  | 'handbrake'
+  | 'ascend'
+  | 'descend'
   | 'toggleDebug';
 
-// KeyboardEvent.code → action. `code` is layout-independent (physical key position),
-// so WASD stays in the same place on AZERTY/Hebrew keyboards.
-const KEY_BINDINGS: Record<string, Action> = {
-  KeyW: 'moveForward',
-  ArrowUp: 'moveForward',
-  KeyS: 'moveBack',
-  ArrowDown: 'moveBack',
-  KeyA: 'moveLeft',
-  ArrowLeft: 'moveLeft',
-  KeyD: 'moveRight',
-  ArrowRight: 'moveRight',
-  ShiftLeft: 'run',
-  ShiftRight: 'run',
-  Space: 'jump',
-  KeyE: 'interact',
-  F3: 'toggleDebug',
-  Backquote: 'toggleDebug',
+// KeyboardEvent.code → actions. `code` is layout-independent (physical key position),
+// so WASD stays in the same place on AZERTY/Hebrew keyboards. A key can trigger several
+// actions; each player mode only reads the ones it cares about (Space = jump on foot,
+// handbrake in a car, climb in the helicopter).
+// Movement keys feed moveAxis(), which cars and the helicopter use for steering too.
+const KEY_BINDINGS: Record<string, Action[]> = {
+  KeyW: ['moveForward'],
+  ArrowUp: ['moveForward'],
+  KeyS: ['moveBack'],
+  ArrowDown: ['moveBack'],
+  KeyA: ['moveLeft'],
+  ArrowLeft: ['moveLeft'],
+  KeyD: ['moveRight'],
+  ArrowRight: ['moveRight'],
+  ShiftLeft: ['run', 'descend'],
+  ShiftRight: ['run', 'descend'],
+  Space: ['jump', 'handbrake', 'ascend'],
+  KeyE: ['interact'],
+  F3: ['toggleDebug'],
+  Backquote: ['toggleDebug'],
 };
 
 /** Radians of camera rotation per pixel of mouse movement. */
@@ -49,15 +55,16 @@ export class Input {
 
   constructor(private readonly element: HTMLElement) {
     window.addEventListener('keydown', (e) => {
-      const action = KEY_BINDINGS[e.code];
-      if (!action) return;
+      const actions = KEY_BINDINGS[e.code];
+      if (!actions) return;
       e.preventDefault(); // stop Space/arrows from scrolling the page
-      if (!e.repeat) this.pressed.add(action);
-      this.held.add(action);
+      for (const action of actions) {
+        if (!e.repeat) this.pressed.add(action);
+        this.held.add(action);
+      }
     });
     window.addEventListener('keyup', (e) => {
-      const action = KEY_BINDINGS[e.code];
-      if (action) this.held.delete(action);
+      for (const action of KEY_BINDINGS[e.code] ?? []) this.held.delete(action);
     });
     // Losing focus means we never see the keyup; drop everything so the player doesn't run off.
     window.addEventListener('blur', () => {
@@ -136,6 +143,14 @@ export class Input {
    */
   consumePressed(action: Action): boolean {
     return this.pressed.delete(action);
+  }
+
+  /**
+   * Forget presses nobody consumed. Called on mode changes, so e.g. the Space press that
+   * meant "handbrake" in the car doesn't turn into a jump the moment you step out.
+   */
+  clearPressed(): void {
+    this.pressed.clear();
   }
 
   /** Accumulated look delta (radians) since the last call. +x = right, +y = down. */

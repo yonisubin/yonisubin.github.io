@@ -1,11 +1,19 @@
-import type { Input } from './actions';
+import type { Action, Input } from './actions';
+
+/** A button requested by the current player mode (see player/state.ts TouchButton). */
+export interface TouchButtonSpec {
+  label: string;
+  action: Action;
+  visible?: () => boolean;
+}
 
 // On-screen controls for phones and tablets. They feed the same abstract Input as the
 // keyboard and mouse, so player controllers never know whether touch is in use.
 //
-//   Left half  → floating joystick (move; push to the edge to run)
+//   Left half  → floating joystick (move / steer / fly; push to the edge to run)
 //   Right half → drag to look around
-//   Button     → jump
+//   Buttons    → whatever the current mode needs (JUMP, ENTER, BRAKE, UP, DOWN, EXIT…),
+//                stacked in the bottom-right corner
 //
 // Pointer Events with per-pointerId tracking let several fingers act at once
 // (e.g. move with the left thumb while looking with the right).
@@ -15,7 +23,8 @@ const STICK_DEADZONE = 0.12; // fraction of radius ignored, so a resting thumb d
 const TOUCH_LOOK_SENSITIVITY = 0.006; // rad per px dragged
 const BASE_SIZE = STICK_RADIUS * 2;
 const KNOB_SIZE = 56; // px
-const JUMP_SIZE = 76; // px
+const BUTTON_SIZE = 72; // px
+const BUTTON_GAP = 14; // px
 const EDGE = 'max(24px, env(safe-area-inset-left))'; // keep clear of notches/rounded corners
 
 /**
@@ -30,7 +39,8 @@ export class TouchControls {
   private readonly root: HTMLDivElement;
   private readonly base: HTMLDivElement;
   private readonly knob: HTMLDivElement;
-  private readonly jump: HTMLDivElement;
+  private readonly buttonBox: HTMLDivElement;
+  private buttons: { el: HTMLDivElement; spec: TouchButtonSpec }[] = [];
 
   private stickPointer: number | null = null;
   private stickOriginX = 0;
@@ -38,7 +48,6 @@ export class TouchControls {
   private lookPointer: number | null = null;
   private lookLastX = 0;
   private lookLastY = 0;
-  private jumpPointer: number | null = null;
 
   constructor(private readonly input: Input) {
     this.root = el('div', [
@@ -73,43 +82,20 @@ export class TouchControls {
     ]);
     this.base.appendChild(this.knob);
 
-    this.jump = el('div', [
+    // Bottom-right button column; buttons are (re)built by setButtons().
+    this.buttonBox = el('div', [
       'position:absolute',
-      `width:${JUMP_SIZE}px`,
-      `height:${JUMP_SIZE}px`,
-      'right:max(28px, env(safe-area-inset-right))',
-      'bottom:max(36px, env(safe-area-inset-bottom))',
-      'border-radius:50%',
-      'background:rgba(255,255,255,0.22)',
-      'border:2px solid rgba(255,255,255,0.5)',
-      'color:#fff',
-      'font:600 14px system-ui,sans-serif',
+      'right:max(24px, env(safe-area-inset-right))',
+      'bottom:max(28px, env(safe-area-inset-bottom))',
       'display:flex',
-      'align-items:center',
-      'justify-content:center',
-      'letter-spacing:0.05em',
+      'flex-direction:column-reverse', // first button at the bottom, nearest the thumb
+      'align-items:flex-end',
+      `gap:${BUTTON_GAP}px`,
     ]);
-    this.jump.textContent = 'JUMP';
 
-    this.root.append(this.base, this.jump);
+    this.root.append(this.base, this.buttonBox);
     document.body.appendChild(this.root);
     this.showIdleStick();
-
-    this.jump.addEventListener('pointerdown', (e) => {
-      e.stopPropagation(); // don't also start a look drag
-      this.jumpPointer = e.pointerId;
-      this.jump.setPointerCapture(e.pointerId);
-      this.jump.style.background = 'rgba(255,255,255,0.45)';
-      this.input.pressAction('jump');
-    });
-    const endJump = (e: PointerEvent) => {
-      if (e.pointerId !== this.jumpPointer) return;
-      this.jumpPointer = null;
-      this.jump.style.background = 'rgba(255,255,255,0.22)';
-      this.input.releaseAction('jump');
-    };
-    this.jump.addEventListener('pointerup', endJump);
-    this.jump.addEventListener('pointercancel', endJump);
 
     this.root.addEventListener('pointerdown', (e) => this.onDown(e));
     this.root.addEventListener('pointermove', (e) => this.onMove(e));
@@ -117,6 +103,58 @@ export class TouchControls {
     this.root.addEventListener('pointercancel', (e) => this.onUp(e));
     // A long-press would otherwise open the context menu on some Android browsers.
     this.root.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  /** Replace the button set (called when the player changes mode). */
+  setButtons(specs: TouchButtonSpec[]): void {
+    for (const b of this.buttons) {
+      this.input.releaseAction(b.spec.action);
+      b.el.remove();
+    }
+    this.buttons = specs.map((spec) => {
+      const button = el('div', [
+        `width:${BUTTON_SIZE}px`,
+        `height:${BUTTON_SIZE}px`,
+        'border-radius:50%',
+        'background:rgba(255,255,255,0.22)',
+        'border:2px solid rgba(255,255,255,0.5)',
+        'color:#fff',
+        'font:600 13px system-ui,sans-serif',
+        'display:flex',
+        'align-items:center',
+        'justify-content:center',
+        'letter-spacing:0.04em',
+      ]);
+      button.textContent = spec.label;
+      let pointer: number | null = null;
+      button.addEventListener('pointerdown', (e) => {
+        e.stopPropagation(); // don't also start a look drag
+        pointer = e.pointerId;
+        button.setPointerCapture(e.pointerId);
+        button.style.background = 'rgba(255,255,255,0.45)';
+        this.input.pressAction(spec.action);
+      });
+      const end = (e: PointerEvent) => {
+        if (e.pointerId !== pointer) return;
+        pointer = null;
+        button.style.background = 'rgba(255,255,255,0.22)';
+        this.input.releaseAction(spec.action);
+      };
+      button.addEventListener('pointerup', end);
+      button.addEventListener('pointercancel', end);
+      this.buttonBox.appendChild(button);
+      return { el: button, spec };
+    });
+    this.update();
+  }
+
+  /** Show/hide context buttons (e.g. ENTER only near a vehicle). Call once per frame. */
+  update(): void {
+    for (const b of this.buttons) {
+      const show = b.spec.visible ? b.spec.visible() : true;
+      const display = show ? 'flex' : 'none';
+      if (b.el.style.display !== display) b.el.style.display = display;
+    }
   }
 
   private onDown(e: PointerEvent): void {

@@ -288,3 +288,35 @@ export function spawnPoint(layout: CityLayout): { x: number; z: number } {
   const block = layout.blocks[(mid + 2) * BLOCKS + mid];
   return { x: block.cx - BLOCK_SIZE / 2 + 2, z: block.cz + BLOCK_SIZE / 2 - 2 };
 }
+
+export type ParkedCarType = 'sedan' | 'taxi' | 'van';
+
+export interface ParkingSpot {
+  x: number;
+  z: number;
+  yaw: number; // rad; 0 = car facing +X
+  type: ParkedCarType;
+  colorIndex: number; // into the car paint palette
+}
+
+/**
+ * A row of parked cars in the outer (parking) lane of the street next to the spawn point.
+ * Roads have four 3.5 m lanes; the outer ones (centre 5.25 m from the road's centre line)
+ * are kept for parking, traffic uses the inner ones.
+ */
+export function parkingSpots(layout: CityLayout): ParkingSpot[] {
+  const rng = new Rng(hashSeed(layout.seed, 991, 17));
+  const mid = Math.floor(BLOCKS / 2);
+  const block = layout.blocks[(mid + 2) * BLOCKS + mid];
+  const roadCentre = block.cx - PITCH / 2; // the road along Z just west of the spawn block
+  const laneX = roadCentre + ROAD_WIDTH / 2 - 1.75; // east parking lane, beside the curb
+  const spots: ParkingSpot[] = [];
+  // Facing −Z (traffic on the east side of a north–south road drives toward −Z).
+  // A car's forward is +X; yawing by +90° turns +X toward −Z.
+  const yaw = Math.PI / 2;
+  for (let i = 0; i < 5; i++) {
+    const type: ParkedCarType = i === 2 ? 'taxi' : i === 4 ? 'van' : 'sedan';
+    spots.push({ x: laneX, z: block.cz + 22 - i * 8.5, yaw, type, colorIndex: rng.int(0, 8) });
+  }
+  return spots;
+}

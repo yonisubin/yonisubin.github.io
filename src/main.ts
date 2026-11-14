@@ -3,11 +3,15 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { Input } from './input/actions';
 import { TouchControls, isTouchDevice } from './input/touch';
 import { PlayerStateMachine } from './player/state';
-import { OnFootMode } from './player/onFoot';
+import { OnFootMode, STAND_HEIGHT } from './player/onFoot';
 import { CharacterModel } from './player/character';
+import { Car, DrivingMode } from './player/car';
 import { createCity } from './world/city';
+import { parkingSpots } from './world/layout';
 import { createSky } from './world/sky';
-import { createHud } from './ui/hud';
+import { PAINT_COLORS } from './vehicles/carModel';
+import type { SimEntity } from './sim/entity';
+import { Hud } from './ui/hud';
 import { DebugOverlay } from './ui/debug';
 
 // Physics runs at a fixed 60 Hz regardless of display refresh rate.
@@ -52,16 +56,55 @@ async function main(): Promise<void> {
 
   const input = new Input(renderer.domElement);
   const touch = isTouchDevice();
-  if (touch) new TouchControls(input);
-  createHud(input, touch);
+  const touchControls = touch ? new TouchControls(input) : null;
+  const hud = new Hud(input, touch);
   const debug = new DebugOverlay(renderer, input);
 
-  const player = new PlayerStateMachine();
-  const onFoot = new OnFootMode(world, scene, camera, input, city.spawn, model);
+  const player = new PlayerStateMachine(input);
+  const onFoot = new OnFootMode(world, scene, camera, input, city.spawn, model, (m) => player.setMode(m));
+
+  // Everything simulated each physics step besides the player.
+  const entities: SimEntity[] = [];
+
+  // Parked cars the player can drive.
+  const getOut = (car: Car) => {
+    const spot = car.findExitPoint(onFoot.shape, STAND_HEIGHT);
+    if (!spot) return;
+    const fwd = car.forward(new THREE.Vector3());
+    const heading = Math.atan2(-fwd.x, -fwd.z); // same convention as the camera yaw
+    onFoot.placeAt(spot, heading, heading);
+    player.setMode(onFoot);
+  };
+  const cars = parkingSpots(city.layout).map((spot) => {
+    const car = new Car(world, scene, {
+      type: spot.type,
+      color: PAINT_COLORS[spot.colorIndex],
+      position: new THREE.Vector3(spot.x, 0, spot.z),
+      yaw: spot.yaw,
+    });
+    car.mode = new DrivingMode(car, input, camera, world, getOut);
+    onFoot.enterables.push({ label: 'drive', position: () => car.interp.currPos, radius: 3.2, mode: car.mode });
+    entities.push(car);
+    return car;
+  });
+
+  player.onChange((mode) => touchControls?.setButtons(mode.touchButtons));
   player.setMode(onFoot);
 
-  // Exposed for debugging in the console and automated smoke tests.
-  (window as unknown as { game: unknown }).game = { world, player, onFoot, city, renderer };
+  // One fixed physics step for everything: player controls, entities, the world.
+  const step = () => {
+    player.update(PHYSICS_STEP); // reads input, sets vehicle controls
+    for (const e of entities) e.fixedUpdate(PHYSICS_STEP);
+    world.step();
+    for (const e of entities) e.afterStep();
+  };
+
+  // Exposed for debugging in the console and automated tests. `simulate(s)` runs `s`
+  // seconds of physics immediately, independent of the frame rate.
+  const simulate = (seconds: number) => {
+    for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
+  };
+  (window as unknown as { game: unknown }).game = { world, player, onFoot, cars, city, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -83,13 +126,17 @@ async function main(): Promise<void> {
     accumulator += frameTime;
 
     while (accumulator >= PHYSICS_STEP) {
-      player.update(PHYSICS_STEP);
-      world.step();
+      step();
       accumulator -= PHYSICS_STEP;
     }
 
-    player.render(accumulator / PHYSICS_STEP, frameTime);
-    sky.update(camera, onFoot.debug.position);
+    const alpha = accumulator / PHYSICS_STEP;
+    for (const e of entities) e.render(alpha, frameTime);
+    player.render(alpha, frameTime); // after entities: vehicle cameras follow the placed meshes
+    const mode = player.mode!;
+    sky.update(camera, mode.focus());
+    touchControls?.update();
+    hud.update(mode);
     renderer.render(scene, camera);
     debug.update(frameTime);
   });

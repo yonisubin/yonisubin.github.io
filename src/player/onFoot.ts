@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { Input } from '../input/actions';
-import type { PlayerMode } from './state';
+import type { PlayerMode, TouchButton } from './state';
 import { FollowCamera } from '../camera/followCamera';
 import type { CharacterModel } from './character';
 
@@ -26,8 +26,30 @@ const FALL_RESPAWN_Y = -50; // m, respawn if we fall off the world
 // Takeoff speed needed to reach JUMP_HEIGHT under constant gravity: v² = 2·g·h.
 const JUMP_SPEED = Math.sqrt(2 * GRAVITY * JUMP_HEIGHT);
 
+/** Distance from the capsule centre down to the feet. */
+export const STAND_HEIGHT = CAPSULE_HALF_HEIGHT + CAPSULE_RADIUS;
+
+/** Something the player can get into (a car, the helicopter). */
+export interface Enterable {
+  /** Verb for the prompt: "drive", "fly". */
+  label: string;
+  /** Current centre of the vehicle. */
+  position(): THREE.Vector3;
+  /** How close (m, horizontally) the player must be. */
+  radius: number;
+  mode: PlayerMode;
+}
+
 export class OnFootMode implements PlayerMode {
   readonly name = 'OnFoot';
+  readonly controlsHint = 'WASD move · Shift run · Space jump · E get in · Mouse look';
+  readonly touchButtons: TouchButton[] = [
+    { label: 'JUMP', action: 'jump' },
+    { label: 'ENTER', action: 'interact', visible: () => this.nearest !== null },
+  ];
+  /** Vehicles the player can get into; filled in by the game. */
+  readonly enterables: Enterable[] = [];
+  private nearest: Enterable | null = null;
 
   private readonly body: RAPIER.RigidBody;
   private readonly collider: RAPIER.Collider;
@@ -58,6 +80,8 @@ export class OnFootMode implements PlayerMode {
     private readonly spawn: THREE.Vector3,
     /** Animated model; falls back to a plain capsule if it failed to load. */
     private readonly model: CharacterModel | null,
+    /** Hands control to another mode (the state machine's setMode). */
+    private readonly switchMode: (mode: PlayerMode) => void,
   ) {
     this.body = world.createRigidBody(
       RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y, spawn.z),
@@ -96,14 +120,56 @@ export class OnFootMode implements PlayerMode {
 
   enter(): void {
     this.visual.visible = true;
+    this.collider.setEnabled(true);
     this.cameraRig.reset();
   }
 
   exit(): void {
+    // Inside a vehicle: hide the body and take the capsule out of the physics world.
     this.visual.visible = false;
+    this.collider.setEnabled(false);
+    this.velocity.set(0, 0, 0);
+    this.groundSpeed = 0;
+  }
+
+  /** The capsule's collision shape, for checking where the player can stand. */
+  get shape(): RAPIER.Shape {
+    return this.collider.shape;
+  }
+
+  /**
+   * Teleport (e.g. when getting out of a vehicle) so the capsule centre is at `capsuleCentre`.
+   * `cameraYaw` points the camera the same way the vehicle camera was looking.
+   */
+  placeAt(capsuleCentre: THREE.Vector3, facing: number, cameraYaw: number): void {
+    this.curr.copy(capsuleCentre);
+    this.prev.copy(capsuleCentre);
+    this.body.setTranslation(capsuleCentre, true);
+    this.facing = facing;
+    this.cameraRig.yaw = cameraYaw;
+  }
+
+  private findNearest(): Enterable | null {
+    let best: Enterable | null = null;
+    let bestDist = Infinity;
+    for (const e of this.enterables) {
+      const p = e.position();
+      const dist = Math.hypot(p.x - this.curr.x, p.z - this.curr.z);
+      if (dist < e.radius && dist < bestDist && Math.abs(p.y - this.curr.y) < 3) {
+        best = e;
+        bestDist = dist;
+      }
+    }
+    return best;
   }
 
   update(dt: number): void {
+    this.nearest = this.findNearest();
+    if (this.input.consumePressed('interact') && this.nearest) {
+      this.switchMode(this.nearest.mode);
+      return;
+    }
+
     // --- Horizontal: steer toward a target velocity relative to where the camera looks.
     this.cameraRig.forward(this.fwd);
     this.right.set(-this.fwd.z, 0, this.fwd.x); // forward rotated 90° clockwise (seen from above)
@@ -188,7 +254,19 @@ export class OnFootMode implements PlayerMode {
     this.cameraRig.update(this.renderPos, frameDt);
   }
 
-  /** Debug info for the HUD / tests. */
+  focus(): THREE.Vector3 {
+    return this.curr;
+  }
+
+  prompt(): string | null {
+    return this.nearest ? `E — ${this.nearest.label}` : null;
+  }
+
+  status(): string | null {
+    return null;
+  }
+
+  /** Debug info for tests. */
   get debug(): { position: THREE.Vector3; grounded: boolean } {
     return { position: this.curr, grounded: this.grounded };
   }
