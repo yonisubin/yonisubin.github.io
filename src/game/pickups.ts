@@ -9,7 +9,7 @@ import { BLOCK_SIZE, CURB_HEIGHT, LOT, type CityLayout } from '../world/layout';
 // after it's taken. Knocked-out pedestrians also drop cash (one-off pickups).
 
 const PICKUP_RADIUS = 1.3; // m
-const RESPAWN_TIME = 240; // s
+const RESPAWN_TIME = 120; // s
 const MAX_PICKUPS = 160; // instanced capacity (fixed spots + dropped cash)
 
 interface Pickup {
@@ -40,7 +40,7 @@ export class Cash implements SimEntity {
     const rng = new Rng(hashSeed(layout.seed, 5150, 77));
     for (const block of layout.blocks) {
       // Mostly on the sidewalk ring, sometimes in a park or plaza.
-      const count = block.park ? rng.int(1, 3) : rng.chance(0.6) ? 1 : 0;
+      const count = block.park ? rng.int(1, 3) : rng.chance(0.8) ? 1 : 0;
       for (let k = 0; k < count; k++) {
         let x: number;
         let z: number;

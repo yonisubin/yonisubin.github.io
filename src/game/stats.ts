@@ -20,20 +20,22 @@ export interface WeaponDef {
 
 export const WEAPONS: Record<WeaponId, WeaponDef> = {
   fists: { id: 'fists', name: 'Fists', price: 0, melee: true, damage: 12, range: 1.7, cooldown: 0.45 },
-  bat: { id: 'bat', name: 'Baseball bat', price: 150, melee: true, damage: 35, range: 2.3, cooldown: 0.7 },
+  bat: { id: 'bat', name: 'Baseball bat', price: 100, melee: true, damage: 35, range: 2.3, cooldown: 0.7 },
   pistol: {
-    id: 'pistol', name: 'Pistol', price: 400, melee: false, damage: 34, range: 80, cooldown: 0.3,
-    ammoPrice: 40, ammoPack: 12, startAmmo: 24,
+    id: 'pistol', name: 'Pistol', price: 300, melee: false, damage: 34, range: 80, cooldown: 0.3,
+    ammoPrice: 30, ammoPack: 12, startAmmo: 24,
   },
   rifle: {
-    id: 'rifle', name: 'Rifle', price: 1200, melee: false, damage: 50, range: 150, cooldown: 0.11, auto: true,
-    ammoPrice: 80, ammoPack: 30, startAmmo: 60,
+    id: 'rifle', name: 'Rifle', price: 800, melee: false, damage: 50, range: 150, cooldown: 0.11, auto: true,
+    ammoPrice: 60, ammoPack: 30, startAmmo: 60,
   },
 };
 export const WEAPON_ORDER: WeaponId[] = ['fists', 'bat', 'pistol', 'rifle'];
 
 export const MAX_HEALTH = 100;
-export const START_MONEY = 200; // enough for the bat
+// Economy targets: bat straight away, pistol after ~1–2 min of collecting cash, rifle after
+// ~4–5 min. Everything together costs ~45% of the cash lying around the city at once.
+export const START_MONEY = 200; // the bat, with $100 left toward the pistol
 const REGEN_DELAY = 6; // s after the last damage before health starts coming back
 const REGEN_RATE = 5; // health per second
 const DEATH_MONEY_LOSS = 0.2; // fraction of cash lost when you die
