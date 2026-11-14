@@ -7,14 +7,17 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:characters": "node scripts/build-characters.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",
     "three": "^0.187.0"
   },
   "devDependencies": {
+    "@gltf-transform/cli": "^4.5.1",
     "@types/three": "^0.187.0",
+    "fbx2gltf": "^0.9.7-p1",
     "typescript": "^7.0.2",
     "vite": "^8.3.8"
   }

@@ -13,6 +13,7 @@ A small open-world city game that runs entirely in the browser. The player can w
   - Player character: `public/assets/characters/soldier.glb`, the three.js "Soldier" example model (Mixamo character with Idle/Walk/Run clips; free to use in games, not CC0)
   - Buildings, roads, sidewalks and ground are procedural (facade shader in `world/facadeMaterial.ts`, canvas textures in `world/textures.ts`), not models
   - Cars and the helicopter are procedural too (`vehicles/carModel.ts`, `vehicles/heliModel.ts`); pedestrians are tinted clones of the Soldier
+  - New people come from Mixamo (shared `mixamorig` skeleton, one animation set for everyone): follow `docs/characters.md`, drop FBX files in `art/mixamo/`, then `npm run build:characters` writes optimised GLBs + `manifest.json` to `public/assets/characters/`. The build tools (`fbx2gltf`, `@gltf-transform/cli`) are dev-only dependencies
 
 Do not add new dependencies without asking first.
 
@@ -24,6 +25,7 @@ npm run dev        # local dev server
 npm run build      # type-check + production build to dist/
 npm run preview    # serve the production build locally
 npm run typecheck  # tsc --noEmit
+npm run build:characters  # Mixamo FBX in art/mixamo → GLBs in public/assets/characters
 ```
 
 Before considering any task done, `npm run typecheck` and `npm run build` must both pass.
