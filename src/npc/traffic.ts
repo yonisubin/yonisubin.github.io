@@ -632,6 +632,8 @@ export class Traffic implements SimEntity {
     if (p.kind !== 'lane') return Infinity;
     const toLine = p.length - car.s - car.halfLength - STOP_LINE_BACK;
     if (toLine > LOOKAHEAD || toLine < -1.5) return Infinity;
+    // Whatever the rules, don't drive into a car that's crossing our path in the junction.
+    if (toLine < 12 && this.crossingInJunction(car, p)) return Math.max(0, toLine);
     if (this.graph.hasLights(p.node)) {
       const light = this.graph.lightState(p, this.time);
       if (light === 'red') return Math.max(0, toLine);
@@ -652,6 +654,26 @@ export class Traffic implements SimEntity {
       if (this.junctionBusy(car, p) || this.crossTraffic(car, p)) return Math.max(0, toLine);
     }
     return Infinity;
+  }
+
+  /**
+   * A car in the junction at the end of `lane` whose path crosses ours: from another approach,
+   * except oncoming traffic going straight on or turning right (it stays on its side).
+   */
+  private crossingInJunction(car: TrafficCar, lane: Piece): boolean {
+    const myKind = turnKind(lane.endDir, car.exit.startDir);
+    for (const o of this.cars) {
+      if (o === car || !o.active || o.piece.kind !== 'turn' || o.piece.node !== lane.node) continue;
+      const from = o.piece.from!;
+      if (from === lane) continue;
+      const opposite = from.endDir[0] * lane.endDir[0] + from.endDir[1] * lane.endDir[1] < -0.7;
+      const theirs = turnKind(from.endDir, o.piece.to!.startDir);
+      if (opposite && theirs !== 'left' && myKind !== 'left') continue;
+      // Nearly through already: it'll be gone by the time we get there.
+      if (o.s > o.piece.length - 3) continue;
+      return true;
+    }
+    return false;
   }
 
   /** Is another car crossing the junction at the end of `lane` from a different approach? */
@@ -781,6 +803,8 @@ export class Traffic implements SimEntity {
     // that carry straight on after it.
     const run = this.straightRun(car);
     const last = run[run.length - 1];
+    // Never toward a dead end: cars there turn round and come back.
+    if (this.graph.nodes[last.lane.node].edges.length === 1) return;
     const room = last.start + last.lane.length - 10;
     if (distance > room || distance > 260) return;
     // The oncoming lane must be clear for the whole time, for cars coming at up to ~20 m/s.
@@ -845,7 +869,8 @@ export class Traffic implements SimEntity {
         const end = start + lane.length;
         let ahead = Infinity;
         if (o.piece === this.graph.reverse(lane)) ahead = end - o.s;
-        else if (o.piece.kind === 'turn' && o.piece.node === lane.node && o.piece.from !== lane) ahead = end;
+        // Any car in the junction at its far end (crossing, or turning round at a dead end).
+        else if (o.piece.kind === 'turn' && o.piece.node === lane.node) ahead = end;
         if (ahead > -5 && ahead < dist) return true;
       }
     }
