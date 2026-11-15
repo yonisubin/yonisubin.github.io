@@ -114,6 +114,8 @@ Gameplay beyond the milestones: health (regenerates; falls and crashes hurt; dea
 
 The suburbs follow American sprawl (arterials on a rough half-mile grid, curving subdivisions with loops and cul-de-sacs, strip malls / gas stations / big-box on arterial corners, schools / parks / churches on arterial frontage); country roads wind with the land.
 
+Documentation: `DEVELOPER_GUIDE.md` (how and why, history) and `docs/CODEBASE.md` (exhaustive reference: every file, export and algorithm, with Mermaid diagrams). Update the matching section of `docs/CODEBASE.md` when you change code.
+
 Status: all five milestones are done (day/night: `world/dayNight.ts`, 12-minute day, hold T to fast-forward; minimap: `ui/minimap.ts`; full map: `ui/fullMap.ts`, M or tap/click the minimap; click the full map for directions, `game/route.ts`). The world has since grown to ~4 km with streaming, terrain, water, hospitals and more stores (see `DEVELOPER_GUIDE.md`).
 
 ## Working style

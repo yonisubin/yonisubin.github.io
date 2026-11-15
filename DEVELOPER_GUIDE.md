@@ -1,5 +1,7 @@
 # Developer guide: how this game is built, and why
 
+> For the exhaustive reference (every file, export and algorithm, with diagrams and a self-test), see [`docs/CODEBASE.md`](docs/CODEBASE.md). This guide is the shorter how-and-why, with the project's history.
+
 This document explains the whole codebase: what each part does, which libraries it uses, how the parts talk to each other, and the decisions (and trade-offs) behind them. Read it top to bottom once; after that, use it as a map. `CLAUDE.md` is the short rules file; this is the long explanation.
 
 ---

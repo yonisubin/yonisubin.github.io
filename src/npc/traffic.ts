@@ -1135,8 +1135,6 @@ export class Traffic implements SimEntity {
     this.rims.instanceMatrix.needsUpdate = true;
   }
 
-  /** Yaw about Y, then pitch about the car's own Z axis (its forward is +X, so +pitch = nose up). */
-
   /** A running traffic car between `minDist` and `maxDist` from `from` (for missions). */
   pickTarget(from: THREE.Vector3, minDist: number, maxDist: number): TrafficCar | null {
     const options = this.cars.filter((c) => {
