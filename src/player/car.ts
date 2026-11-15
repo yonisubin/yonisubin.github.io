@@ -367,7 +367,7 @@ export class Car implements SimEntity {
 /** Player-in-car mode: reads input, drives the car, runs the chase camera. */
 export class DrivingMode implements PlayerMode {
   readonly name = 'Driving';
-  readonly controlsHint = 'W gas · S brake/reverse · A/D steer · Space handbrake · E get out · J job (taxi, ambulance, van)';
+  readonly controlsHint = 'W gas · S brake/reverse · A/D steer · Space handbrake · E get out · J job (taxi, ambulance, van) · R radio';
   readonly touchButtons: TouchButton[];
   private readonly cameraRig: ChaseCamera;
   private readonly fwd = new THREE.Vector3();

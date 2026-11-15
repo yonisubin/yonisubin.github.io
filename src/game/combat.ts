@@ -36,6 +36,8 @@ export class Combat {
   private outOfAmmoShown = 0;
   /** A bullet hit some other solid thing (police cars check here). */
   onHit: ((collider: RAPIER.Collider, damage: number) => void) | null = null;
+  /** A melee swing at `position` (hit: it connected; weapon id) — for the sound. */
+  onMelee: ((position: THREE.Vector3, hit: boolean, bat: boolean) => void) | null = null;
   /** A gun was fired at `position` (for the wanted level). */
   onGunfire: ((position: THREE.Vector3) => void) | null = null;
 
@@ -79,6 +81,7 @@ export class Combat {
     if (w.melee) {
       const target = this.peds?.meleeTarget(chest, facing, w.range) ?? null;
       if (target) this.peds!.damage(target, w.damage, 'melee');
+      this.onMelee?.(chest, !!target, w.id === 'bat');
       if (target || w.id !== 'fists') this.peds?.alarm(chest, MELEE_ALARM_RADIUS);
       return { facing, melee: true };
     }

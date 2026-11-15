@@ -245,7 +245,7 @@ export class Boat implements SimEntity {
 /** Player-at-the-helm mode: reads input, drives the boat, runs the chase camera. */
 export class BoatMode implements PlayerMode {
   readonly name = 'Boating';
-  readonly controlsHint = 'W throttle · S reverse · A/D steer · E get out';
+  readonly controlsHint = 'W throttle · S reverse · A/D steer · E get out · R radio';
   readonly touchButtons: TouchButton[] = [{ label: 'EXIT', action: 'interact' }];
   private readonly cameraRig: ChaseCamera;
   private readonly fwd = new THREE.Vector3();

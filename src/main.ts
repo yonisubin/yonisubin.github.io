@@ -39,6 +39,9 @@ import { Autosave, clearSave, loadSave, writeSave } from './game/save';
 import { Wanted } from './game/wanted';
 import { Police } from './npc/police';
 import { Jobs, type JobKind } from './game/jobs';
+import { Sound } from './audio/sound';
+import { SoundDirector } from './audio/director';
+import { WATER_Y } from './world/terrain';
 import { DebugOverlay } from './ui/debug';
 
 // Physics runs at a fixed 60 Hz regardless of display refresh rate.
@@ -94,6 +97,9 @@ async function main(): Promise<void> {
 
   const input = new Input(renderer.domElement);
   const touch = isTouchDevice();
+  // Sound (audio/): starts on the first click / tap / key.
+  const sound = new Sound();
+  const director = new SoundDirector(sound);
   const touchControls = touch ? new TouchControls(input) : null;
   const worldMap = createWorldMap(city.layout, city.terrain, city.coarse);
   const minimap = new Minimap(worldMap, touch, () => fullMap.open());
@@ -184,6 +190,7 @@ async function main(): Promise<void> {
     car.sinking.water = deepWater;
     car.onSink = onSink;
     mode.touchButtons.push({ label: () => (jobs.active ? 'END JOB' : 'JOB'), action: 'job', visible: () => jobKind(car) !== null });
+    mode.touchButtons.push({ label: 'RADIO', action: 'radio' });
     onFoot.interactables.push({
       label: () => 'drive',
       position: () => car.interp.currPos,
@@ -259,6 +266,7 @@ async function main(): Promise<void> {
     const boat = new Boat(world, scene, type, color, spot, yaw, (x, z) => water.surfaceAt(x, z));
     const mode = new BoatMode(boat, input, camera, world, getOut, vehicleLight, stats);
     boat.mode = mode;
+    mode.touchButtons.push({ label: 'RADIO', action: 'radio' });
     onFoot.interactables.push({
       label: () => (type === 'jetski' ? 'ride' : 'drive boat'),
       position: () => boat.interp.currPos,
@@ -293,6 +301,8 @@ async function main(): Promise<void> {
   // minus some cash (weapons are kept).
   stats.onDamage((amount) => {
     hud.hurt(amount);
+    // In a vehicle, damage is (almost always) a crash.
+    if (player.mode && player.mode !== onFoot && amount >= 3) sound.crash(null, amount / 40);
     if (player.mode === onFoot) onFoot.hurt();
   });
   stats.onDeath(() => {
@@ -351,12 +361,16 @@ async function main(): Promise<void> {
           hud.toast(`Ran someone over: +$${amount}`, 2);
         },
         // Hurting people is a crime; hurting an officer is a bigger one.
-        hurt: (ped, knockedOut) => wanted.crime(ped.cop ? 'police' : knockedOut ? 'knockout' : 'assault'),
+        hurt: (ped, knockedOut) => {
+          wanted.crime(ped.cop ? 'police' : knockedOut ? 'knockout' : 'assault');
+          if (knockedOut) sound.oof(ped.currPos);
+        },
         cop: {
           stars: () => wanted.stars,
           canSee: (from, to) => police.clear(from, to),
           shoot: (from, to, hit) => {
             onFoot.combat?.addTracer(from, to);
+            sound.gunshot(from);
             if (hit) stats.damage(OFFICER_DAMAGE);
           },
           arrest: () => busted(),
@@ -401,6 +415,7 @@ async function main(): Promise<void> {
     side.y = 0;
     cash.drop(side, 10 * dropRng.int(3, 8)); // $30–80
     pedestrians?.alarm(position, 30);
+    sound.crash(position, 1);
     // Wrecking a mission's target car isn't a crime (the mission asked for it).
     if (!missions.objectives().some((o) => o.distanceTo(position) < 6)) wanted.crime('wreck');
     hud.toast('Car wrecked — the driver dropped some cash!', 2.2);
@@ -428,6 +443,7 @@ async function main(): Promise<void> {
     night: () => dayNight.lighting.night,
     shoot: (from, to, hit, damage) => {
       onFoot.combat?.addTracer(from, to);
+      sound.gunshot(from, true);
       if (hit) stats.damage(damage);
     },
     traffic: () => traffic.positions(),
@@ -452,7 +468,9 @@ async function main(): Promise<void> {
   wanted.witnessed = () => police.witnesses(playerPosition());
   // Gunfire is a crime when someone's around to hear it (or the police see it).
   onFoot.combat.onHit = (collider, damage) => void police.damageCollider(collider, damage);
+  onFoot.combat.onMelee = (position, hit, bat) => (hit ? sound.hit(position, bat) : sound.swoosh(position));
   onFoot.combat.onGunfire = (position) => {
+    sound.gunshot(position, stats.current === 'rifle');
     const people = pedestrians?.debugPeds.some((p) => p.active && !p.cop && p.state !== 'down' && p.pos.distanceTo(position) < 45);
     if (people || police.witnesses(position)) wanted.crime('gunfire');
   };
@@ -618,7 +636,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { RAPIER, scene, jobs, navigator, autosave, wanted, police, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { RAPIER, scene, sound, director, jobs, navigator, autosave, wanted, police, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -627,6 +645,34 @@ async function main(): Promise<void> {
   });
 
   const viewDir = new THREE.Vector3();
+  // Sound helpers: how much water is around (8 samples 40 m out) and how built-up it is.
+  const soundTmp = new THREE.Vector3();
+  const waterAround = (p: THREE.Vector3): number => {
+    let wet = 0;
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      if (city.terrain.heightAt(p.x + Math.cos(a) * 40, p.z + Math.sin(a) * 40) < WATER_Y) wet++;
+    }
+    return wet / 8;
+  };
+  const urbanAround = (p: THREE.Vector3): number => {
+    const zone = city.terrain.zoneAt(p.x, p.z);
+    return zone === 'downtown' ? 1 : zone === 'suburb' || zone === 'beachtown' ? 0.45 : zone === 'village' ? 0.25 : 0;
+  };
+  // 🔊 / 🔇 button (N on the keyboard) next to the stats panel.
+  const muteButton = document.createElement('button');
+  muteButton.textContent = sound.muted ? '🔇' : '🔊';
+  muteButton.title = 'Sound on/off (N)';
+  muteButton.style.cssText =
+    'position:fixed;z-index:21;left:calc(max(8px, env(safe-area-inset-left)) + 186px);top:max(8px, env(safe-area-inset-top));width:38px;height:38px;border:0;border-radius:10px;background:rgba(0,0,0,0.45);color:#fff;font-size:18px;cursor:pointer';
+  muteButton.addEventListener('pointerdown', (e) => e.stopPropagation());
+  muteButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    sound.start();
+    sound.toggleMute();
+    muteButton.textContent = sound.muted ? '🔇' : '🔊';
+  });
+  document.body.appendChild(muteButton);
   const mapMarkers = (): Marker[] => [
     ...traffic.positions().map((position) => ({ kind: 'traffic' as const, position })),
     ...cars.map((c) => ({ kind: 'car' as const, position: c.interp.currPos })),
@@ -672,6 +718,7 @@ async function main(): Promise<void> {
     hud.update(mode, stats, frameTime);
     // Money moves on every purchase, reward, payout, death or fine: save shortly after.
     if (stats.money !== lastMoney) {
+      if (stats.money - lastMoney >= 20) sound.chime();
       lastMoney = stats.money;
       autosave.changed();
     }
@@ -690,6 +737,42 @@ async function main(): Promise<void> {
     hud.setRoute(navigator.remaining);
     hud.setWanted(wanted.stars, wanted.evading, police.bustProgress);
     hud.setJob(jobs.hudText());
+    // Sound: what you hear follows what you're doing.
+    if (input.consumePressed('mute')) {
+      sound.toggleMute();
+      muteButton.textContent = sound.muted ? '🔇' : '🔊';
+    }
+    if (input.consumePressed('radio')) {
+      if (mode.name === 'Driving' || mode.name === 'Boating') hud.toast(`📻 ${director.radio.cycle()}`, 2);
+    }
+    {
+      const f = mode.focus();
+      const drivingCar = cars.find((c) => c.mode === mode);
+      const boat = boats.find((b) => b.mode === mode);
+      let slide = 0;
+      if (drivingCar) {
+        const v = drivingCar.body.linvel();
+        const fw = drivingCar.forward(soundTmp);
+        slide = Math.abs(v.x * -fw.z + v.z * fw.x) / Math.hypot(fw.x, fw.z || 1e-6);
+      }
+      const ground = city.terrain.smoothHeight(f.x, f.z);
+      director.update(frameTime, {
+        camera,
+        mode: drivingCar ? 'car' : mode === flying ? 'heli' : boat ? 'boat' : 'foot',
+        focus: f,
+        swimming: onFoot.swimming,
+        car: drivingCar ? { speed: drivingCar.speed, throttle: drivingCar.throttle, slide } : null,
+        rotor: heli.rotor,
+        boat: boat ? { speed: Math.hypot(boat.body.linvel().x, boat.body.linvel().z), throttle: boat.throttle } : null,
+        height: Math.max(0, f.y - Math.max(ground, WATER_Y)),
+        traffic: traffic.positions(),
+        sirens: police.sirens(),
+        policeHeli: police.helicopter,
+        night: dayNight.lighting.night,
+        water: waterAround(f),
+        urban: urbanAround(f),
+      });
+    }
     jobs.render(frameTime, mode.focus());
     // Ambulance beacons flash while it's working.
     const flashOn = Math.floor(performance.now() / 250) % 2 === 0;

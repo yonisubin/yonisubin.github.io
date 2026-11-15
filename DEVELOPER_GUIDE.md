@@ -785,6 +785,50 @@ All UI is plain DOM elements styled inline. A UI framework would be a dependency
 - **Saved:** lifetime totals per job (`Jobs.record`).
 - **Test:** scratchpad `jobs.cjs` teleports the vehicle to each target. Results: a taxi fare paid $222 for a 2.6 km ride, an ambulance run $240, a delivery run $180; getting out ends the shift; a sedan can't start one.
 
+### 7.12 Sound (`audio/sound.ts`, `audio/director.ts`, `audio/radio.ts`)
+
+**Everything is synthesised** with the Web Audio API: no audio files, no libraries.
+- **`Sound`** owns one `AudioContext`, started on the first click, tap or key press (browsers only allow audio after a gesture).
+  - The master gain feeds a compressor, so piles of crashes don't clip. It splits into an effects bus and a music bus.
+  - **N** or the 🔊 button mutes. The setting and the radio station are saved in `localStorage['opencity.audio']`.
+- **Shared noise:** one 2 s white-noise buffer. Filtered, it becomes wind, waves, tyre screech, rotor wash, footsteps, gunshots and snares.
+- **One-shot effects** are built per sound and disconnect themselves when they end. `Sound.live` counts them; a test fired 50 at once and all were gone 2.5 s later.
+
+| Effect | How |
+|---|---|
+| gunshot | high-passed noise crack + a falling sine thump (louder and longer for the rifle) |
+| punch / bat | falling sine thud + band-passed noise knock; a miss is a swoosh |
+| knock-out "oof" | sawtooth through a vowel-like band-pass, pitch falling |
+| crash | low-passed noise burst + a band-passed square clang, scaled by impact |
+| footsteps / splashes | short filtered noise ticks, one per ~0.8 m walked (1.1 m running, 1.3 m swimming) |
+| birds / crickets | random chirps (sine sweeps) by day, AM-pulsed 4–5 kHz tones at night, more in green places |
+| chime | two rising notes when your money jumps by $20 or more (rewards, fares) |
+
+**Continuous voices** (`SoundDirector`, built once and set every frame):
+
+| Voice | How |
+|---|---|
+| car engine | two detuned sawtooths an octave apart + noise, through a low-pass that opens with throttle. The pitch follows a fake rpm through 6 gears by speed. Tyre screech is band-passed noise when the car slides sideways faster than 3.5 m/s |
+| helicopter | low noise chopped by a square LFO at the blade-pass rate (rotor × 9 Hz), plus a turbine whine |
+| boat / jet ski | a higher engine voice + band-passed wake noise |
+| traffic | the 3 nearest traffic cars within 90 m, positional |
+| sirens | the 2 nearest pursuing or blocking police cars (a square wave wailing ±330 Hz), positional |
+| police helicopter | rotor voice, positional |
+| ambience | wind (louder with speed and height), waves (by how much of a 40 m ring is water, slowly swelling), city hum downtown |
+
+- **Positional sounds** go through `PannerNode`s with inverse-distance roll-off. The listener follows the camera.
+
+**Car radio** (`Radio`): three generated stations, playing only in cars and boats.
+- **Stations:** Neon 101 (synth pop, E minor, 118 bpm), Chill 88 (lo-fi, D dorian sevenths, swing, 78 bpm) and Route 66 (country, G major I–IV–V, 104 bpm).
+- **Switching:** **R** or the RADIO button cycles through them, then off.
+- **Scheduling:** a 50 ms timer books the notes for the next 0.2 s on the audio clock (the lookahead pattern). Each eighth note can play:
+  - drums: kick, a noise snare, a high-passed hat;
+  - a triangle bass on the chord root;
+  - chord stabs;
+  - a lead that random-walks the scale and snaps to chord tones on the beat.
+
+**To add a sound:** add a method to `Sound`, using `oneShot(at, volume, build)` (`at` = null for non-positional), and call it where the event happens in main.ts. Continuous sounds belong in `SoundDirector`.
+
 ## 8. People: characters, animation, recolouring
 
 This was the most recent and most involved piece of work.
@@ -1002,6 +1046,7 @@ When adding a feature, the quickest check is the browser console in `npm run dev
 | Change what counts as a crime, or how fast stars go | `game/wanted.ts` (`CRIMES`, `LOSE_TIME`) |
 | Move or add police stations | `game/places.ts` (`POLICE_TARGETS`) |
 | Change side-job pay, distances or time limits | `game/jobs.ts` (constants, `arrived`, `next`) |
+| Change sounds, volumes or the radio music | `audio/sound.ts` (effects, voices), `audio/director.ts` (levels per situation), `audio/radio.ts` (`STATIONS`) |
 | Change skin/hair/outfit palettes | `player/characterLibrary.ts` |
 | Change which clip plays for an action | `player/character.ts` (`ONE_SHOTS`, aims) |
 | Add or replace characters | `scripts/build-quaternius.mjs` (`CHARACTERS`, `OVERRIDES`), then `npm run build:quaternius` |
@@ -1019,4 +1064,3 @@ When adding a feature, the quickest check is the browser console in `npm run dev
 - There are no bridges: country roads that would cross the lake stop at it (traffic makes a U-turn).
 - There's no swimming clip: swimming is the walk cycle on a tilted body.
 - The map's countryside colours come from a 32 m grid, so they're soft when zoomed in (roads and buildings stay sharp).
-- Audio doesn't exist yet.

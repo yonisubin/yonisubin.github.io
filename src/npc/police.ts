@@ -231,6 +231,16 @@ export class Police implements SimEntity {
     return out;
   }
 
+  /** Police cars with sirens on (chasing or blocking), for the sound. */
+  sirens(): THREE.Vector3[] {
+    return this.units.filter((u) => u.role === 'pursuit' || u.role === 'block').map((u) => u.pos);
+  }
+
+  /** The police helicopter's position while it's up, else null. */
+  get helicopter(): THREE.Vector3 | null {
+    return this.heliOn ? this.heliPos : null;
+  }
+
   /** Can any police (cars, officers, helicopter) see this point right now? */
   witnesses(position: THREE.Vector3): boolean {
     if (this.heliOn) return true;
