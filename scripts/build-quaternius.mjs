@@ -175,8 +175,8 @@ for (const [id, name, gender, path] of CHARACTERS) {
     .setAttribute('_PART', acc(Accessor.Type.SCALAR, part))
     .setIndices(acc(Accessor.Type.SCALAR, total > 65535 ? new Uint32Array(indices) : new Uint16Array(indices)))
     .setMaterial(material);
-  const target = doc.createMesh('Body').addPrimitive(merged);
-  nodes[0].setMesh(target).setName('Body');
+  const target = doc.createMesh('CharacterMesh').addPrimitive(merged);
+  nodes[0].setMesh(target).setName('CharacterMesh'); // not 'Body': that's the root bone's name, and three.js would rename the bone to keep names unique
   for (const node of nodes.slice(1)) node.dispose();
   // Drop the old per-part attributes nothing refers to any more (an accessor whose only
   // parent is the document root is unused).

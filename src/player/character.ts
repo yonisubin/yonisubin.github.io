@@ -21,6 +21,16 @@ import * as THREE from 'three';
 // planted foot slides backward relative to the body during ground contact.
 const WALK_CLIP_SPEED = 1.32;
 const RUN_CLIP_SPEED = 3.02;
+// The run clip has its left foot forward 0.375 of a cycle later than the walk clip; offset it
+// so that, while blending, both clips have the same foot forward at the same moment.
+const RUN_PHASE_OFFSET = 0.375;
+// Pure walk up to WALK_MAX (played faster as needed), a walk→run blend (a jog) up to JOG_MAX,
+// pure run beyond. Normal walking speeds never mix in the run clip. m/s for a 1.78 m person.
+const WALK_MAX = 2.3;
+const JOG_MAX = 3.4;
+// Above the run clip's own speed, cadence grows with speed^0.6 and the stride lengthens for the rest
+// (as real runners do), instead of speeding the legs up in proportion (which looks frantic).
+const CADENCE_EXPONENT = 0.6;
 const SPEED_SMOOTHING = 10; // 1/s
 const AIM_FADE = 8; // 1/s
 const GESTURE_FADE = 5; // 1/s
@@ -189,25 +199,27 @@ export class CharacterModel {
     // --- Locomotion weights from (smoothed) ground speed. Clip speeds scale with the model.
     this.speed += (groundSpeed - this.speed) * (1 - Math.exp(-SPEED_SMOOTHING * dt));
     const s = this.speed;
-    const walkSpeed = WALK_CLIP_SPEED * this.scale;
-    const runSpeed = RUN_CLIP_SPEED * this.scale;
+    const k = this.scale; // a smaller person walks slower at the same cadence
+    const walkSpeed = WALK_CLIP_SPEED * k;
+    const runSpeed = RUN_CLIP_SPEED * k;
+    const cadence = (speed: number, clipSpeed: number) =>
+      speed <= clipSpeed ? speed / clipSpeed : Math.pow(speed / clipSpeed, CADENCE_EXPONENT);
     let wWalk: number;
     let wRun: number;
-    let walkRate: number;
-    let runRate: number;
     if (s < walkSpeed) {
-      const t = s / walkSpeed;
-      wWalk = t;
+      wWalk = s / walkSpeed; // idle → walk
       wRun = 0;
-      walkRate = Math.max(0.6, t);
-      runRate = 1;
+    } else if (s < WALK_MAX * k) {
+      wWalk = 1;
+      wRun = 0;
     } else {
-      const t = Math.min(1, (s - walkSpeed) / (runSpeed - walkSpeed));
-      wWalk = 1 - t;
-      wRun = t;
-      walkRate = s / walkSpeed;
-      runRate = Math.max(0.7, s / runSpeed);
+      wRun = Math.min(1, (s - WALK_MAX * k) / ((JOG_MAX - WALK_MAX) * k));
+      wWalk = 1 - wRun;
     }
+    // While idle → walk, keep the legs moving at a sensible minimum pace.
+    // Walking keeps its feet planted exactly (sliding shows most at walking pace).
+    const walkRate = Math.max(0.6, s / walkSpeed);
+    const runRate = Math.max(0.7, cadence(s, runSpeed));
     const wIdle = 1 - wWalk - wRun;
 
     // Walk and run share one stride phase so blending between them never tangles the legs.
@@ -220,7 +232,7 @@ export class CharacterModel {
       this.phase = (this.phase + cyclesPerSecond * dt * (grounded ? 1 : 0.2)) % 1;
     }
     for (const a of this.loco.walk) a.time = this.phase * walkDur;
-    for (const a of this.loco.run) a.time = this.phase * runDur;
+    for (const a of this.loco.run) a.time = ((this.phase + RUN_PHASE_OFFSET) % 1) * runDur;
 
     // --- Upper-body overrides: aim (held), talk (gesture), one-shot (on top of both).
     this.aimWeight += ((this.aim !== 'none' ? 1 : 0) - this.aimWeight) * (1 - Math.exp(-AIM_FADE * dt));
