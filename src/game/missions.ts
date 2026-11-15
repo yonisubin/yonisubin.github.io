@@ -7,7 +7,7 @@ import type { CharacterLibrary, Look } from '../player/characterLibrary';
 import type { Interactable } from '../player/onFoot';
 import type { Traffic, TrafficCar } from '../npc/traffic';
 import type { PlayerStats } from './stats';
-import { BLOCK_SIZE, MID, VILLAGES, WORLD_HALF, lineCoord, type Block, type CityLayout, type Zone } from '../world/layout';
+import { BLOCK_SIZE, MID, VILLAGES, WORLD_HALF, lineCoord, type Block, type Building, type CityLayout, type Zone } from '../world/layout';
 import { ROAD_SPECS, type StreetEdge } from '../world/streets';
 import { WATER_Y } from '../world/terrain';
 
@@ -60,6 +60,8 @@ interface Mission {
 const DELIVERY_RADIUS = 6; // m
 const PACKAGE_RADIUS = 3; // m
 const RING_RADIUS = 7; // m, inner radius of a sky ring (fly through the middle)
+/** Every ring keeps this far from buildings and the ground: the ring itself plus room to fly round it. */
+const RING_CLEARANCE = RING_RADIUS + 8;
 const BUOY_RADIUS = 4; // m: swim this close to a buoy to tag it
 const GATE_RADIUS = 9; // m: drive through a race gate within this distance of its centre
 const FLAG_RADIUS = 4; // m: walk up to a summit flag
@@ -571,23 +573,86 @@ export class Missions implements SimEntity {
     return chosen;
   }
 
-  /** Six rings at rising altitude, meandering away from the helipad, inside the city. */
+  /**
+   * Six rings at rising altitude, meandering away from the helipad. Every ring keeps
+   * RING_CLEARANCE from all buildings (towers, houses, shops, steeples) and the ground: each
+   * one tries a few dozen spots along the course and, if none is clear, climbs above
+   * whatever is in the way.
+   */
   private ringCourse(): THREE.Vector3[] {
     const points: THREE.Vector3[] = [];
     let heading = Math.atan2(-this.helipad.z, -this.helipad.x); // toward the city centre
-    let p = this.helipad.clone();
+    let from = this.helipad.clone();
+    const limit = WORLD_HALF - 200; // keep well inside the world
     for (let i = 0; i < 6; i++) {
-      const step = i === 0 ? 70 : 110;
-      heading += (Math.random() - 0.5) * 1.2;
-      p = p.clone().add(new THREE.Vector3(Math.cos(heading) * step, 0, Math.sin(heading) * step));
-      // Keep well inside the world.
-      const limit = WORLD_HALF - 200;
-      p.x = THREE.MathUtils.clamp(p.x, -limit, limit);
-      p.z = THREE.MathUtils.clamp(p.z, -limit, limit);
-      p.y = 45 + i * 10 + Math.random() * 10;
-      points.push(p);
+      const baseY = 45 + i * 10;
+      let chosen: THREE.Vector3 | null = null;
+      for (let attempt = 0; attempt < 40 && !chosen; attempt++) {
+        const h = heading + (Math.random() - 0.5) * (1.2 + attempt * 0.08);
+        const step = (i === 0 ? 70 : 110) * (0.8 + Math.random() * 0.4);
+        const p = new THREE.Vector3(
+          THREE.MathUtils.clamp(from.x + Math.cos(h) * step, -limit, limit),
+          0,
+          THREE.MathUtils.clamp(from.z + Math.sin(h) * step, -limit, limit),
+        );
+        p.y = Math.max(baseY + Math.random() * 10, this.hooks.ground(p.x, p.z) + RING_CLEARANCE + 3);
+        if (this.ringClear(p)) {
+          chosen = p;
+          heading = h;
+        }
+      }
+      if (!chosen) {
+        // Nowhere clear at this height: go straight on and climb over the obstacles.
+        chosen = new THREE.Vector3(
+          THREE.MathUtils.clamp(from.x + Math.cos(heading) * 110, -limit, limit),
+          baseY,
+          THREE.MathUtils.clamp(from.z + Math.sin(heading) * 110, -limit, limit),
+        );
+        while (!this.ringClear(chosen) && chosen.y < 400) chosen.y += 5;
+      }
+      points.push(chosen);
+      from = chosen;
     }
     return points;
+  }
+
+  /** Is a ring centred at p clear of every building and of the ground by RING_CLEARANCE? */
+  ringClear(p: THREE.Vector3): boolean {
+    const r = RING_CLEARANCE;
+    if (p.y - r < this.hooks.ground(p.x, p.z) + 2) return false;
+    for (const bl of this.buildingsNear(p.x, p.z, r + 120)) {
+      // Horizontal distance from p to the building's (turned) footprint.
+      const yaw = bl.yaw ?? 0;
+      const dx = p.x - bl.x;
+      const dz = p.z - bl.z;
+      const a = dx * Math.cos(yaw) - dz * Math.sin(yaw); // along its width
+      const b = dx * Math.sin(yaw) + dz * Math.cos(yaw); // along its depth
+      const out = Math.hypot(Math.max(0, Math.abs(a) - bl.width / 2), Math.max(0, Math.abs(b) - bl.depth / 2));
+      if (out >= r) continue;
+      // The roof: ground under it (the highest corner, on a slope) + walls + any pitched roof.
+      const top = this.hooks.ground(bl.x, bl.z) + bl.height + (bl.roof?.height ?? 0) + 3;
+      if (p.y - r < top) return false;
+    }
+    return true;
+  }
+
+  /** Every building whose centre is within `radius` (downtown towers and the suburbs' buildings). */
+  private buildingsNear(x: number, z: number, radius: number): Building[] {
+    const out: Building[] = [];
+    for (const b of this.layout.blocks) {
+      if (Math.abs(b.cx - x) > radius + BLOCK_SIZE || Math.abs(b.cz - z) > radius + BLOCK_SIZE) continue;
+      out.push(...b.buildings);
+    }
+    const streets = this.layout.streets;
+    for (const h of streets.houses) if (Math.abs(h.x - x) < radius && Math.abs(h.z - z) < radius) out.push(h);
+    for (const p of streets.parcels) {
+      if (Math.abs(p.x - x) > radius + 120 || Math.abs(p.z - z) > radius + 120) continue;
+      out.push(...p.buildings);
+      if (p.steeple) {
+        out.push({ x: p.steeple.x, z: p.steeple.z, y: 0, yaw: p.yaw, width: p.steeple.size, depth: p.steeple.size, height: p.steeple.height, style: 1, color: [1, 1, 1], seed: 0, roof: { height: 7, color: [0, 0, 0] } });
+      }
+    }
+    return out;
   }
 
   private finish(success: boolean, reason = ''): void {

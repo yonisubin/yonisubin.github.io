@@ -600,7 +600,7 @@ Eight fixed, invulnerable givers with a "!" marker: three downtown, five out in 
 | **Marco** | Delivery: drive to a spot in time | $150 + $2/s |
 | **Marco** | Package run: collect several packages | $200 + $1.5/s |
 | **Vera** | Wreck a marked traffic car before it escapes | $250 + $2/s |
-| **Captain Reyes** | Fly the helicopter through rings | $300 + $3/s |
+| **Captain Reyes** | Fly the helicopter through rings: six rings at rising altitude meandering away from the helipad. Every ring keeps 15 m (`RING_CLEARANCE`) from all buildings, roofs and steeples included, and from the ground; it tries up to 40 spots and otherwise climbs clear (`ringCourse`, `ringClear`) | $300 + $3/s |
 
 **Five more givers out in the world**, each standing on the sidewalk of the street nearest a chosen spot, facing the road:
 
