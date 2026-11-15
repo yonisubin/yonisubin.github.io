@@ -19,6 +19,7 @@ export type Action =
   | 'choice1'
   | 'choice2'
   | 'choice3'
+  | 'characterMenu'
   | 'timeSkip'
   | 'toggleMap'
   | 'toggleDebug';
@@ -47,6 +48,7 @@ const KEY_BINDINGS: Record<string, Action[]> = {
   Digit2: ['choice2'],
   Digit3: ['choice3'],
   KeyT: ['timeSkip'],
+  KeyP: ['characterMenu'],
   KeyM: ['toggleMap'],
   F3: ['toggleDebug'],
   Backquote: ['toggleDebug'],

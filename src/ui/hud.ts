@@ -155,7 +155,16 @@ export class Hud {
     document.body.appendChild(this.fade);
 
     if (touch) showTouchHint();
-    else createClickToPlay(input);
+    else this.clickToPlay = createClickToPlay(input, () => this.clickToPlayHidden);
+  }
+
+  private clickToPlay: HTMLDivElement | null = null;
+  private clickToPlayHidden = false;
+
+  /** Hide the "Click to play" overlay while another screen (the character picker) is up. */
+  hideClickToPlay(hidden: boolean): void {
+    this.clickToPlayHidden = hidden;
+    if (this.clickToPlay) this.clickToPlay.style.display = hidden ? 'none' : 'flex';
   }
 
   /** Call once per frame. */
@@ -202,7 +211,7 @@ export class Hud {
 }
 
 /** Mouse look needs pointer lock, which browsers only grant in response to a click. */
-function createClickToPlay(input: Input): void {
+function createClickToPlay(input: Input, hidden: () => boolean): HTMLDivElement {
   const overlay = document.createElement('div');
   overlay.style.cssText = [
     'position:fixed',
@@ -224,14 +233,15 @@ function createClickToPlay(input: Input): void {
     <div style="font-size:28px;font-weight:600">Click to play</div>
     <div style="opacity:0.85">
       WASD — move &nbsp;·&nbsp; Shift — run &nbsp;·&nbsp; Space — jump &nbsp;·&nbsp; Mouse — look<br />
-      E — get in / out of cars and the helicopter &nbsp;·&nbsp; Esc — release mouse
+      E — get in / out of cars and the helicopter &nbsp;·&nbsp; P — change your look &nbsp;·&nbsp; Esc — release mouse
     </div>`;
   overlay.addEventListener('click', () => input.requestPointerLock());
   document.body.appendChild(overlay);
 
   document.addEventListener('pointerlockchange', () => {
-    overlay.style.display = input.pointerLocked ? 'none' : 'flex';
+    overlay.style.display = input.pointerLocked || hidden() ? 'none' : 'flex';
   });
+  return overlay;
 }
 
 /** Brief controls hint for touch devices; fades out on its own. */

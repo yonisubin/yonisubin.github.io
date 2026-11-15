@@ -4,7 +4,8 @@ import { Input } from './input/actions';
 import { TouchControls, isTouchDevice } from './input/touch';
 import { PlayerStateMachine } from './player/state';
 import { OnFootMode, STAND_HEIGHT } from './player/onFoot';
-import { CharacterModel } from './player/character';
+import { CharacterLibrary } from './player/characterLibrary';
+import { CharacterPicker, hasSavedLook, loadLook } from './ui/characterPicker';
 import { Car, DrivingMode } from './player/car';
 import { FlyingMode, Helicopter } from './player/heli';
 import { createCity } from './world/city';
@@ -40,14 +41,18 @@ async function main(): Promise<void> {
   const loading = showLoading();
 
   // The compat build embeds the WASM as base64; init() decodes and instantiates it.
-  // The character downloads in parallel. If it fails we fall back to a capsule.
-  const [, model] = await Promise.all([
+  // The character roster + shared animations download in parallel, then the player's own
+  // character (the rest stream in later). If anything fails we fall back to a capsule.
+  const [, library] = await Promise.all([
     RAPIER.init(),
-    CharacterModel.load().catch((err: unknown) => {
-      console.warn('Character model failed to load; using a capsule instead.', err);
+    CharacterLibrary.load().catch((err: unknown) => {
+      console.warn('Characters failed to load; using a capsule instead.', err);
       return null;
     }),
   ]);
+  const look = library ? loadLook(library) : null;
+  const model = library && look ? await library.create(look).catch(() => null) : null;
+  library?.preloadAll();
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -143,12 +148,17 @@ async function main(): Promise<void> {
 
   // Damage feedback and death: fade out, wake up at the spawn point with full health,
   // minus some cash (weapons are kept).
-  stats.onDamage((amount) => hud.hurt(amount));
+  stats.onDamage((amount) => {
+    hud.hurt(amount);
+    if (player.mode === onFoot) onFoot.hurt();
+  });
   stats.onDeath(() => {
+    onFoot.knockDown();
     input.setBlocked(true);
     hud.setFade(true, 'You were knocked out');
     window.setTimeout(() => {
       stats.respawn();
+      onFoot.standUp();
       onFoot.placeAt(city.spawn, 0, 0);
       player.setMode(onFoot); // leaves any vehicle where it is
       input.setBlocked(false);
@@ -165,10 +175,10 @@ async function main(): Promise<void> {
     heli.interp.currPos,
   ]);
   entities.push(traffic);
-  // Pedestrians are copies of the player's model, so they need it to have loaded.
+  // Pedestrians: random people from the character library.
   const dropRng = new Rng(31337);
-  const pedestrians = model
-    ? new Pedestrians(scene, city.layout, model, touch ? 10 : 16, {
+  const pedestrians = library
+    ? new Pedestrians(scene, city.layout, library, touch ? 10 : 16, {
         player: () => ({ position: playerPosition(), onFoot: player.mode === onFoot }),
         hitPlayer: (damage) => stats.damage(damage),
         knockedOut: (position) => cash.drop(position, 5 * dropRng.int(1, 8)),
@@ -219,7 +229,7 @@ async function main(): Promise<void> {
     scene,
     world,
     city.layout,
-    model,
+    library,
     stats,
     traffic,
     input,
@@ -253,6 +263,23 @@ async function main(): Promise<void> {
   player.onChange((mode) => touchControls?.setButtons(mode.touchButtons));
   player.setMode(onFoot);
 
+  // Choose your character (P / LOOK button); shown straight away on the first visit.
+  const feet = new THREE.Vector3();
+  const picker = library
+    ? new CharacterPicker(
+        library,
+        input,
+        camera,
+        () => onFoot.feet(feet),
+        () => onFoot.facingYaw,
+        (m) => onFoot.setModel(m),
+        () => player.mode === onFoot,
+        (open) => hud.hideClickToPlay(open),
+        touch,
+      )
+    : null;
+  if (picker && !hasSavedLook()) picker.open();
+
   // One fixed physics step for everything: player controls, entities, the world.
   const step = () => {
     player.update(PHYSICS_STEP); // reads input, sets vehicle controls
@@ -266,7 +293,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { world, camera, player, onFoot, cars, heli, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { world, camera, player, onFoot, picker, library, cars, heli, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -313,6 +340,7 @@ async function main(): Promise<void> {
     onFoot.combat?.render(frameTime);
     smoke.update(frameTime);
     dialogue?.update(frameTime, mode.focus());
+    picker?.update(frameTime); // after the player's camera: it takes over the view while open
     minimap.update(mode.focus(), camera.getWorldDirection(viewDir), mapMarkers(), dayNight.clock);
     renderer.render(scene, camera);
     debug.update(frameTime);

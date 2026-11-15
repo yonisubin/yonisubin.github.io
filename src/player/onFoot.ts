@@ -69,7 +69,6 @@ export class OnFootMode implements PlayerMode {
   // Weapon held in the right hand.
   private weaponHolder: THREE.Group | null = null;
   private heldWeapon: WeaponId | null = null;
-  private swing = 0; // seconds left of a melee swing
   private scopeToggled = false; // touch screens toggle the scope instead of holding a button
   private scoping = false;
 
@@ -102,7 +101,7 @@ export class OnFootMode implements PlayerMode {
     private readonly input: Input,
     private readonly spawn: THREE.Vector3,
     /** Animated model; falls back to a plain capsule if it failed to load. */
-    private readonly model: CharacterModel | null,
+    private model: CharacterModel | null,
     private readonly stats: PlayerStats,
   ) {
     this.body = world.createRigidBody(
@@ -127,13 +126,7 @@ export class OnFootMode implements PlayerMode {
 
     this.cameraRig = new FollowCamera(camera, input, world, this.collider);
     this.visual = new THREE.Group();
-    if (model) {
-      // The model's origin is at its feet; the group's origin is the capsule centre.
-      model.root.position.y = -(CAPSULE_HALF_HEIGHT + CAPSULE_RADIUS);
-      this.visual.add(model.root);
-    } else {
-      this.visual.add(createCapsuleMesh());
-    }
+    this.setModel(model);
     scene.add(this.visual);
 
     this.curr.copy(spawn);
@@ -161,13 +154,43 @@ export class OnFootMode implements PlayerMode {
     this.groundSpeed = 0;
   }
 
-  /** Show the current weapon in the right hand, and swing melee weapons when attacking. */
+  /** Swap the player's body (e.g. after choosing a new character); null = plain capsule. */
+  setModel(model: CharacterModel | null): void {
+    this.visual.clear();
+    this.model = model;
+    this.weaponHolder = null;
+    this.heldWeapon = null;
+    if (model) {
+      // The model's origin is at its feet; the group's origin is the capsule centre.
+      model.root.position.y = -(CAPSULE_HALF_HEIGHT + CAPSULE_RADIUS);
+      this.visual.add(model.root);
+    } else {
+      this.visual.add(createCapsuleMesh());
+    }
+  }
+
+  /** Flinch (the player just took damage). */
+  hurt(): void {
+    this.model?.play('hit');
+  }
+
+  /** Knocked out: fall over (until respawn() / placeAt). */
+  knockDown(): void {
+    this.model?.knockDown();
+  }
+
+  /** Back on your feet after being knocked out. */
+  standUp(): void {
+    this.model?.reset();
+  }
+
+  /** Show the current weapon in the right hand. */
   private updateHeldWeapon(): void {
     const hand = this.model?.rightHand();
     if (!hand) return;
     if (!this.weaponHolder) {
-      // The rig is scaled down (it was modelled in centimetres), so undo the hand's world
-      // scale to build weapons in metres.
+      // The rig may be scaled (characters are resized to their height), so undo the hand's
+      // world scale to build weapons in metres.
       this.weaponHolder = new THREE.Group();
       hand.add(this.weaponHolder);
       hand.updateWorldMatrix(true, false);
@@ -181,8 +204,6 @@ export class OnFootMode implements PlayerMode {
       const model = buildWeaponModel(this.heldWeapon);
       if (model) this.weaponHolder.add(model);
     }
-    // Melee swing: a quick rotation of the weapon about the hand.
-    this.weaponHolder.rotation.x = this.swing > 0 ? -Math.sin((this.swing / 0.3) * Math.PI) * 1.6 : 0;
   }
 
   /** The capsule's collision shape, for checking where the player can stand. */
@@ -233,9 +254,9 @@ export class OnFootMode implements PlayerMode {
     const attack = this.combat?.update(dt, chest, this.collider) ?? null;
     if (attack) {
       this.facing = Math.atan2(-attack.facing.x, -attack.facing.z);
-      if (attack.melee) this.swing = 0.3;
+      const w = this.stats.weapon;
+      this.model?.play(!attack.melee ? 'shoot' : w.id === 'fists' ? 'punch' : 'bat');
     }
-    this.swing = Math.max(0, this.swing - dt);
     if (this.input.consumePressed('interact') && this.nearest) {
       this.nearest.activate();
       return;
@@ -329,6 +350,9 @@ export class OnFootMode implements PlayerMode {
     // The mesh copies the physics position; facing is visual-only (the capsule body never rotates).
     this.visual.position.copy(this.renderPos);
     this.visual.rotation.y = this.facing;
+    // Guns: hold the aiming pose on the upper body.
+    const w = this.stats.weapon;
+    this.model?.setAim(w.melee ? 'none' : w.id === 'rifle' ? 'rifle' : 'pistol');
     this.model?.update(this.groundSpeed, this.grounded, frameDt);
     this.updateHeldWeapon();
 
@@ -342,6 +366,16 @@ export class OnFootMode implements PlayerMode {
 
   focus(): THREE.Vector3 {
     return this.curr;
+  }
+
+  /** Where the feet are (capsule centre minus half its height). */
+  feet(out: THREE.Vector3): THREE.Vector3 {
+    return out.copy(this.curr).setY(this.curr.y - STAND_HEIGHT);
+  }
+
+  /** The body's visual heading (rad, 0 = facing −Z). */
+  get facingYaw(): number {
+    return this.facing;
   }
 
   prompt(): string | null {

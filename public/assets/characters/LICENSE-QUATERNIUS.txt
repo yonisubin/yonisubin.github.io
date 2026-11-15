@@ -1,0 +1,6 @@
+Characters and animations: "Ultimate Modular Men" and "Ultimate Modular Women" by Quaternius
+https://quaternius.com/packs/ultimatemodularcharacters.html
+https://quaternius.com/packs/ultimatemodularwomen.html
+
+License: CC0 1.0 Universal (public domain) — https://creativecommons.org/publicdomain/zero/1.0/
+Converted for this game by scripts/build-quaternius.mjs (parts merged, colours baked to vertex colours).

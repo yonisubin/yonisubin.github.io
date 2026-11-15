@@ -10,10 +10,10 @@ A small open-world city game that runs entirely in the browser. The player can w
 - **three.js** for rendering (WebGL 2)
 - **Rapier** via `@dimforge/rapier3d-compat` for physics (the compat build embeds the WASM, which avoids Vite/WASM loading issues)
 - Assets: Kenney.nl CC0 low-poly kits (city, cars, characters) as `.glb` (kenney.nl is blocked from the cloud dev environment; download kits locally if needed)
-  - Player character: `public/assets/characters/soldier.glb`, the three.js "Soldier" example model (Mixamo character with Idle/Walk/Run clips; free to use in games, not CC0)
+  - People (player, pedestrians, mission givers): 15 CC0 characters from Quaternius' *Ultimate Modular Men/Women* packs, all on one shared skeleton with 24 shared animation clips. `npm run build:quaternius` (`scripts/build-quaternius.mjs`) fetches the sources into `art/quaternius/` (git-ignored) and writes one GLB per character (all parts merged into one mesh/draw call; part colours in vertex colours + a `_PART` index), a shared `animations.glb` and `manifest.json` to `public/assets/characters/`. `player/characterLibrary.ts` loads them and recolours skin / hair / outfit per person; `player/character.ts` blends locomotion and plays one-shots (punch, bat, shoot, hit, wave, talk, knock-out); `ui/characterPicker.ts` is the in-game picker (P / LOOK button), saved in localStorage
   - Buildings, roads, sidewalks and ground are procedural (facade shader in `world/facadeMaterial.ts`, canvas textures in `world/textures.ts`), not models
-  - Cars and the helicopter are procedural too (`vehicles/carModel.ts`, `vehicles/heliModel.ts`); pedestrians are tinted clones of the Soldier
-  - New people come from Mixamo (shared `mixamorig` skeleton, one animation set for everyone): follow `docs/characters.md`, drop FBX files in `art/mixamo/`, then `npm run build:characters` writes optimised GLBs + `manifest.json` to `public/assets/characters/`. The build tools (`fbx2gltf`, `@gltf-transform/cli`) are dev-only dependencies
+  - Cars and the helicopter are procedural too (`vehicles/carModel.ts`, `vehicles/heliModel.ts`)
+  - Optional, not wired in yet: Mixamo people (different `mixamorig` skeleton and animation set). Follow `docs/characters.md`, drop FBX files in `art/mixamo/`, then `npm run build:characters` writes GLBs + `manifest.json` to `public/assets/characters/mixamo/`. The build tools (`fbx2gltf`, `@gltf-transform/*`) are dev-only dependencies
 
 Do not add new dependencies without asking first.
 
@@ -25,7 +25,8 @@ npm run dev        # local dev server
 npm run build      # type-check + production build to dist/
 npm run preview    # serve the production build locally
 npm run typecheck  # tsc --noEmit
-npm run build:characters  # Mixamo FBX in art/mixamo → GLBs in public/assets/characters
+npm run build:quaternius  # fetch + convert the Quaternius CC0 characters → public/assets/characters
+npm run build:characters  # (optional) Mixamo FBX in art/mixamo → public/assets/characters/mixamo
 ```
 
 Before considering any task done, `npm run typecheck` and `npm run build` must both pass.

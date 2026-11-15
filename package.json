@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "build:characters": "node scripts/build-characters.mjs"
+    "build:characters": "node scripts/build-characters.mjs",
+    "build:quaternius": "node scripts/build-quaternius.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

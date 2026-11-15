@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import type { SimEntity } from '../sim/entity';
 import type { CharacterModel } from '../player/character';
+import type { CharacterLibrary } from '../player/characterLibrary';
 import { Rng } from '../world/rng';
 import { BLOCK_SIZE, CURB_HEIGHT, type Block, type CityLayout } from '../world/layout';
 
-// Pedestrians: recoloured copies of the player's animated model, strolling around the
+// Pedestrians: random people from the character library (each with their own skin tone,
+// hair, outfit colours and height), strolling around the
 // sidewalk of a city block (a square loop), pausing now and then, and waiting if the player
 // is standing in their way. No physics: they follow their loop exactly.
 //
@@ -33,17 +35,15 @@ const PUNCH_DAMAGE = 7;
 const PUNCH_INTERVAL = 1.1; // s
 const GIVE_UP_DISTANCE = 30; // m: angry pedestrians stop chasing beyond this
 const DOWN_TIME = 12; // s lying on the ground before sinking away
-const FALL_TIME = 0.45; // s to topple over
 const HIT_RADIUS = 0.4; // m, body radius for bullets
 const BODY_HEIGHT = 1.75; // m
 
-/** Outfit tints (multiply the model's textures). */
-const OUTFITS = [0xffffff, 0x8fa8d8, 0xd89a8f, 0xa8c49a, 0xc9b98f, 0x9a9aa8, 0xd8c8e8, 0x7f8a99, 0xe0d0b0];
 
 export type PedState = 'walk' | 'talk' | 'flee' | 'angry' | 'down';
 
 export interface Pedestrian {
-  model: CharacterModel;
+  /** Null until this person's model has downloaded (they stay out of the world until then). */
+  model: CharacterModel | null;
   block: Block;
   half: number; // half-size of this pedestrian's loop square
   u: number; // distance along the loop perimeter, m
@@ -80,16 +80,13 @@ export class Pedestrians implements SimEntity {
   constructor(
     scene: THREE.Scene,
     private readonly layout: CityLayout,
-    template: CharacterModel,
+    library: CharacterLibrary,
     count: number,
     private readonly hooks: PedestrianHooks,
   ) {
     for (let k = 0; k < count; k++) {
-      const model = template.clone(new THREE.Color(OUTFITS[k % OUTFITS.length]));
-      model.root.rotation.order = 'YXZ'; // yaw first, then the fall-over tilt about X
-      scene.add(model.root);
       const ped: Pedestrian = {
-        model,
+        model: null,
         block: layout.blocks[0],
         half: 0,
         u: 0,
@@ -108,13 +105,20 @@ export class Pedestrians implements SimEntity {
         punchCooldown: 0,
       };
       this.peds.push(ped);
-      this.respawn(ped, 15);
+      // A random person; they join the street once their model has loaded.
+      void library.create(library.randomLook(() => this.rng.float())).then((model) => {
+        ped.model = model;
+        model.root.visible = false;
+        scene.add(model.root);
+        this.respawn(ped, 15);
+      });
     }
   }
 
   private respawn(ped: Pedestrian, minDist = SPAWN_MIN): void {
     const player = this.hooks.player().position;
-    ped.model.root.rotation.x = 0;
+    if (!ped.model) return;
+    ped.model.reset();
     for (let attempt = 0; attempt < 30; attempt++) {
       const block = this.rng.pick(this.layout.blocks);
       ped.block = block;
@@ -273,10 +277,12 @@ export class Pedestrians implements SimEntity {
       ped.health = 0;
       this.setState(ped, 'down');
       ped.moving = 0;
+      ped.model?.knockDown();
       this.hooks.knockedOut(ped.currPos);
       return;
     }
     ped.stagger = 0.35;
+    ped.model?.play('hit');
     if (ped.state !== 'angry') {
       const fightBack = kind === 'melee' && ped.health > 45 && this.rng.chance(0.5);
       this.setState(ped, fightBack ? 'angry' : 'flee');
@@ -296,6 +302,7 @@ export class Pedestrians implements SimEntity {
   fixedUpdate(dt: number): void {
     const { position: player, onFoot } = this.hooks.player();
     for (const ped of this.peds) {
+      if (!ped.model) continue; // still loading
       const far = Math.hypot(ped.currPos.x - player.x, ped.currPos.z - player.z) > DESPAWN;
       if (!ped.active || (far && ped.state !== 'down')) {
         this.respawn(ped);
@@ -359,6 +366,7 @@ export class Pedestrians implements SimEntity {
           if (dist < PUNCH_RANGE && ped.punchCooldown === 0 && Math.abs(player.y - 0.9 - ped.currPos.y) < 1.5) {
             ped.punchCooldown = PUNCH_INTERVAL;
             this.hooks.hitPlayer(PUNCH_DAMAGE);
+            ped.model?.play('punch');
           }
           break;
         }
@@ -402,23 +410,24 @@ export class Pedestrians implements SimEntity {
   render(alpha: number, frameDt: number): void {
     const player = this.hooks.player().position;
     for (const ped of this.peds) {
-      if (!ped.active) continue;
-      const root = ped.model.root;
+      if (!ped.active || !ped.model) continue;
+      const model = ped.model;
+      const root = model.root;
       root.position.lerpVectors(ped.prevPos, ped.currPos, alpha);
       if (ped.state === 'down') {
-        // Topple backwards (rotating about the feet), lie still, then sink out of sight.
-        root.rotation.x = (Math.PI / 2) * Math.min(1, ped.stateTime / FALL_TIME);
-        root.position.y += 0.12 - Math.max(0, ped.stateTime - DOWN_TIME) * 0.8;
+        // Fall (the knock-down animation), lie still, then sink out of sight.
+        root.position.y -= Math.max(0, ped.stateTime - DOWN_TIME) * 0.8;
+        model.update(0, true, frameDt);
         continue;
       }
-      root.rotation.x = 0;
+      model.setTalking(ped.state === 'talk');
       // Turn smoothly at corners rather than snapping 90°.
       let diff = ped.facing - root.rotation.y;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
       root.rotation.y += diff * Math.min(1, frameDt * 8);
       const dist = root.position.distanceTo(player);
       root.visible = dist < VISIBLE_WITHIN;
-      if (dist < ANIMATE_WITHIN) ped.model.update(ped.moving, true, frameDt);
+      if (dist < ANIMATE_WITHIN) model.update(ped.moving, true, frameDt);
     }
   }
 

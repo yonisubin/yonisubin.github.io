@@ -3,6 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import type { Input } from '../input/actions';
 import type { SimEntity } from '../sim/entity';
 import type { CharacterModel } from '../player/character';
+import type { CharacterLibrary, Look } from '../player/characterLibrary';
 import type { Interactable } from '../player/onFoot';
 import type { Traffic, TrafficCar } from '../npc/traffic';
 import type { PlayerStats } from './stats';
@@ -30,6 +31,8 @@ interface Giver {
   model: CharacterModel | null;
   marker: THREE.Sprite;
   greeting: string;
+  /** Seconds until they next wave at passers-by. */
+  waveTimer: number;
 }
 
 interface Mission {
@@ -50,7 +53,12 @@ const DELIVERY_RADIUS = 6; // m
 const PACKAGE_RADIUS = 3; // m
 const RING_RADIUS = 7; // m, inner radius of a sky ring (fly through the middle)
 const GIVER_RADIUS = 2.6; // m, how close to stand to talk to a giver
-const GIVER_TINTS = [0xffd27a, 0xff9c9c, 0x9cc8ff];
+/** Fixed looks for the three givers (character id, skin, hair, outfit variant, height). */
+const GIVER_LOOKS: Look[] = [
+  { id: 'm_hoodie', skin: 3, hair: 0, outfit: 4, height: 1.8 }, // Marco
+  { id: 'w_suit', skin: 1, hair: 4, outfit: 0, height: 1.7 }, // Vera
+  { id: 'm_outdoors', skin: 2, hair: 5, outfit: 0, height: 1.84 }, // Captain Reyes
+];
 
 /** "!" badge for the markers. */
 function badgeTexture(): THREE.CanvasTexture {
@@ -93,7 +101,7 @@ export class Missions implements SimEntity {
     private readonly scene: THREE.Scene,
     world: RAPIER.World,
     private readonly layout: CityLayout,
-    template: CharacterModel | null,
+    library: CharacterLibrary | null,
     private readonly stats: PlayerStats,
     private readonly traffic: Traffic,
     private readonly input: Input,
@@ -121,18 +129,18 @@ export class Missions implements SimEntity {
       const half = BLOCK_SIZE / 2;
       const position = new THREE.Vector3(b.cx - half + 1.2, CURB_HEIGHT, b.cz + half - 6);
       const facing = Math.PI / 2; // face −X (the road)
-      const model = template ? template.clone(new THREE.Color(GIVER_TINTS[k])) : null;
-      if (model) {
-        model.root.position.copy(position);
-        model.root.rotation.y = facing;
-        scene.add(model.root);
-      }
       world.createCollider(RAPIER.ColliderDesc.capsule(0.55, 0.35).setTranslation(position.x, position.y + 0.9, position.z));
       const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: badge, depthTest: true }));
       marker.scale.set(0.7, 0.7, 0.7);
       scene.add(marker);
-      const giver: Giver = { name, kinds, position, facing, model, marker, greeting };
+      const giver: Giver = { name, kinds, position, facing, model: null, marker, greeting, waveTimer: 4 + k * 3 };
       this.givers.push(giver);
+      void library?.create(GIVER_LOOKS[k]).then((model) => {
+        model.root.position.copy(position);
+        model.root.rotation.y = facing;
+        scene.add(model.root);
+        giver.model = model;
+      });
       this.interactables.push({
         label: () => 'mission',
         position: () => giver.position,
@@ -438,7 +446,16 @@ export class Missions implements SimEntity {
     const player = this.playerPosition();
     // Givers idle in place; "!" badges bob over their heads.
     for (const g of this.givers) {
-      if (g.model && g.model.root.position.distanceTo(player) < 70) g.model.update(0, true, frameDt);
+      if (g.model && g.model.root.position.distanceTo(player) < 70) {
+        // Gesture while offering a job; otherwise idle with a wave every so often.
+        g.model.setTalking(this.offer?.giver === g);
+        g.waveTimer -= frameDt;
+        if (g.waveTimer <= 0) {
+          g.waveTimer = 8 + Math.random() * 8;
+          if (this.offer?.giver !== g) g.model.play('wave');
+        }
+        g.model.update(0, true, frameDt);
+      }
       g.marker.position.set(g.position.x, g.position.y + 2.35 + Math.sin(this.time * 2.5) * 0.08, g.position.z);
     }
     // Close the offer if the player walks off; keys 1/2 answer it.

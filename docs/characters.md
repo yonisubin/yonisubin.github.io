@@ -1,6 +1,8 @@
-# Adding Mixamo characters and animations
+# Adding Mixamo characters and animations (optional)
 
-The game's people (you, pedestrians, mission givers) come from [Mixamo](https://www.mixamo.com), Adobe's free library of rigged characters and animations. Every Mixamo character shares the same skeleton, so one set of animations drives everyone.
+> **Current state:** the game's people come from Quaternius' CC0 *Ultimate Modular Men/Women* packs (`npm run build:quaternius`, see `CLAUDE.md`). This guide is the optional route to more realistic people later. Mixamo uses a different skeleton (`mixamorig*` bones) and its own animation set, so its output goes to `public/assets/characters/mixamo/` and needs a small loader change before the game uses it (a second roster in `player/characterLibrary.ts`, plus Mixamo bone names in `player/character.ts`'s upper-body split, hand bone and clip names).
+
+[Mixamo](https://www.mixamo.com) is Adobe's free library of rigged characters and animations. Every Mixamo character shares the same skeleton, so one set of animations drives everyone.
 
 Mixamo needs a free Adobe account and can't be reached from the build environment, so the downloading is done by hand (about 20–30 minutes). Everything after that — converting, shrinking, wiring into the game — is automated.
 
@@ -76,7 +78,7 @@ Anything optional you skip falls back to a sensible alternative (e.g. fleeing us
 
 ## 4. Converting (done for you)
 
-`npm run build:characters` (in `scripts/build-characters.mjs`) turns the FBX files into small web files in `public/assets/characters/`:
+`npm run build:characters` (in `scripts/build-characters.mjs`) turns the FBX files into small web files in `public/assets/characters/mixamo/`:
 
 - each character → `<name>.glb`, textures resized to 1024 px WebP and the mesh compressed (typically 5–20 MB of FBX → ~1–2 MB);
 - all animations → one shared `animations.glb`;

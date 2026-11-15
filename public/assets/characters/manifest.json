@@ -1,0 +1,1265 @@
+{
+  "source": "Quaternius Ultimate Modular Men & Women (CC0)",
+  "animations": "animations.glb",
+  "clips": [
+    "Death",
+    "Gun_Shoot",
+    "HitRecieve",
+    "HitRecieve_2",
+    "Idle",
+    "Idle_Gun",
+    "Idle_Gun_Pointing",
+    "Idle_Gun_Shoot",
+    "Idle_Neutral",
+    "Idle_Sword",
+    "Interact",
+    "Kick_Left",
+    "Kick_Right",
+    "Punch_Left",
+    "Punch_Right",
+    "Roll",
+    "Run",
+    "Run_Back",
+    "Run_Left",
+    "Run_Right",
+    "Run_Shoot",
+    "Sword_Slash",
+    "Walk",
+    "Wave"
+  ],
+  "characters": [
+    {
+      "id": "m_hoodie",
+      "name": "Hoodie",
+      "gender": "male",
+      "file": "m_hoodie.glb",
+      "height": 1.87,
+      "parts": [
+        {
+          "name": "Skin",
+          "kind": "skin",
+          "color": [
+            0.6172,
+            0.4179,
+            0.2384
+          ]
+        },
+        {
+          "name": "Purple",
+          "kind": "cloth",
+          "color": [
+            0.063,
+            0.0382,
+            0.1046
+          ]
+        },
+        {
+          "name": "White",
+          "kind": "cloth",
+          "color": [
+            0.4575,
+            0.4575,
+            0.4575
+          ]
+        },
+        {
+          "name": "Eyebrows",
+          "kind": "hair",
+          "color": [
+            0.0482,
+            0.0343,
+            0.0222
+          ]
+        },
+        {
+          "name": "Eye",
+          "kind": "fixed",
+          "color": [
+            0.0311,
+            0.0182,
+            0.0113
+          ]
+        },
+        {
+          "name": "Hair",
+          "kind": "hair",
+          "color": [
+            0.0668,
+            0.0274,
+            0.009
+          ]
+        },
+        {
+          "name": "LightBlue",
+          "kind": "cloth",
+          "color": [
+            0.0331,
+            0.0497,
+            0.063
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m_casual",
+      "name": "Casual",
+      "gender": "male",
+      "file": "m_casual.glb",
+      "height": 1.858,
+      "parts": [
+        {
+          "name": "Skin",
+          "kind": "skin",
+          "color": [
+            0.6172,
+            0.4179,
+            0.2384
+          ]
+        },
+        {
+          "name": "LightBrown",
+          "kind": "cloth",
+          "color": [
+            0.305,
+            0.2789,
+            0.227
+          ]
+        },
+        {
+          "name": "Red_Dark",
+          "kind": "cloth",
+          "color": [
+            0.2051,
+            0.0203,
+            0.0343
+          ]
+        },
+        {
+          "name": "White",
+          "kind": "cloth",
+          "color": [
+            0.4575,
+            0.4575,
+            0.4575
+          ]
+        },
+        {
+          "name": "Skin_Darker",
+          "kind": "skin",
+          "color": [
+            0.4869,
+            0.3306,
+            0.1896
+          ]
+        },
+        {
+          "name": "Eyebrows",
+          "kind": "hair",
+          "color": [
+            0.0482,
+            0.0343,
+            0.0222
+          ]
+        },
+        {
+          "name": "Hair",
+          "kind": "hair",
+          "color": [
+            0.0668,
+            0.0274,
+            0.009
+          ]
+        },
+        {
+          "name": "Eye",
+          "kind": "fixed",
+          "color": [
+            0.0311,
+            0.0182,
+            0.0113
+          ]
+        },
+        {
+          "name": "LightBlue",
+          "kind": "cloth",
+          "color": [
+            0.0331,
+            0.0497,
+            0.063
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m_suit",
+      "name": "Business suit",
+      "gender": "male",
+      "file": "m_suit.glb",
+      "height": 1.857,
+      "parts": [
+        {
+          "name": "DarkBrown",
+          "kind": "cloth",
+          "color": [
+            0.0704,
+            0.0482,
+            0.0369
+          ]
+        },
+        {
+          "name": "Grey",
+          "kind": "cloth",
+          "color": [
+            0.0497,
+            0.0497,
+            0.0497
+          ]
+        },
+        {
+          "name": "Black",
+          "kind": "cloth",
+          "color": [
+            0.0176,
+            0.0176,
+            0.0176
+          ]
+        },
+        {
+          "name": "Skin",
+          "kind": "skin",
+          "color": [
+            0.6172,
+            0.4179,
+            0.2384
+          ]
+        },
+        {
+          "name": "Tie",
+          "kind": "fixed",
+          "color": [
+            0.0666,
+            0.0782,
+            0.1022
+          ]
+        },
+        {
+          "name": "Suit",
+          "kind": "cloth",
+          "color": [
+            0.0152,
+            0.0212,
+            0.0273
+          ]
+        },
+        {
+          "name": "White",
+          "kind": "cloth",
+          "color": [
+            0.4575,
+            0.4575,
+            0.4575
+          ]
+        },
+        {
+          "name": "Eyebrows",
+          "kind": "hair",
+          "color": [
+            0.0482,
+            0.0343,
+            0.0222
+          ]
+        },
+        {
+          "name": "Hair",
+          "kind": "hair",
+          "color": [
+            0.0668,
+            0.0274,
+            0.009
+          ]
+        },
+        {
+          "name": "Eye",
+          "kind": "fixed",
+          "color": [
+            0.0311,
+            0.0182,
+            0.0113
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m_worker",
+      "name": "Construction worker",
+      "gender": "male",
+      "file": "m_worker.glb",
+      "height": 1.866,
+      "parts": [
+        {
+          "name": "Skin",
+          "kind": "skin",
+          "color": [
+            0.6172,
+            0.4179,
+            0.2384
+          ]
+        },
+        {
+          "name": "Worker_Yellow",
+          "kind": "cloth",
+          "color": [
+            0.4564,
+            0.2961,
+            0.0065
+          ]
+        },
+        {
+          "name": "Worker_Vest",
+          "kind": "cloth",
+          "color": [
+            0.4851,
+            0.1274,
+            0.0232
+          ]
+        },
+        {
+          "name": "LightBrown",
+          "kind": "cloth",
+          "color": [
+            0.305,
+            0.2789,
+            0.227
+          ]
+        },
+        {
+          "name": "Grey",
+          "kind": "cloth",
+          "color": [
+            0.0497,
+            0.0497,
+            0.0497
+          ]
+        },
+        {
+          "name": "Black",
+          "kind": "cloth",
+          "color": [
+            0.0176,
+            0.0176,
+            0.0176
+          ]
+        },
+        {
+          "name": "Eyebrows",
+          "kind": "hair",
+          "color": [
+            0.0482,
+            0.0343,
+            0.0222
+          ]
+        },
+        {
+          "name": "Moustache",
+          "kind": "hair",
+          "color": [
+            0.1626,
+            0.0527,
+            0.0013
+          ]
+        },
+        {
+          "name": "Eye",
+          "kind": "fixed",
+          "color": [
+            0.0311,
+            0.0182,
+            0.0113
+          ]
+        },
+        {
+          "name": "Brown",
+          "kind": "cloth",
+          "color": [
+            0.1789,
+            0.1268,
+            0.0513
+          ]
+        },
+        {
+          "name": "Brown2",
+          "kind": "cloth",
+          "color": [
+            0.1065,
+            0.0763,
+            0.032
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m_farmer",
+      "name": "Farmer",
+      "gender": "male",
+      "file": "m_farmer.glb",
+      "height": 1.856,
+      "parts": [
+        {
+          "name": "Skin",
+          "kind": "skin",
+          "color": [
+            0.6172,
+            0.4179,
+            0.2384
+          ]
+        },
+        {
+          "name": "LightBlue",
+          "kind": "cloth",
+          "color": [
+            0.0331,
+            0.0497,
+            0.063
+          ]
+        },
+        {
+          "name": "Brown",
+          "kind": "cloth",
+          "color": [
+            0.1789,
+            0.1268,
+            0.0513
+          ]
+        },
+        {
+          "name": "Beige",
+          "kind": "cloth",
+          "color": [
+            0.3325,
+            0.3095,
+            0.2016
+          ]
+        },
+        {
+          "name": "Brown2",
+          "kind": "cloth",
+          "color": [
+            0.1065,
+            0.0763,
+            0.032
+          ]
+        },
+        {
+          "name": "Eyebrows",
+          "kind": "hair",
+          "color": [
+            0.0482,
+            0.0343,
+            0.0222
+          ]
+        },
+        {
+          "name": "Red",
+          "kind": "cloth",
+          "color": [
+            0.2019,
+            0.0049,
+            0.0138
+          ]
+        },
+        {
+          "name": "Eye",
+          "kind": "fixed",
+          "color": [
+            0.0311,
+            0.0182,
+            0.0113
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m_punk",
+      "name": "Punk",
+      "gender": "male",
+      "file": "m_punk.glb",
+      "height": 1.97,
+      "parts": [
+        {
+          "name": "Skin",
+          "kind": "skin",
+          "color": [
+            0.6172,
+            0.4179,
+            0.2384
+          ]
+        },
+        {
+          "name": "White",
+          "kind": "cloth",
+          "color": [
+            0.4575,
+            0.4575,
+            0.4575
+          ]
+        },
+        {
+          "name": "Black",
+          "kind": "cloth",
+          "color": [
+            0.0176,
+            0.0176,
+            0.0176
+          ]
+        },
+        {
+          "name": "Eye",
+          "kind": "fixed",
+          "color": [
+            0.0311,
+            0.0182,
+            0.0113
+          ]
+        },
+        {
+          "name": "Eyebrows",
+          "kind": "hair",
+          "color": [
+            0.0482,
+            0.0343,
+            0.0222
+          ]
+        },
+        {
+          "name": "Red_Dark",
+          "kind": "cloth",
+          "color": [
+            0.2051,
+            0.0203,
+            0.0343
+          ]
+        },
+        {
+          "name": "Red",
+          "kind": "cloth",
+          "color": [
+            0.2019,
+            0.0049,
+            0.0138
+          ]
+        },
+        {
+          "name": "Earrings",
+          "kind": "fixed",
+          "color": [
+            0.4287,
+            0.2423,
+            0.0666
+          ]
+        },
+        {
+          "name": "LightBlue",
+          "kind": "cloth",
+          "color": [
+            0.0331,
+            0.0497,
+            0.063
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m_beach",
+      "name": "Beach",
+      "gender": "male",
+      "file": "m_beach.glb",
+      "height": 1.883,
+      "parts": [
+        {
+          "name": "Skin",
+          "kind": "skin",
+          "color": [
+            0.6172,
+            0.4179,
+            0.2384
+          ]
+        },
+        {
+          "name": "LightBrown",
+          "kind": "cloth",
+          "color": [
+            0.305,
+            0.2789,
+            0.227
+          ]
+        },
+        {
+          "name": "Red_Dark",
+          "kind": "cloth",
+          "color": [
+            0.2051,
+            0.0203,
+            0.0343
+          ]
+        },
+        {
+          "name": "Eyebrows",
+          "kind": "hair",
+          "color": [
+            0.0482,
+            0.0343,
+            0.0222
+          ]
+        },
+        {
+          "name": "Eye",
+          "kind": "fixed",
+          "color": [
+            0.0311,
+            0.0182,
+            0.0113
+          ]
+        },
+        {
+          "name": "Hair",
+          "kind": "hair",
+          "color": [
+            0.0668,
+            0.0274,
+            0.009
+          ]
+        },
+        {
+          "name": "Earrings",
+          "kind": "fixed",
+          "color": [
+            0.4287,
+            0.2423,
+            0.0666
+          ]
+        },
+        {
+          "name": "White",
+          "kind": "cloth",
+          "color": [
+            0.4575,
+            0.4575,
+            0.4575
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m_swat",
+      "name": "SWAT",
+      "gender": "male",
+      "file": "m_swat.glb",
+      "height": 1.854,
+      "parts": [
+        {
+          "name": "DarkBrown",
+          "kind": "cloth",
+          "color": [
+            0.0704,
+            0.0482,
+            0.0369
+          ]
+        },
+        {
+          "name": "Grey",
+          "kind": "cloth",
+          "color": [
+            0.0497,
+            0.0497,
+            0.0497
+          ]
+        },
+        {
+          "name": "Black",
+          "kind": "cloth",
+          "color": [
+            0.0176,
+            0.0176,
+            0.0176
+          ]
+        },
+        {
+          "name": "Skin",
+          "kind": "skin",
+          "color": [
+            0.6172,
+            0.4179,
+            0.2384
+          ]
+        },
+        {
+          "name": "Swat",
+          "kind": "cloth",
+          "color": [
+            0.0782,
+            0.0865,
+            0.1022
+          ]
+        },
+        {
+          "name": "Swat_Black",
+          "kind": "cloth",
+          "color": [
+            0.0307,
+            0.0273,
+            0.0242
+          ]
+        },
+        {
+          "name": "Visor",
+          "kind": "fixed",
+          "color": [
+            0.008,
+            0.008,
+            0.008
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m_outdoors",
+      "name": "Outdoors",
+      "gender": "male",
+      "file": "m_outdoors.glb",
+      "height": 1.857,
+      "parts": [
+        {
+          "name": "Skin",
+          "kind": "skin",
+          "color": [
+            0.6172,
+            0.4179,
+            0.2384
+          ]
+        },
+        {
+          "name": "Green",
+          "kind": "cloth",
+          "color": [
+            0.0607,
+            0.0505,
+            0.0189
+          ]
+        },
+        {
+          "name": "LightGreen",
+          "kind": "cloth",
+          "color": [
+            0.0985,
+            0.0848,
+            0.0371
+          ]
+        },
+        {
+          "name": "Grey",
+          "kind": "cloth",
+          "color": [
+            0.0497,
+            0.0497,
+            0.0497
+          ]
+        },
+        {
+          "name": "Black",
+          "kind": "cloth",
+          "color": [
+            0.0176,
+            0.0176,
+            0.0176
+          ]
+        },
+        {
+          "name": "Eyebrows",
+          "kind": "hair",
+          "color": [
+            0.0482,
+            0.0343,
+            0.0222
+          ]
+        },
+        {
+          "name": "Hair",
+          "kind": "hair",
+          "color": [
+            0.0668,
+            0.0274,
+            0.009
+          ]
+        },
+        {
+          "name": "Eye",
+          "kind": "fixed",
+          "color": [
+            0.0311,
+            0.0182,
+            0.0113
+          ]
+        },
+        {
+          "name": "Brown",
+          "kind": "cloth",
+          "color": [
+            0.1789,
+            0.1268,
+            0.0513
+          ]
+        },
+        {
+          "name": "Brown2",
+          "kind": "cloth",
+          "color": [
+            0.1065,
+            0.0763,
+            0.032
+          ]
+        },
+        {
+          "name": "Gold",
+          "kind": "fixed",
+          "color": [
+            0.2789,
+            0.1746,
+            0.0395
+          ]
+        }
+      ]
+    },
+    {
+      "id": "w_casual",
+      "name": "Casual",
+      "gender": "female",
+      "file": "w_casual.glb",
+      "height": 1.852,
+      "parts": [
+        {
+          "name": "Skin",
+          "kind": "skin",
+          "color": [
+            0.6172,
+            0.4179,
+            0.2384
+          ]
+        },
+        {
+          "name": "White",
+          "kind": "cloth",
+          "color": [
+            0.4575,
+            0.4575,
+            0.4575
+          ]
+        },
+        {
+          "name": "Grey",
+          "kind": "cloth",
+          "color": [
+            0.0497,
+            0.0497,
+            0.0497
+          ]
+        },
+        {
+          "name": "Hair_Brown",
+          "kind": "hair",
+          "color": [
+            0.0482,
+            0.0343,
+            0.0222
+          ]
+        },
+        {
+          "name": "Brown",
+          "kind": "fixed",
+          "color": [
+            0.0311,
+            0.0182,
+            0.0113
+          ]
+        },
+        {
+          "name": "Hair_Blond",
+          "kind": "hair",
+          "color": [
+            0.2598,
+            0.1787,
+            0.0628
+          ]
+        },
+        {
+          "name": "Orange",
+          "kind": "cloth",
+          "color": [
+            0.3424,
+            0.1214,
+            0.0398
+          ]
+        }
+      ]
+    },
+    {
+      "id": "w_formal",
+      "name": "Dress",
+      "gender": "female",
+      "file": "w_formal.glb",
+      "height": 1.843,
+      "parts": [
+        {
+          "name": "Skin",
+          "kind": "skin",
+          "color": [
+            0.6172,
+            0.4179,
+            0.2384
+          ]
+        },
+        {
+          "name": "Brown",
+          "kind": "fixed",
+          "color": [
+            0.0311,
+            0.0182,
+            0.0113
+          ]
+        },
+        {
+          "name": "Red",
+          "kind": "hair",
+          "color": [
+            0.1376,
+            0.0159,
+            0.0038
+          ]
+        },
+        {
+          "name": "LimeGreen",
+          "kind": "cloth",
+          "color": [
+            0.0621,
+            0.1376,
+            0.0565
+          ]
+        },
+        {
+          "name": "Gold",
+          "kind": "fixed",
+          "color": [
+            0.4287,
+            0.2423,
+            0.0666
+          ]
+        }
+      ]
+    },
+    {
+      "id": "w_suit",
+      "name": "Business suit",
+      "gender": "female",
+      "file": "w_suit.glb",
+      "height": 1.845,
+      "parts": [
+        {
+          "name": "Skin",
+          "kind": "skin",
+          "color": [
+            0.6172,
+            0.4179,
+            0.2384
+          ]
+        },
+        {
+          "name": "Black",
+          "kind": "cloth",
+          "color": [
+            0.0307,
+            0.0273,
+            0.0242
+          ]
+        },
+        {
+          "name": "White",
+          "kind": "cloth",
+          "color": [
+            0.4575,
+            0.4575,
+            0.4575
+          ]
+        },
+        {
+          "name": "Hair_Brown",
+          "kind": "hair",
+          "color": [
+            0.0482,
+            0.0343,
+            0.0222
+          ]
+        },
+        {
+          "name": "Brown",
+          "kind": "fixed",
+          "color": [
+            0.0311,
+            0.0182,
+            0.0113
+          ]
+        },
+        {
+          "name": "Hair_Blond",
+          "kind": "hair",
+          "color": [
+            0.2598,
+            0.1787,
+            0.0628
+          ]
+        }
+      ]
+    },
+    {
+      "id": "w_worker",
+      "name": "Construction worker",
+      "gender": "female",
+      "file": "w_worker.glb",
+      "height": 1.861,
+      "parts": [
+        {
+          "name": "Skin",
+          "kind": "skin",
+          "color": [
+            0.6172,
+            0.4179,
+            0.2384
+          ]
+        },
+        {
+          "name": "Worker_Vest",
+          "kind": "cloth",
+          "color": [
+            0.4851,
+            0.1274,
+            0.0232
+          ]
+        },
+        {
+          "name": "White",
+          "kind": "cloth",
+          "color": [
+            0.4575,
+            0.4575,
+            0.4575
+          ]
+        },
+        {
+          "name": "Worker_Yellow",
+          "kind": "cloth",
+          "color": [
+            0.4564,
+            0.2961,
+            0.0065
+          ]
+        },
+        {
+          "name": "Black",
+          "kind": "cloth",
+          "color": [
+            0.0307,
+            0.0273,
+            0.0242
+          ]
+        },
+        {
+          "name": "DarkBrown",
+          "kind": "hair",
+          "color": [
+            0.0668,
+            0.0274,
+            0.009
+          ]
+        },
+        {
+          "name": "Brown",
+          "kind": "fixed",
+          "color": [
+            0.0311,
+            0.0182,
+            0.0113
+          ]
+        },
+        {
+          "name": "Brown_02",
+          "kind": "cloth",
+          "color": [
+            0.1789,
+            0.1268,
+            0.0513
+          ]
+        },
+        {
+          "name": "Brown2",
+          "kind": "cloth",
+          "color": [
+            0.1065,
+            0.0763,
+            0.032
+          ]
+        }
+      ]
+    },
+    {
+      "id": "w_punk",
+      "name": "Punk",
+      "gender": "female",
+      "file": "w_punk.glb",
+      "height": 1.958,
+      "parts": [
+        {
+          "name": "Skin",
+          "kind": "skin",
+          "color": [
+            0.6172,
+            0.4179,
+            0.2384
+          ]
+        },
+        {
+          "name": "Pink",
+          "kind": "cloth",
+          "color": [
+            0.1376,
+            0.012,
+            0.1299
+          ]
+        },
+        {
+          "name": "Black",
+          "kind": "cloth",
+          "color": [
+            0.0307,
+            0.0273,
+            0.0242
+          ]
+        },
+        {
+          "name": "Grey",
+          "kind": "cloth",
+          "color": [
+            0.0497,
+            0.0497,
+            0.0497
+          ]
+        },
+        {
+          "name": "Hair_Brown",
+          "kind": "hair",
+          "color": [
+            0.0482,
+            0.0343,
+            0.0222
+          ]
+        },
+        {
+          "name": "Brown",
+          "kind": "fixed",
+          "color": [
+            0.0311,
+            0.0182,
+            0.0113
+          ]
+        }
+      ]
+    },
+    {
+      "id": "w_outdoors",
+      "name": "Outdoors",
+      "gender": "female",
+      "file": "w_outdoors.glb",
+      "height": 1.828,
+      "parts": [
+        {
+          "name": "Skin",
+          "kind": "skin",
+          "color": [
+            0.6172,
+            0.4179,
+            0.2384
+          ]
+        },
+        {
+          "name": "White",
+          "kind": "cloth",
+          "color": [
+            0.4575,
+            0.4575,
+            0.4575
+          ]
+        },
+        {
+          "name": "Brown2",
+          "kind": "cloth",
+          "color": [
+            0.1065,
+            0.0763,
+            0.032
+          ]
+        },
+        {
+          "name": "LightGreen",
+          "kind": "cloth",
+          "color": [
+            0.0985,
+            0.0848,
+            0.0371
+          ]
+        },
+        {
+          "name": "Gold",
+          "kind": "fixed",
+          "color": [
+            0.4287,
+            0.2423,
+            0.0666
+          ]
+        },
+        {
+          "name": "Green",
+          "kind": "cloth",
+          "color": [
+            0.0607,
+            0.0505,
+            0.0189
+          ]
+        },
+        {
+          "name": "Brown_02",
+          "kind": "cloth",
+          "color": [
+            0.1789,
+            0.1268,
+            0.0513
+          ]
+        },
+        {
+          "name": "Hair_Brown",
+          "kind": "hair",
+          "color": [
+            0.0482,
+            0.0343,
+            0.0222
+          ]
+        },
+        {
+          "name": "Brown",
+          "kind": "fixed",
+          "color": [
+            0.0311,
+            0.0182,
+            0.0113
+          ]
+        }
+      ]
+    }
+  ]
+}

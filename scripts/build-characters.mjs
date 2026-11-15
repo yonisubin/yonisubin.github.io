@@ -3,7 +3,7 @@
 //
 //   art/mixamo/characters/char_<name>.fbx  →  public/assets/characters/<name>.glb
 //   art/mixamo/animations/<clip>.fbx       →  public/assets/characters/animations.glb (all clips)
-//   + public/assets/characters/manifest.json (the roster the game loads)
+//   + public/assets/characters/mixamo/manifest.json (a separate roster; see docs/characters.md)
 //
 // Steps per character: FBX → glTF (FBX2glTF), drop any bundled animation, shrink textures to
 // 1024 px WebP, compress the mesh (meshopt), measure the height.
@@ -28,7 +28,7 @@ const ROOT = new URL('..', import.meta.url).pathname;
 const ART_DIR = process.env.ART_DIR ?? join(ROOT, 'art/mixamo');
 const CHAR_DIR = join(ART_DIR, 'characters');
 const ANIM_DIR = join(ART_DIR, 'animations');
-const OUT_DIR = process.env.OUT_DIR ?? join(ROOT, 'public/assets/characters');
+const OUT_DIR = process.env.OUT_DIR ?? join(ROOT, 'public/assets/characters/mixamo'); // kept apart from the Quaternius roster
 const TEXTURE_SIZE = 1024;
 const FBX2GLTF = join(ROOT, 'node_modules/fbx2gltf/bin', process.platform === 'win32' ? 'Windows_NT' : process.platform === 'darwin' ? 'Darwin' : 'Linux', process.platform === 'win32' ? 'FBX2glTF.exe' : 'FBX2glTF');
 
