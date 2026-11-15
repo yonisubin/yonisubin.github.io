@@ -188,7 +188,9 @@ export function createCity(scene: THREE.Scene, world: RAPIER.World, seed: number
   );
   const padBlock = terrain.blockUnder(pad.x, pad.z)!;
   const padPlane = terrain.blockSurface(padBlock);
-  padMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-padPlane.gx, 1, -padPlane.gz).normalize());
+  padMesh.quaternion
+    .setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-padPlane.gx, 1, -padPlane.gz).normalize())
+    .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), layout.warp.angle(padBlock.cx, padBlock.cz)));
   padMesh.position.set(pad.x, terrain.surfaceAt(pad.x, pad.z) + 0.05, pad.z);
   padMesh.receiveShadow = true;
   scene.add(padMesh);

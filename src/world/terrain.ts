@@ -14,6 +14,7 @@ import {
   type CityLayout,
   type Zone,
 } from './layout';
+import { fbm, hash2, lerp, smoothstep, valueNoise } from './noise';
 
 // The shape of the land: one deterministic height function for the whole world, plus the
 // ground colour at any point. No three.js here — chunks, the far terrain, the water shader's
@@ -24,7 +25,10 @@ import {
 //             downtown) blending into countryside hills (rolling farmland, tall in the
 //             northern forest, a rim of high hills at the world's edge); flat by the coast
 //             and the lake. Roads follow this layer, so streets climb and dip with the hills.
-//             Town blocks sit on a plane fitted to it (blockSurface()).
+//             Town blocks are draped over it too.
+//
+// The layout is a grid bent by the road warp (warp.ts): questions about zones, roads, towns
+// and blocks convert a world point back to the grid first (toGrid).
 //   detail  — smaller bumps, faded out near roads and towns so those stay smooth.
 //   lake    — a bowl carved below the water level in the northern hills.
 //   beach   — south of the coastal road: sand sloping into the sea.
@@ -33,49 +37,6 @@ import {
 export const WATER_Y = -0.5;
 /** Southern edge of the coastal road; the beach starts here. */
 export const COAST_Z = lineCoord(COAST_LINE) + ROAD_WIDTH / 2;
-
-const smoothstep = (a: number, b: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-
-/** Integer hash → [0, 1). */
-function hash2(ix: number, iz: number, seed: number): number {
-  let h = Math.imul(ix, 374761393) + Math.imul(iz, 668265263) + Math.imul(seed, 982451653);
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-}
-
-/** Smooth value noise in [0, 1]: random values at integer points, eased in between. */
-function valueNoise(x: number, z: number, seed: number): number {
-  const ix = Math.floor(x);
-  const iz = Math.floor(z);
-  const fx = x - ix;
-  const fz = z - iz;
-  const ux = fx * fx * (3 - 2 * fx);
-  const uz = fz * fz * (3 - 2 * fz);
-  const a = hash2(ix, iz, seed);
-  const b = hash2(ix + 1, iz, seed);
-  const c = hash2(ix, iz + 1, seed);
-  const d = hash2(ix + 1, iz + 1, seed);
-  return lerp(lerp(a, b, ux), lerp(c, d, ux), uz);
-}
-
-/** Fractal noise: `octaves` layers, each twice the frequency and half the strength. ≈ [0, 1]. */
-function fbm(x: number, z: number, octaves: number, seed: number): number {
-  let sum = 0;
-  let amp = 0.5;
-  let norm = 0;
-  for (let o = 0; o < octaves; o++) {
-    sum += valueNoise(x, z, seed + o * 17) * amp;
-    norm += amp;
-    x *= 2.03;
-    z *= 2.03;
-    amp *= 0.5;
-  }
-  return sum / norm;
-}
 
 export type Rgb = [number, number, number];
 
@@ -97,44 +58,54 @@ export class Terrain {
 
   constructor(private readonly layout: CityLayout) {
     this.seed = layout.seed;
-    // Multi-source breadth-first search from all town cells.
-    const n = CELLS;
-    const dist = new Uint8Array(n * n).fill(255);
-    const queue: number[] = [];
-    layout.zones.forEach((z, i) => {
-      if (isTown(z)) {
-        dist[i] = 0;
-        queue.push(i);
-      }
-    });
-    for (let q = 0; q < queue.length; q++) {
-      const i = queue[q];
-      const bx = i % n;
-      const bz = (i - bx) / n;
-      for (let dz = -1; dz <= 1; dz++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const x = bx + dx;
-          const z = bz + dz;
-          if (x < 0 || z < 0 || x >= n || z >= n) continue;
-          const j = z * n + x;
-          if (dist[j] > dist[i] + 1) {
-            dist[j] = dist[i] + 1;
-            queue.push(j);
-          }
-        }
-      }
-    }
-    this.townCells = dist;
+    this.townCells = layout.townCells;
   }
 
+  /**
+   * World → grid. The layout lives on a perfect grid and the warp (warp.ts) bends it; every
+   * question about zones, roads, towns and blocks is answered on the grid. Returns a copy.
+   */
+  private toGrid(x: number, z: number): { x: number; z: number } {
+    const g = this.layout.warp.inverse(x, z);
+    return { x: g.x, z: g.z };
+  }
+
+  /** A layout (grid) point in the world, through the road warp. A fresh object. */
+  toWorld(gx: number, gz: number): { x: number; z: number } {
+    const w = this.layout.warp.forward(gx, gz);
+    return { x: w.x, z: w.z };
+  }
+
+  /** How much the road warp turns things at a grid point (rad, add to a grid yaw). */
+  warpAngle(gx: number, gz: number): number {
+    return this.layout.warp.angle(gx, gz);
+  }
+
+  /** Zone at a world point. */
   zoneAt(x: number, z: number): Zone {
+    const g = this.toGrid(x, z);
+    return this.zoneAtGrid(g.x, g.z);
+  }
+
+  private zoneAtGrid(x: number, z: number): Zone {
     const bx = Math.min(CELLS - 1, Math.max(0, cellOf(x)));
     const bz = Math.min(CELLS - 1, Math.max(0, cellOf(z)));
     return this.layout.zones[bz * CELLS + bx];
   }
 
-  /** Metres from (x, z) to the nearest town cell (0 inside one; large if none nearby). */
+  /** Metres from a world point to the nearest town cell (0 inside one; large if none nearby). */
   townDistance(x: number, z: number): number {
+    const g = this.toGrid(x, z);
+    return this.townDistanceGrid(g.x, g.z);
+  }
+
+  /** Metres from a world point to the centre line of the nearest road (capped at ~200). */
+  roadDistance(x: number, z: number): number {
+    const g = this.toGrid(x, z);
+    return this.roadDistanceGrid(g.x, g.z);
+  }
+
+  private townDistanceGrid(x: number, z: number): number {
     const bx = cellOf(x);
     const bz = cellOf(z);
     const cbx = Math.min(CELLS - 1, Math.max(0, bx));
@@ -155,8 +126,7 @@ export class Terrain {
     return best;
   }
 
-  /** Metres from (x, z) to the centre line of the nearest road (capped at ~200). */
-  roadDistance(x: number, z: number): number {
+  private roadDistanceGrid(x: number, z: number): number {
     const roads = this.layout.roads;
     const ix = cellOf(x);
     const iz = cellOf(z);
@@ -192,8 +162,22 @@ export class Terrain {
     return smoothstep(-450, -950, z + 120 * Math.sin(x / 500));
   }
 
-  /** The big, smooth hills. Roads and town blocks sit on this layer. */
+  /** The big, smooth hills at a world point. Roads and town blocks sit on this layer. */
   smoothHeight(x: number, z: number): number {
+    const g = this.toGrid(x, z);
+    return this.smoothCore(x, z, this.townDistanceGrid(g.x, g.z));
+  }
+
+  /**
+   * Road level at a world point whose grid point is already known (traffic knows both),
+   * which skips the warp inversion smoothHeight() has to do.
+   */
+  roadHeight(wx: number, wz: number, gx: number, gz: number): number {
+    return this.smoothCore(wx, wz, this.townDistanceGrid(gx, gz));
+  }
+
+  /** The smooth layer, given the distance to town (the hills are defined in world space). */
+  private smoothCore(x: number, z: number, townDist: number): number {
     // Countryside: rolling farmland, tall hills in the northern forest, a rim at the edge.
     const forest = this.forestWeight(x, z);
     let rural = (14 + 37 * forest) * Math.max(0, fbm(x / 750, z / 750, 3, this.seed + 1) * 1.6 - 0.3);
@@ -204,7 +188,7 @@ export class Terrain {
     const outer = smoothstep(250, 700, Math.hypot(x, z));
     const town = 3 + (TOWN_HILLS_DOWNTOWN + (TOWN_HILLS - TOWN_HILLS_DOWNTOWN) * outer) * fbm(x / 520 + 3.1, z / 520 - 1.7, 3, this.seed + 5);
     // Blend from town hills to countryside hills over a few hundred metres outside town.
-    let a = lerp(town, Math.max(rural, 3 * (1 - smoothstep(300, 600, this.townDistance(x, z)))), smoothstep(40, 300, this.townDistance(x, z)));
+    let a = lerp(town, Math.max(rural, 3 * (1 - smoothstep(300, 600, townDist))), smoothstep(40, 300, townDist));
     a *= 1 - smoothstep(1250, 1480, z); // the coast is flat
     a *= smoothstep(1.0, 2.6, lakeRadius(x, z)); // and so is the lake shore
     return a;
@@ -220,10 +204,14 @@ export class Terrain {
     let p = this.planes.get(b);
     if (!p) {
       const r = BLOCK_SIZE / 2;
-      const h00 = this.smoothHeight(b.cx - r, b.cz - r);
-      const h10 = this.smoothHeight(b.cx + r, b.cz - r);
-      const h01 = this.smoothHeight(b.cx - r, b.cz + r);
-      const h11 = this.smoothHeight(b.cx + r, b.cz + r);
+      const at = (gx: number, gz: number) => {
+        const w = this.layout.warp.forward(gx, gz);
+        return this.smoothHeight(w.x, w.z);
+      };
+      const h00 = at(b.cx - r, b.cz - r);
+      const h10 = at(b.cx + r, b.cz - r);
+      const h01 = at(b.cx - r, b.cz + r);
+      const h11 = at(b.cx + r, b.cz + r);
       // Least-squares plane through four corners of a square: mean height, average slopes.
       p = {
         h: (h00 + h10 + h01 + h11) / 4,
@@ -245,10 +233,11 @@ export class Terrain {
     return this.smoothHeight(x, z);
   }
 
-  /** The block whose slab covers (x, z), if any. */
+  /** The block whose slab covers the world point (x, z), if any. */
   blockUnder(x: number, z: number): Block | null {
-    const b = this.layout.blockAt(cellOf(x), cellOf(z));
-    if (!b || Math.abs(x - b.cx) > BLOCK_SIZE / 2 || Math.abs(z - b.cz) > BLOCK_SIZE / 2) return null;
+    const g = this.toGrid(x, z);
+    const b = this.layout.blockAt(cellOf(g.x), cellOf(g.z));
+    if (!b || Math.abs(g.x - b.cx) > BLOCK_SIZE / 2 || Math.abs(g.z - b.cz) > BLOCK_SIZE / 2) return null;
     return b;
   }
 
@@ -260,12 +249,14 @@ export class Terrain {
 
   /** Height of the ground at (x, z), in metres. */
   heightAt(x: number, z: number): number {
-    let h = this.smoothHeight(x, z);
+    const g = this.toGrid(x, z);
+    const townDist = this.townDistanceGrid(g.x, g.z);
+    let h = this.smoothCore(x, z, townDist);
 
     // Smaller bumps, smoothed away near roads and towns.
     const forest = this.forestWeight(x, z);
     const detailMask =
-      smoothstep(9, 32, this.roadDistance(x, z)) * smoothstep(15, 60, this.townDistance(x, z)) * (1 - smoothstep(1300, 1450, z));
+      smoothstep(9, 32, this.roadDistanceGrid(g.x, g.z)) * smoothstep(15, 60, townDist) * (1 - smoothstep(1300, 1450, z));
     if (detailMask > 0) h += (fbm(x / 110, z / 110, 3, this.seed + 2) - 0.5) * 2 * (2.5 + 5 * forest) * detailMask;
 
     // The lake: a bowl below the water level.
@@ -318,6 +309,7 @@ export class Terrain {
     }
 
     const forest = this.forestWeight(x, z);
+    const gp = this.toGrid(x, z);
     const n1 = fbm(x / 60, z / 60, 2, this.seed + 9);
     // Meadow grass, varying between lush and dry.
     let r = lerp(0.1, 0.22, n1);
@@ -329,7 +321,7 @@ export class Terrain {
     b = lerp(b, 0.04, forest * 0.8);
 
     // Farmland: a patchwork of fields (wheat, young crops, ploughed earth, pasture).
-    if (this.zoneAt(x, z) === 'farm' && this.roadDistance(x, z) > ROAD_WIDTH / 2 + 2) {
+    if (this.zoneAtGrid(gp.x, gp.z) === 'farm' && this.roadDistanceGrid(gp.x, gp.z) > ROAD_WIDTH / 2 + 2) {
       const fx = Math.floor((x + 1000) / 58);
       const fz = Math.floor((z + 1000) / 42);
       const pick = hash2(fx, fz, this.seed + 11);
@@ -343,7 +335,7 @@ export class Terrain {
       const c = crops[Math.floor(pick * crops.length)];
       // Crop rows: faint stripes.
       const rows = 0.9 + 0.1 * Math.sin((pick > 0.5 ? x : z) * 2.2);
-      const field = (1 - forest) * smoothstep(40, 80, this.townDistance(x, z));
+      const field = (1 - forest) * smoothstep(40, 80, this.townDistanceGrid(gp.x, gp.z));
       r = lerp(r, c[0] * rows, field);
       g = lerp(g, c[1] * rows, field);
       b = lerp(b, c[2] * rows, field);

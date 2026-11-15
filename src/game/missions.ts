@@ -177,9 +177,11 @@ export class Missions implements SimEntity {
       // On the sidewalk 6 m from the block's south-west corner, between the pedestrians'
       // path and the curb, facing out to the street.
       const half = BLOCK_SIZE / 2;
-      const position = new THREE.Vector3(b.cx - half + 1.2, 0, b.cz + half - 6);
+      const gp = { x: b.cx - half + 1.2, z: b.cz + half - 6 };
+      const w = layout.warp.forward(gp.x, gp.z);
+      const position = new THREE.Vector3(w.x, 0, w.z);
       position.y = surface(position.x, position.z);
-      const facing = Math.PI / 2; // face −X (the road)
+      const facing = Math.PI / 2 + layout.warp.angle(gp.x, gp.z); // face the road (−X on the grid)
       world.createCollider(RAPIER.ColliderDesc.capsule(0.55, 0.35).setTranslation(position.x, position.y + 0.9, position.z));
       const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: badge, depthTest: true }));
       marker.scale.set(0.7, 0.7, 0.7);
@@ -327,7 +329,8 @@ export class Missions implements SimEntity {
       const side = Math.floor(Math.random() * 4);
       const x = side < 2 ? (side === 0 ? edge : -edge) : along;
       const z = side < 2 ? along : side === 2 ? edge : -edge;
-      const p = new THREE.Vector3(b.cx + x, this.surface(b.cx + x, b.cz + z), b.cz + z);
+      const w = this.layout.warp.forward(b.cx + x, b.cz + z);
+      const p = new THREE.Vector3(w.x, this.surface(w.x, w.z), w.z);
       const d = Math.hypot(p.x - from.x, p.z - from.z);
       if (d >= min && d <= max) return p;
     }
@@ -464,8 +467,9 @@ export class Missions implements SimEntity {
    * roads (mostly straight on, never back) and put a gate every few intersections.
    */
   private raceRoute(from: THREE.Vector3): THREE.Vector3[] {
-    let i = cellOf(from.x + PITCH / 2);
-    let j = cellOf(from.z + PITCH / 2);
+    const g = this.layout.warp.inverse(from.x, from.z);
+    let i = cellOf(g.x + PITCH / 2);
+    let j = cellOf(g.z + PITCH / 2);
     // Snap to a node that has a road.
     const dirs: Dir[] = [0, 1, 2, 3];
     const hasAny = (a: number, b: number) => dirs.some((d) => this.graph.hasRoad(a, b, d));
@@ -488,9 +492,8 @@ export class Missions implements SimEntity {
       [i, j] = next;
       const key = `${i},${j}`;
       if (step % 4 === 3 && !visited.has(key)) {
-        const x = lineCoord(i);
-        const z = lineCoord(j);
-        points.push(new THREE.Vector3(x, this.hooks.ground(x, z), z));
+        const w = this.layout.warp.forward(lineCoord(i), lineCoord(j));
+        points.push(new THREE.Vector3(w.x, this.hooks.ground(w.x, w.z), w.z));
       }
       visited.add(key);
       // Choose the next direction: straight on mostly, turn sometimes, never back, and

@@ -40,7 +40,8 @@ The project followed the milestones in `CLAUDE.md`, one commit each, then gamepl
 | `543da38` | Vehicles that drive or land in deep water eject you, wreck and sink |
 | `a258943` | Hospitals (respawn at the nearest one) and five more gun stores |
 | `2497a27` | Full-screen world map (M or tap the minimap) |
-| *(next)* | Hilly towns (sidewalks draped over the hills), more relief in the country, five new mission givers around the map |
+| `e73e0fd` | Hilly towns (sidewalks draped over the hills), more relief in the country, five new mission givers around the map |
+| *(next)* | Curvy roads (the road warp), narrower two-lane country roads, realistic traffic (IDM car following, driver personalities, lane changes, overtaking, brake lights) |
 
 ---
 
@@ -163,7 +164,8 @@ The world is a grid of **52 × 52 cells**, each 78 m (`PITCH`). Grid lines (road
 
 **Town zones** are blocks exactly like the original city:
 - each block is 64 m: a 56 m lot plus 4 m sidewalks, on a 15 cm curb slab;
-- roads are 14 m wide.
+- town roads are 14 m wide (two 3.5 m lanes each way);
+- country roads are 8 m wide (`RURAL_ROAD_WIDTH`: one lane each way, dashed yellow centre line, white edge lines). Intersections are sized by `RoadNet.nodeHalf(i, j)`: 14 m squares where a town road meets, 8 m where only country roads do.
 
 **Roads** (`RoadNet`): a segment between two neighbouring grid intersections exists if:
 - either cell beside it is a town (so towns are fully gridded and ringed by roads); or
@@ -178,6 +180,14 @@ The coastal road falls on one of those lines (46). Each segment also knows if it
 - seaside shops.
 
 Countryside features (forest trees, farmsteads, hedgerow trees) are generated **per cell when its chunk is built** (`ruralFeatures`). That keeps startup fast, since there are tens of thousands of forest trees.
+
+**The road warp (`warp.ts`): why the map isn't graph paper.** Everything above is laid out on a perfect grid ("grid space"). Before it's built, every point is pushed sideways by a smooth, seeded noise displacement: *world = grid + D(grid)*. Straight grid lines become gently winding roads, square blocks become slightly irregular, and because roads, sidewalks, buildings, trees, lamps, traffic lanes and pedestrians' paths are all built from the same grid data and moved by the same field, everything still fits together.
+- How far things move depends on the area: **~2 m downtown** (small kinks; it still reads as a grid), **~7 m in suburbs and villages**, **~25 m in the countryside** (country roads meander between crossings). The bends are ~400 m long (two noise octaves).
+- It fades to nothing near the coast (the coastal road and beach stay put), around the lake (roads mustn't wander into it) and at the world's edge.
+- `warp.forward(gx, gz)` is grid → world. `warp.inverse(wx, wz)` is world → grid, by fixed-point iteration (*g ← w − D(g)*, 4 rounds). That converges because the field's slope stays below ~0.3, so it never folds space over itself. `warp.angle(gx, gz)` is how much the warp turns things locally (added to a building's or lamp's yaw).
+- **Rule of thumb:** layout data (`Block`, `Building`, road lines, `lineCoord`) is in grid space; anything you place in the world (meshes, colliders, people, doors, pickups, map drawing) goes through `forward`. `Terrain`'s public API (`heightAt`, `surfaceAt`, `smoothHeight`, `zoneAt`, `roadDistance`, `blockUnder`…) takes **world** coordinates and converts internally. Helpers: `toWorld(layout, x, z)`, `warpSpot(layout, spot)` (position + yaw), `terrain.toWorld`, `terrain.warpAngle`.
+- Countryside features (forest trees, farms) are generated directly in world space; only things tied to roads and blocks are warped.
+- **Decision:** a warp field, not a different road generator. Generating a real irregular road network would mean rewriting blocks, lots, traffic routing, the map and missions, which all rely on the grid's simple neighbour structure. The warp keeps all of that and only changes how it looks and where it is.
 
 **Determinism.** `rng.ts` uses **mulberry32** (a tiny 32-bit PRNG) and `hashSeed(seed, x, z)` to give every cell its own random stream. A cell's content never depends on the order cells are generated, which is what lets chunks stream in any order.
 
@@ -226,7 +236,7 @@ The world is cut into **13 × 13 chunks of 4 × 4 cells (312 m)**, built in two 
 - **Startup:** only the chunks within 450 m of the spawn are built before the game starts. Startup stays ~1.2 s; the rest streams in while you play.
 - **Teleports:** respawning at a hospital calls `loadAround()` first.
 
-**Town blocks on hills.** Each block's raised slab is **draped over the smooth layer**: a grid every 8 m at `smoothHeight + 15 cm`, with curb faces down each side and the lawn draped the same way. A small **heightfield collider** per block matches the top.
+**Town blocks on hills.** Each block's raised slab is **draped over the smooth layer**: a grid every 8 m at `smoothHeight + 15 cm`, with curb faces down each side and the lawn draped the same way. A small **triangle-mesh collider** per block matches the top (a trimesh rather than a heightfield, because the road warp bends the block out of its square).
 - **Decision:** the first attempt tilted each block as a flat plane. It left curbs from −0.6 to +0.9 m on 6.6 % of block edges, because the hills curve within 64 m. Draping keeps the curb at exactly 15 cm all round.
 - **Buildings stay upright:** the base sits at the lowest point of the footprint and the walls grow by the drop to the highest point, so nothing floats and the uphill side is set into the slope. Rooftop clutter goes on the adjusted roof (each roof prop remembers its building).
 - Intersections are draped like the road strips, so there's no step where slopes meet.
@@ -280,12 +290,14 @@ Asphalt, sidewalk, grass, the helipad, glow sprites and the terrain grain are pa
 
 ### 4.8 Road graph and traffic lights (`roadGraph.ts`)
 
-Intersections are nodes. A car's route is a chain of pieces:
-- **lane:** straight along a road segment, in the inner lane on the right;
-- **turn:** a quadratic Bézier through the intersection (left, right or straight);
+Intersections are nodes. Pieces are laid out on the grid and bent into the world by the warp when a car is placed. A car's route is a chain of pieces:
+- **lane:** straight (on the grid) along a road segment, on the inner lane line on the right. Cars carry a lateral offset from it: `0` = inner lane, `LANE_SPACING` (3.5 m) = outer lane on town roads; on country roads `0` is the only lane and `−3.5` is the oncoming lane (overtaking);
+- **turn:** a cubic Bézier through the intersection (left, right or straight), from a given lane offset to another (`turn(i, j, from, to, offIn, offOut)`). Its control points sit 0.55 of the way to where the two lane lines cross, which makes a near-circular arc with the heading continuous at both ends;
 - **U-turn:** only at dead ends, for example where a country road stops at the lake.
 
-The graph reads the `RoadNet` from the layout, so missing segments simply aren't there.
+**Pieces are cached and shared:** two cars on the same piece hold the same object, so "is that car on my lane?" is an identity check. Each piece also stores a **curvature speed limit** every few metres, measured on the *warped* world path: *v = √(a_lat / κ)* with a comfortable a_lat = 3 m/s² (κ from the circle through three neighbouring points).
+
+The graph reads the `RoadNet` from the layout, so missing segments simply aren't there. `isJunction(i, j)` marks unsignalled crossings where 3+ roads meet (country junctions); `turnKind(from, to)` says whether a turn is right, left, straight or a U-turn.
 
 `lightState(i, j, dir, time)` gives lit intersections a 24 s cycle in which north–south and east–west alternate.
 
@@ -413,13 +425,32 @@ Sinking or sunken vehicles can't be entered.
 
 ### 6.1 Traffic (`traffic.ts`)
 
-- **Pool:** 24 cars kept around the player. They spawn on lanes within a few blocks (60–220 m away) and are recycled beyond 260 m.
-- **On the hills:** each car's height and pitch come from the smooth terrain layer ahead of and behind it. Country roads have a higher cruise speed (16 m/s).
-- **Not physics-driven.** Each car chooses its speed along its route, and a *kinematic* body is moved to match, so your car bumps into them as solid objects. This is far cheaper and more predictable than simulating 24 cars.
-- **Driving rules:**
-  - Cruise at 11 m/s, slow to 6 m/s in turns.
-  - Brake for red lights at the stop line.
-  - Keep a gap to whatever is ahead in the lane (cars, you).
+- **Pool:** 28 cars kept around the player. They spawn on lanes within a few blocks (60–220 m away) and are recycled beyond 260 m.
+- **Placement:** a car's grid point (piece + lateral offset) and two points 1.5 m ahead and behind are moved through the warp. Their midpoint is the car, the line between them its heading, and the road heights there its pitch (`terrain.roadHeight`, which skips the warp inversion because the grid point is known). While changing lanes the nose turns toward the side it's drifting to.
+- **Not physics-driven.** Each car chooses its speed along its route, and a *kinematic* body is moved to match, so your car bumps into them as solid objects. This is far cheaper and more predictable than simulating the cars.
+- **Speed limits:** 12.5 m/s (45 km/h) in town and 19 m/s (~70 km/h) on country roads, times each driver's pace. Curves cap it further (the piece's curvature limits, braked for in advance: *v² = v_lim² + 2·b·d*).
+- **Car following: the Intelligent Driver Model (IDM).** Each step a car's acceleration is *a·[1 − (v/v0)⁴ − (s\*/s)²]* with *s\* = s0 + v·T + v·Δv / (2√(a·b))*. Here *s* is the gap to the leader and *Δv* how fast it's closing. Red lights, give-way lines and obstacles (you, your cars) are leaders that stand still. IDM gives smooth, collision-free following, queues that start and stop naturally, and stop-and-go waves, from one formula.
+- **Driver personalities:** each driver gets their own pace (85–120 % of the limit, triangular spread; 12 % are dawdlers at 68–80 %; vans a bit slower), time gap *T* 1–2 s, acceleration *a*, braking *b* and stopping gap *s0*. So traffic spreads out, platoons form behind slow drivers, and fast drivers want to get past.
+- **Lane changes (town roads): a simplified MOBIL.** A couple of times a second (staggered), a car compares the IDM acceleration it would have in the other lane with its current one:
+  - it switches if the gain beats a threshold, with a bias that keeps cars right;
+  - only if the car that would end up behind it wouldn't have to brake harder than 3 m/s²;
+  - within 60 m of the end of a block it moves to the lane for its turn (right turns from the right lane, left turns from the left);
+  - it never moves sideways into a car that's alongside.
+- **Overtaking (country roads).** Stuck behind something slower, a driver estimates how long passing takes. It pulls into the oncoming lane only if:
+  - the manoeuvre fits before the next junction or bend (along the straight run of road ahead);
+  - the oncoming lane is clear for that whole time, assuming cars coming at ~20 m/s.
+
+  It aborts and tucks back in if something appears, passes a whole queue if there's no gap to return to, and oncoming cars brake for anyone in their lane.
+- **Junctions and lights:**
+  - Red lights and stoppable yellows stop cars at the stop line.
+  - Left turns at lights wait for oncoming cars going straight or right.
+  - At unsignalled country junctions cars slow down and give way while another car is crossing.
+- **Brake lights:** an extra instanced mesh per car type over the tail lights (unlit, so they glow at night), shown while a car is braking or standing.
+- **Cost:** ~0.15 ms per physics step for all 28 cars, measured in headless Chromium:
+  - the leader search is a scan over the other cars with identity checks on shared pieces;
+  - lane decisions are staggered and run ~2× a second;
+  - curvature limits are precomputed per piece and each car's planned turn is cached;
+  - traffic-light lamp colours are refreshed 10× a second instead of every step (cars read the light state directly).
 - **Rendering:** a handful of `InstancedMesh`es, one per car part per type.
 - **Damage:** 150 health. They smoke when damaged (`sim/smoke.ts`, one `Points` draw call for all puffs). At 0 they become wrecks (a matte body so they don't look silver), the driver bails and drops cash, and the wreck is cleared after 20 s.
 
@@ -685,6 +716,8 @@ Each one-shot is retimed so it lasts as long as the gameplay action.
   - Meshes and colliders exist only for chunks near the player, in two tiers (§4.3).
   - World data for everything is generated at startup, which stays ~1.2 s.
   - Chunk building is budgeted to ~4 ms per frame.
+- **Traffic:** ~0.15 ms per physics step for 28 cars (§6.1).
+- **Road warp:** world → grid conversions (4 noise evaluations each) are the price of curvy roads. Code that already knows a grid point uses it directly (`roadHeight`, chunk building works on the grid and only warps the results).
 - **Instance pools:** one draw call per object type, drawing only up to the highest slot in use.
 - **Per-chunk meshes** are just terrain, road surface and road paint (3 draw calls per loaded far chunk).
 - **Typical load:** ~200 draw calls and ~1.7 M triangles counting the shadow pass, downtown with ~36 far and ~10 near chunks loaded.
@@ -728,6 +761,7 @@ There is no unit-test suite. Instead the real game is driven in **headless Chrom
   - car top speed and handling;
   - the helicopter holding a hover with zero drift;
   - traffic gaps and stopping for the player;
+  - traffic over 2 minutes in town and in the country: no overlapping cars, no cars off the road, the spread of cruise speeds, lane changes, overtakes started/completed/aborted, and the cost per step;
   - pedestrians staying on sidewalks;
   - chat outcomes;
   - damage per weapon, fall and crash damage, regen, death and respawn;
@@ -764,7 +798,9 @@ When adding a feature, the quickest check is the browser console in `npm run dev
 | Change weapon prices or damage | `game/stats.ts` (`WEAPONS`, `ADDONS`, `AP_AMMO`) |
 | Change mission rewards or add missions | `game/missions.ts` (`REWARDS`, giver specs) |
 | Change pedestrian behaviour | `npc/pedestrians.ts` constants and the state switch in `fixedUpdate` |
-| Change traffic density or speed | `npc/traffic.ts` (`POOL_SIZE`, `CRUISE_SPEED`…) |
+| Change traffic density or speed | `npc/traffic.ts` (`POOL_SIZE`, `TOWN_SPEED`, `RURAL_SPEED`, `newDriver()` for the spread of driver habits) |
+| Change how drivers change lanes or overtake | `npc/traffic.ts` (`decideLane`, `decideOvertake`, `updateOvertake`) |
+| Make roads curvier or straighter | `world/warp.ts` (`DOWNTOWN`, `TOWN`, `COUNTRY`, `WAVELENGTH`; keep the slope well below 1 so `inverse` converges) |
 | Change skin/hair/outfit palettes | `player/characterLibrary.ts` |
 | Change which clip plays for an action | `player/character.ts` (`ONE_SHOTS`, aims) |
 | Add or replace characters | `scripts/build-quaternius.mjs` (`CHARACTERS`, `OVERRIDES`), then `npm run build:quaternius` |

@@ -168,7 +168,9 @@ export class Pedestrians implements SimEntity {
     else if (k === 1) out.set(cx + h, 0, cz - h + f);
     else if (k === 2) out.set(cx + h - f, 0, cz + h);
     else out.set(cx - h, 0, cz + h - f);
-    out.y = this.hooks.surface(out.x, out.z);
+    // The loop is a square on the grid; the road warp bends it along the real sidewalk.
+    const w = this.layout.warp.forward(out.x, out.z);
+    out.set(w.x, this.hooks.surface(w.x, w.z), w.z);
     return out;
   }
 

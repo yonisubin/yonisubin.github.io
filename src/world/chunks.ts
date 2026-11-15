@@ -7,6 +7,7 @@ import {
   PITCH,
   LOT,
   ROAD_WIDTH,
+  RURAL_ROAD_WIDTH,
   lineCoord,
   ruralFeatures,
   type Block,
@@ -110,6 +111,12 @@ export class WorldStreamer {
     this.loadedTexture = new THREE.DataTexture(this.loadedMask, CHUNKS, CHUNKS, THREE.RedFormat, THREE.UnsignedByteType);
     this.loadedTexture.needsUpdate = true;
   }
+
+  /** Grid → world through the road warp (a fresh object each call, safe to keep). */
+  private readonly toWorld = (gx: number, gz: number): { x: number; z: number } => {
+    const w = this.layout.warp.forward(gx, gz);
+    return { x: w.x, z: w.z };
+  };
 
   /** World-space rectangle of a chunk. */
   private bounds(c: Chunk): { x0: number; z0: number; x1: number; z1: number } {
@@ -219,9 +226,9 @@ export class WorldStreamer {
     const collider = (desc: RAPIER.ColliderDesc) => t.colliders.push(this.world.createCollider(desc));
 
     // Town blocks: raised sidewalk + lot draped over the hills, lawn, buildings.
-    const buildings: Building[] = [];
-    const pavement = new GeometryBuilder();
-    const lawn = new GeometryBuilder();
+    const buildings: (Building & { yaw?: number })[] = [];
+    const pavement = new GeometryBuilder(this.toWorld);
+    const lawn = new GeometryBuilder(this.toWorld);
     for (let bz = c.cz * CHUNK_CELLS; bz < (c.cz + 1) * CHUNK_CELLS; bz++) {
       for (let bx = c.cx * CHUNK_CELLS; bx < (c.cx + 1) * CHUNK_CELLS; bx++) {
         const block = this.layout.blockAt(bx, bz);
@@ -232,7 +239,15 @@ export class WorldStreamer {
         // the highest corner (the uphill side is set into the hill).
         for (const bl of block.buildings) {
           const f = this.footing(block, bl);
-          buildings.push({ ...bl, y: f.low + CURB_HEIGHT - 0.05, height: bl.height + (f.high - f.low) + 0.05 });
+          const w = this.toWorld(bl.x, bl.z);
+          buildings.push({
+            ...bl,
+            x: w.x,
+            z: w.z,
+            y: f.low + CURB_HEIGHT - 0.05,
+            height: bl.height + (f.high - f.low) + 0.05,
+            yaw: this.layout.warp.angle(bl.x, bl.z),
+          });
         }
       }
     }
@@ -267,14 +282,19 @@ export class WorldStreamer {
     }
 
     for (const bl of buildings) {
+      const yaw = bl.yaw ?? 0;
       const slot = take(this.pools.buildings);
       if (slot >= 0) {
-        this.pools.buildings.place(slot, bl.x, bl.y, bl.z, bl.width, bl.height, bl.depth);
+        this.pools.buildings.place(slot, bl.x, bl.y, bl.z, bl.width, bl.height, bl.depth, yaw);
         this.pools.buildings.setColor(slot, _color.setRGB(...bl.color));
         const style = this.pools.buildings.mesh.geometry.getAttribute('aStyle') as THREE.InstancedBufferAttribute;
         style.setXY(slot, bl.style, bl.seed);
       }
-      collider(RAPIER.ColliderDesc.cuboid(bl.width / 2, bl.height / 2, bl.depth / 2).setTranslation(bl.x, bl.y + bl.height / 2, bl.z));
+      collider(
+        RAPIER.ColliderDesc.cuboid(bl.width / 2, bl.height / 2, bl.depth / 2)
+          .setTranslation(bl.x, bl.y + bl.height / 2, bl.z)
+          .setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }),
+      );
       if (bl.roof) {
         // Ridge along the longer side; the unit prism's ridge runs along X.
         const alongX = bl.width >= bl.depth;
@@ -287,7 +307,7 @@ export class WorldStreamer {
           (alongX ? bl.width : bl.depth) + 0.8,
           bl.roof.height,
           (alongX ? bl.depth : bl.width) + 0.8,
-          alongX ? 0 : Math.PI / 2,
+          yaw + (alongX ? 0 : Math.PI / 2),
         );
         this.pools.roofs.setColor(r, _color.setRGB(...bl.roof.color));
       }
@@ -346,13 +366,12 @@ export class WorldStreamer {
   /** Road surface (asphalt) and paint for the segments and intersections in this chunk. */
   private buildRoads(c: Chunk, t: TierContents): void {
     const roads = this.layout.roads;
-    const asphalt = new GeometryBuilder();
-    const paint = new GeometryBuilder();
+    const asphalt = new GeometryBuilder(this.toWorld);
+    const paint = new GeometryBuilder(this.toWorld);
     const white = { b: paint, color: [0.85, 0.85, 0.8] as const };
     const yellow = { b: paint, color: [0.85, 0.62, 0.17] as const };
     const surface = { b: asphalt, color: [1, 1, 1] as const };
     const h = (x: number, z: number) => this.terrain.smoothHeight(x, z);
-    const half = ROAD_WIDTH / 2;
     const i0 = c.cx * CHUNK_CELLS;
     const k0 = c.cz * CHUNK_CELLS;
     // The last chunk row/column also owns the outermost grid line.
@@ -385,23 +404,38 @@ export class WorldStreamer {
       }
     };
 
-    const segment = (alongZ: boolean, fixed: number, from: number, to: number, rural: boolean, lightsAtStart: boolean, lightsAtEnd: boolean, townStart: boolean, townEnd: boolean) => {
-      const start = from + half;
-      const end = to - half;
-      strip(surface, alongZ, fixed, 0, start, end, ROAD_WIDTH, ROAD_Y);
+    const segment = (
+      alongZ: boolean,
+      fixed: number,
+      from: number,
+      to: number,
+      rural: boolean,
+      halfStart: number,
+      halfEnd: number,
+      lightsAtStart: boolean,
+      lightsAtEnd: boolean,
+      townStart: boolean,
+      townEnd: boolean,
+    ) => {
+      const half = (rural ? RURAL_ROAD_WIDTH : ROAD_WIDTH) / 2;
+      const start = from + halfStart;
+      const end = to - halfEnd;
+      strip(surface, alongZ, fixed, 0, start, end, half * 2, ROAD_Y);
       const CROSSWALK = 3.2;
       const GAP = 0.6;
       const linesFrom = start + (townStart ? GAP + CROSSWALK + 1.2 : 1);
       const linesTo = end - (townEnd ? GAP + CROSSWALK + 1.2 : 1);
-      // Double yellow centre line.
+      if (rural) {
+        // Country road, one lane each way: a dashed yellow centre line (overtaking allowed)
+        // and solid white edge lines.
+        for (let s = linesFrom + 1; s + 4 < linesTo; s += 10) strip(yellow, alongZ, fixed, 0, s, s + 4, 0.14, PAINT_Y);
+        strip(white, alongZ, fixed, -half + 0.35, start, end, 0.15, PAINT_Y);
+        strip(white, alongZ, fixed, half - 0.35, start, end, 0.15, PAINT_Y);
+        return;
+      }
+      // Town road, two lanes each way: double yellow centre line, dashed lane dividers.
       strip(yellow, alongZ, fixed, -0.17, linesFrom, linesTo, 0.12, PAINT_Y);
       strip(yellow, alongZ, fixed, 0.17, linesFrom, linesTo, 0.12, PAINT_Y);
-      if (rural) {
-        // Solid white edge lines on country roads.
-        strip(white, alongZ, fixed, -half + 0.4, start, end, 0.15, PAINT_Y);
-        strip(white, alongZ, fixed, half - 0.4, start, end, 0.15, PAINT_Y);
-      }
-      // Dashed lane dividers: 3 m dash, 6 m gap.
       for (let s = linesFrom + 2; s + 3 < linesTo - 2; s += 9) {
         strip(white, alongZ, fixed, -3.5, s, s + 3, 0.12, PAINT_Y);
         strip(white, alongZ, fixed, 3.5, s, s + 3, 0.12, PAINT_Y);
@@ -417,29 +451,27 @@ export class WorldStreamer {
       if (townEnd) zebra(end - GAP - CROSSWALK, end - GAP);
     };
 
-    const townNode = (i: number, k: number) => {
-      for (const [dx, dz] of [[-1, -1], [0, -1], [-1, 0], [0, 0]]) {
-        const z = this.layout.zones[(k + dz) * CELLS + (i + dx)];
-        if (i + dx >= 0 && k + dz >= 0 && i + dx < CELLS && k + dz < CELLS && (z === 'downtown' || z === 'suburb' || z === 'village' || z === 'beachtown')) return true;
-      }
-      return false;
-    };
+    const townNode = (i: number, k: number) => roads.townNode(i, k);
+    const nh = (i: number, k: number) => roads.nodeHalf(i, k);
 
     for (let k = k0; k < k1; k++) {
       for (let i = i0; i < i1; i++) {
         // Segment along X from node (i, k) to (i+1, k).
         if (roads.hasH(i, k)) {
-          segment(false, lineCoord(k), lineCoord(i), lineCoord(i + 1), roads.ruralH(i, k), roads.hasLights(i, k), roads.hasLights(i + 1, k), townNode(i, k), townNode(i + 1, k));
+          segment(false, lineCoord(k), lineCoord(i), lineCoord(i + 1), roads.ruralH(i, k), nh(i, k), nh(i + 1, k), roads.hasLights(i, k), roads.hasLights(i + 1, k), townNode(i, k), townNode(i + 1, k));
         }
         // Segment along Z from node (i, k) to (i, k+1).
         if (roads.hasV(i, k)) {
-          segment(true, lineCoord(i), lineCoord(k), lineCoord(k + 1), roads.ruralV(i, k), roads.hasLights(i, k), roads.hasLights(i, k + 1), townNode(i, k), townNode(i, k + 1));
+          segment(true, lineCoord(i), lineCoord(k), lineCoord(k + 1), roads.ruralV(i, k), nh(i, k), nh(i, k + 1), roads.hasLights(i, k), roads.hasLights(i, k + 1), townNode(i, k), townNode(i, k + 1));
         }
-        // Intersection square, flat at the node's height.
+        // Intersection square (2 × 2 quads, so it follows the warp and the hill).
         if (roads.hasH(i, k) || roads.hasH(i - 1, k) || roads.hasV(i, k) || roads.hasV(i, k - 1)) {
           const x = lineCoord(i);
           const z = lineCoord(k);
-          asphalt.quad(x - half, z + half, x + half, z + half, x + half, z - half, x - half, z - half, h, ROAD_Y, surface.color);
+          const half = nh(i, k);
+          for (const [ox, oz] of [[-half, -half], [0, -half], [-half, 0], [0, 0]]) {
+            asphalt.quad(x + ox, z + oz + half, x + ox + half, z + oz + half, x + ox + half, z + oz, x + ox, z + oz, h, ROAD_Y, surface.color);
+          }
         }
       }
     }
@@ -461,7 +493,8 @@ export class WorldStreamer {
     let high = -Infinity;
     // Corners and edge midpoints: the hills are smooth, so this catches the extremes.
     for (const [fx, fz] of [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0], [0, 0]]) {
-      const h = this.terrain.blockHeight(block, bl.x + (fx * bl.width) / 2, bl.z + (fz * bl.depth) / 2);
+      const w = this.toWorld(bl.x + (fx * bl.width) / 2, bl.z + (fz * bl.depth) / 2);
+      const h = this.terrain.blockHeight(block, w.x, w.z);
       low = Math.min(low, h);
       high = Math.max(high, h);
     }
@@ -471,7 +504,7 @@ export class WorldStreamer {
   /**
    * A town block's raised slab, draped over the smooth hills so it sits exactly CURB_HEIGHT
    * above the roads all round: a top grid every 8 m, curb faces down each side, the lawn
-   * over the lot, and a heightfield collider matching the top.
+   * over the lot, and a triangle-mesh collider matching the top (the road warp bends the block).
    */
   private buildBlockSurface(
     block: Block,
@@ -511,12 +544,22 @@ export class WorldStreamer {
         }
       }
     }
-    // Heightfield collider over the block: rows along Z, columns along X, column-major.
-    const hf = new Float32Array((n + 1) * (n + 1));
-    for (let ix = 0; ix <= n; ix++) {
-      for (let iz = 0; iz <= n; iz++) hf[ix * (n + 1) + iz] = top(block.cx - half + ix * step, block.cz - half + iz * step);
+    // Collider: a triangle mesh over the same (warped, draped) top grid.
+    const vertices = new Float32Array((n + 1) * (n + 1) * 3);
+    for (let iz = 0; iz <= n; iz++) {
+      for (let ix = 0; ix <= n; ix++) {
+        const w = this.toWorld(block.cx - half + ix * step, block.cz - half + iz * step);
+        vertices.set([w.x, top(w.x, w.z), w.z], (iz * (n + 1) + ix) * 3);
+      }
     }
-    collider(RAPIER.ColliderDesc.heightfield(n, n, hf, { x: BLOCK_SIZE, y: 1, z: BLOCK_SIZE }).setTranslation(block.cx, 0, block.cz));
+    const indices = new Uint32Array(n * n * 6);
+    for (let iz = 0, k = 0; iz < n; iz++) {
+      for (let ix = 0; ix < n; ix++, k += 6) {
+        const a = iz * (n + 1) + ix;
+        indices.set([a, a + n + 1, a + 1, a + 1, a + n + 1, a + n + 2], k);
+      }
+    }
+    collider(RAPIER.ColliderDesc.trimesh(vertices, indices));
   }
 
   // ------------------------------------------------------------------ near tier
@@ -535,31 +578,37 @@ export class WorldStreamer {
       for (let bx = c.cx * CHUNK_CELLS; bx < (c.cx + 1) * CHUNK_CELLS; bx++) {
         const block = this.layout.blockAt(bx, bz);
         if (!block) continue;
+        // Layout positions are on the grid; toWorld() bends them with the roads.
         const top = (x: number, z: number) => this.terrain.blockHeight(block, x, z) + CURB_HEIGHT;
         for (const prop of block.roofProps) {
           // Roof height is set by the building's highest corner (see buildFar).
           const pool = prop.kind === 'ac' ? p.acs : p.tanks;
-          pool.place(take(pool), prop.x, this.footing(block, prop.building).high + CURB_HEIGHT + prop.y, prop.z, ...prop.size);
+          const w = this.toWorld(prop.x, prop.z);
+          const yaw = this.layout.warp.angle(prop.x, prop.z);
+          pool.place(take(pool), w.x, this.footing(block, prop.building).high + CURB_HEIGHT + prop.y, w.z, ...prop.size, yaw);
         }
         for (const tr of block.trees) {
           const yaw = tr.hue * Math.PI * 2;
-          const y = top(tr.x, tr.z) - 0.05;
-          p.trunks.place(take(p.trunks), tr.x, y, tr.z, tr.scale, tr.scale, tr.scale, yaw);
+          const { x, z } = this.toWorld(tr.x, tr.z);
+          const y = top(x, z) - 0.05;
+          p.trunks.place(take(p.trunks), x, y, z, tr.scale, tr.scale, tr.scale, yaw);
           const slot = take(p.canopies);
-          p.canopies.place(slot, tr.x, y, tr.z, tr.scale, tr.scale, tr.scale, yaw);
+          p.canopies.place(slot, x, y, z, tr.scale, tr.scale, tr.scale, yaw);
           p.canopies.setColor(slot, _color.setHSL(0.22 + tr.hue * 0.09, 0.45, 0.16 + tr.hue * 0.08));
-          collider(RAPIER.ColliderDesc.cylinder(1.4 * tr.scale, 0.2 * tr.scale).setTranslation(tr.x, y + 1.4 * tr.scale, tr.z));
+          collider(RAPIER.ColliderDesc.cylinder(1.4 * tr.scale, 0.2 * tr.scale).setTranslation(x, y + 1.4 * tr.scale, z));
         }
         for (const l of block.lamps) {
-          const y = top(l.x, l.z) - 0.05;
-          p.lamps.place(take(p.lamps), l.x, y, l.z, 1, 1, 1, l.yaw);
-          p.lampHeads.place(take(p.lampHeads), l.x, y, l.z, 1, 1, 1, l.yaw);
+          const { x, z } = this.toWorld(l.x, l.z);
+          const yaw = l.yaw + this.layout.warp.angle(l.x, l.z);
+          const y = top(x, z) - 0.05;
+          p.lamps.place(take(p.lamps), x, y, z, 1, 1, 1, yaw);
+          p.lampHeads.place(take(p.lampHeads), x, y, z, 1, 1, 1, yaw);
           // Ground point under the luminaire (over the road): the arm's +X direction after
-          // yawing by l.yaw.
-          const gx = l.x + Math.cos(l.yaw) * LAMP_HEAD_OUT;
-          const gz = l.z - Math.sin(l.yaw) * LAMP_HEAD_OUT;
+          // yawing by `yaw`.
+          const gx = x + Math.cos(yaw) * LAMP_HEAD_OUT;
+          const gz = z - Math.sin(yaw) * LAMP_HEAD_OUT;
           p.lightPools.place(take(p.lightPools), gx, this.terrain.surfaceAt(gx, gz) + 0.06, gz);
-          collider(RAPIER.ColliderDesc.cylinder(3.5, 0.12).setTranslation(l.x, y + 3.5, l.z));
+          collider(RAPIER.ColliderDesc.cylinder(3.5, 0.12).setTranslation(x, y + 3.5, z));
         }
       }
     }
@@ -577,6 +626,8 @@ export class WorldStreamer {
 
 /** Builds flat quads draped over the ground (`height(x, z)` + a small lift), with colours. */
 class GeometryBuilder {
+  /** `map`: where a layout (grid) point ends up in the world. */
+  constructor(private readonly map: (x: number, z: number) => { x: number; z: number }) {}
   private readonly positions: number[] = [];
   private readonly colors: number[] = [];
   private readonly indices: number[] = [];
@@ -605,7 +656,8 @@ class GeometryBuilder {
       [x2, z2],
       [x3, z3],
     ]) {
-      this.positions.push(x, height(x, z) + lift, z);
+      const w = this.map(x, z);
+      this.positions.push(w.x, height(w.x, w.z) + lift, w.z);
       this.colors.push(color[0], color[1], color[2]);
     }
     // Make the face point up whatever order the corners came in: the y component of
@@ -631,9 +683,11 @@ class GeometryBuilder {
     color: readonly [number, number, number],
   ): void {
     const base = this.positions.length / 3;
-    const t0 = top(x0, z0);
-    const t1 = top(x1, z1);
-    this.positions.push(x0, t0, z0, x1, t1, z1, x1, t1 - drop, z1, x0, t0 - drop, z0);
+    const a = { ...this.map(x0, z0) };
+    const b = this.map(x1, z1);
+    const t0 = top(a.x, a.z);
+    const t1 = top(b.x, b.z);
+    this.positions.push(a.x, t0, a.z, b.x, t1, b.z, b.x, t1 - drop, b.z, a.x, t0 - drop, a.z);
     for (let k = 0; k < 4; k++) this.colors.push(color[0], color[1], color[2]);
     // Winding so the face points along (nx, nz): its normal is (p1 − p0) × (p3 − p0).
     // With p1 − p0 = (dx, ·, dz) along the top and p3 − p0 = (0, −drop, 0) downward,

@@ -61,7 +61,7 @@ export class Cash implements SimEntity {
           z = side < 2 ? along : side === 2 ? edge : -edge;
         }
         this.pickups.push({
-          position: new THREE.Vector3(block.cx + x, surface(block.cx + x, block.cz + z), block.cz + z),
+          position: ((w) => new THREE.Vector3(w.x, surface(w.x, w.z), w.z))(layout.warp.forward(block.cx + x, block.cz + z)),
           amount: 5 * rng.int(2, 16), // $10–80
           away: 0,
           dropped: false,

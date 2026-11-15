@@ -40,6 +40,8 @@ src/
   main.ts          # renderer setup, game loop, fixed physics step
   world/
     layout.ts      # world data: 52×52 cells of 78 m, a zone per cell, road network, town blocks, countryside features
+    warp.ts        # the road warp: layout is on a grid, warp.forward() bends it into gently winding world roads
+                   # (~2 m downtown, ~7 m suburbs, ~25 m country); warp.inverse() goes back
     terrain.ts     # height function (town + country hills, lake, beach), ground colours, WATER_Y;
                    # surfaceAt(x, z): where you'd stand (sidewalk top in a block, else ground/road)
     chunks.ts      # streaming: 13×13 chunks of 312 m, far tier (terrain, roads, buildings) + near tier (trees, lamps)
@@ -47,7 +49,7 @@ src/
     city.ts        # materials, pools, distant terrain, world walls; creates the streamer
     water.ts       # sea + lake surface (waves, depth colour, foam), waterSurface() for swimmers
     mapImage.ts    # world picture + vector detail + map symbols (minimap and full map)
-    roadGraph.ts   # traffic lanes/turns on the road network, traffic-light timing
+    roadGraph.ts   # traffic lanes/turns (cached cubic Béziers + curvature speed limits), traffic-light timing
     sky.ts, dayNight.ts, facadeMaterial.ts, textures.ts, rng.ts
   player/
     state.ts       # player state machine: OnFoot | Driving | Flying
@@ -56,7 +58,8 @@ src/
     car.ts         # Rapier raycast vehicle controller + DrivingMode
     heli.ts        # custom helicopter forces + FlyingMode
   vehicles/        # procedural car / helicopter models
-  npc/             # traffic and pedestrians (pooled around the player)
+  npc/             # traffic (IDM car following, per-driver habits, lane changes, country overtakes, brake lights)
+                   # and pedestrians, pooled around the player
   game/            # player stats (health/money/weapons), combat, cash pickups, gun stores, missions,
                    # places.ts (hospitals = respawn points, extra stores)
   sim/             # SimEntity interface, body interpolation, exit-spot helper, smoke, sinking vehicles
@@ -76,6 +79,7 @@ public/
 - **Physics owns transforms.** Physics bodies are the source of truth; meshes copy from them each frame. Don't move a mesh that has a physics body directly.
 - **Performance.** Repeated buildings and props go into the shared `InstancePool`s (`world/instancePool.ts`), never one mesh each. World meshes and colliders are only built for chunks near the player (`world/chunks.ts`); world *data* (`world/layout.ts`) is generated for everything at startup and must stay cheap. Anything placed in the world (vehicles, pickups) must cope with its chunk not being loaded (no ground collider there). Dispose of geometries, materials, and textures when removing objects.
 - **Heights.** Nothing is flat: towns are hilly. Anything placed on the ground must take its height from `terrain.surfaceAt(x, z)` (sidewalks, doors, people, pickups) or `terrain.smoothHeight(x, z)` (road level, parked cars) — never a fixed `CURB_HEIGHT`.
+- **Grid vs world.** Layout data (blocks, buildings, road lines) is in grid space; anything placed in the world goes through `layout.warp.forward` (or `toWorld` / `warpSpot`). `Terrain`'s public methods take world coordinates.
 - **Determinism.** World generation uses a seeded PRNG and hand-written noise, so the same seed always produces the same world; each cell/chunk has its own random stream (`hashSeed`) so chunks can be built in any order.
 
 ## Deployment (GitHub Pages)

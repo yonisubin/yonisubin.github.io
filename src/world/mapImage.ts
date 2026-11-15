@@ -1,4 +1,4 @@
-import { BLOCK_SIZE, CELLS, LOT, PITCH, ROAD_WIDTH, WORLD_HALF, cellOf, lineCoord, type CityLayout } from './layout';
+import { BLOCK_SIZE, CELLS, LOT, ROAD_WIDTH, RURAL_ROAD_WIDTH, WORLD_HALF, cellOf, lineCoord, type CityLayout } from './layout';
 import { WATER_Y, type Terrain } from './terrain';
 import type { CoarseGrid } from './city';
 
@@ -78,8 +78,11 @@ export function createWorldMap(layout: CityLayout, terrain: Terrain, coarse: Coa
     canvas,
     half: MAP_HALF,
     drawDetail(c, x, z, radius) {
-      drawRoads(c, layout, x, z, radius);
-      drawBlocks(c, layout, x, z, radius);
+      const g = layout.warp.inverse(x, z);
+      const gx = g.x;
+      const gz = g.z;
+      drawRoads(c, layout, gx, gz, radius);
+      drawBlocks(c, layout, gx, gz, radius);
     },
   };
 }
@@ -90,16 +93,48 @@ function cellRange(c: number, radius: number): [number, number] {
   return [Math.max(0, cellOf(c - radius) - 1), Math.min(CELLS, cellOf(c + radius) + 2)];
 }
 
+/** Trace a polygon through grid points, bent by the road warp. */
+function warpedPath(ctx: CanvasRenderingContext2D, layout: CityLayout, points: [number, number][]): void {
+  ctx.beginPath();
+  points.forEach(([gx, gz], i) => {
+    const w = layout.warp.forward(gx, gz);
+    if (i === 0) ctx.moveTo(w.x, w.z);
+    else ctx.lineTo(w.x, w.z);
+  });
+  ctx.closePath();
+}
+
+/** Points along the edge of a rectangle on the grid (centre, half sizes), `n` per side. */
+function rectPoints(cx: number, cz: number, hx: number, hz: number, n: number): [number, number][] {
+  const pts: [number, number][] = [];
+  for (let i = 0; i < n; i++) pts.push([cx - hx + (2 * hx * i) / n, cz - hz]);
+  for (let i = 0; i < n; i++) pts.push([cx + hx, cz - hz + (2 * hz * i) / n]);
+  for (let i = 0; i < n; i++) pts.push([cx + hx - (2 * hx * i) / n, cz + hz]);
+  for (let i = 0; i < n; i++) pts.push([cx - hx, cz + hz - (2 * hz * i) / n]);
+  return pts;
+}
+
 function drawRoads(ctx: CanvasRenderingContext2D, layout: CityLayout, x: number, z: number, radius: number): void {
   const roads = layout.roads;
   const [i0, i1] = cellRange(x, radius);
   const [k0, k1] = cellRange(z, radius);
-  const w = ROAD_WIDTH;
-  ctx.fillStyle = MAP_COLORS.road;
+  ctx.strokeStyle = MAP_COLORS.road;
+  ctx.lineCap = 'square';
+  // Each segment as a polyline through warped points, as wide as the road.
+  const line = (ax: number, az: number, bx: number, bz: number, width: number) => {
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    for (let t = 0; t <= 6; t++) {
+      const w = layout.warp.forward(ax + ((bx - ax) * t) / 6, az + ((bz - az) * t) / 6);
+      if (t === 0) ctx.moveTo(w.x, w.z);
+      else ctx.lineTo(w.x, w.z);
+    }
+    ctx.stroke();
+  };
   for (let k = k0; k <= k1; k++) {
     for (let i = i0; i <= i1; i++) {
-      if (roads.hasH(i, k)) ctx.fillRect(lineCoord(i) - w / 2, lineCoord(k) - w / 2, PITCH + w, w);
-      if (roads.hasV(i, k)) ctx.fillRect(lineCoord(i) - w / 2, lineCoord(k) - w / 2, w, PITCH + w);
+      if (roads.hasH(i, k)) line(lineCoord(i), lineCoord(k), lineCoord(i + 1), lineCoord(k), roads.ruralH(i, k) ? RURAL_ROAD_WIDTH : ROAD_WIDTH);
+      if (roads.hasV(i, k)) line(lineCoord(i), lineCoord(k), lineCoord(i), lineCoord(k + 1), roads.ruralV(i, k) ? RURAL_ROAD_WIDTH : ROAD_WIDTH);
     }
   }
 }
@@ -112,15 +147,18 @@ function drawBlocks(ctx: CanvasRenderingContext2D, layout: CityLayout, x: number
       const b = layout.blockAt(bx, bz);
       if (!b) continue;
       ctx.fillStyle = MAP_COLORS.sidewalk;
-      ctx.fillRect(b.cx - BLOCK_SIZE / 2, b.cz - BLOCK_SIZE / 2, BLOCK_SIZE, BLOCK_SIZE);
+      warpedPath(ctx, layout, rectPoints(b.cx, b.cz, BLOCK_SIZE / 2, BLOCK_SIZE / 2, 4));
+      ctx.fill();
       if (b.lawn) {
         ctx.fillStyle = MAP_COLORS.lawn;
-        ctx.fillRect(b.cx - LOT / 2, b.cz - LOT / 2, LOT, LOT);
+        warpedPath(ctx, layout, rectPoints(b.cx, b.cz, LOT / 2, LOT / 2, 4));
+        ctx.fill();
       }
       if (b.helipad) {
+        const w = layout.warp.forward(b.cx, b.cz);
         ctx.fillStyle = '#6a6c70';
         ctx.beginPath();
-        ctx.arc(b.cx, b.cz, 9, 0, Math.PI * 2);
+        ctx.arc(w.x, w.z, 9, 0, Math.PI * 2);
         ctx.fill();
       }
       for (const bl of b.buildings) {
@@ -132,7 +170,8 @@ function drawBlocks(ctx: CanvasRenderingContext2D, layout: CityLayout, x: number
           const shade = Math.max(70, 150 - bl.height * 0.6);
           ctx.fillStyle = `rgb(${shade},${shade},${shade + 6})`;
         }
-        ctx.fillRect(bl.x - bl.width / 2, bl.z - bl.depth / 2, bl.width, bl.depth);
+        warpedPath(ctx, layout, rectPoints(bl.x, bl.z, bl.width / 2, bl.depth / 2, 1));
+        ctx.fill();
       }
     }
   }

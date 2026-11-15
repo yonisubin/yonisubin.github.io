@@ -1,4 +1,5 @@
 import { Rng, hashSeed } from './rng';
+import { Warp } from './warp';
 
 // The world layout as plain data: no three.js, no physics. Everything here is cheap to
 // generate for the whole 4 km world at startup; meshes and colliders are built from it
@@ -20,7 +21,8 @@ import { Rng, hashSeed } from './rng';
 // so line 26 runs through the origin. Cell c spans lines c … c+1. North is −Z.
 
 export const CELLS = 52; // cells per side
-export const ROAD_WIDTH = 14; // 4 lanes × 3.5 m
+export const ROAD_WIDTH = 14; // town roads: 4 lanes × 3.5 m (two each way)
+export const RURAL_ROAD_WIDTH = 8; // country roads: one lane each way, with narrow shoulders
 export const SIDEWALK = 4;
 export const LOT = 56;
 export const BLOCK_SIZE = LOT + 2 * SIDEWALK; // 64
@@ -117,6 +119,10 @@ export interface Block {
 
 export interface CityLayout {
   seed: number;
+  /** Bends the grid into winding roads and irregular blocks (see warp.ts). */
+  warp: Warp;
+  /** Chebyshev distance in cells from each cell to the nearest town cell (0 in town). */
+  townCells: Uint8Array;
   /** Zone of every cell, index bz·CELLS + bx. */
   zones: Zone[];
   /** Town blocks only (cells in a town zone). */
@@ -140,6 +146,10 @@ export interface RoadNet {
   ruralV(i: number, k: number): boolean;
   /** Town intersection where 3+ roads meet: has traffic lights. */
   hasLights(i: number, k: number): boolean;
+  /** Intersection touching a town cell (its roads are town roads). */
+  townNode(i: number, k: number): boolean;
+  /** Half the size of the intersection square at (i, k), m (wider town roads meet there). */
+  nodeHalf(i: number, k: number): number;
 }
 
 export function cellCenter(c: number): number {
@@ -222,6 +232,16 @@ export function generateCity(seed: number): CityLayout {
     roads = buildRoads(zoneAt);
   }
 
+  const townCells = townCellDistance(zones);
+  const warp = new Warp({
+    seed,
+    townCells,
+    cells: CELLS,
+    pitch: PITCH,
+    lakeRadius,
+    coastZ: lineCoord(COAST_LINE),
+  });
+
   const grid: (Block | null)[] = new Array(CELLS * CELLS).fill(null);
   const blocks: Block[] = [];
   for (let bz = 0; bz < CELLS; bz++) {
@@ -235,6 +255,8 @@ export function generateCity(seed: number): CityLayout {
   }
   return {
     seed,
+    warp,
+    townCells,
     zones,
     blocks,
     blockAt: (bx, bz) => (bx < 0 || bz < 0 || bx >= CELLS || bz >= CELLS ? null : grid[bz * CELLS + bx]),
@@ -252,6 +274,8 @@ function buildRoads(zoneAt: (bx: number, bz: number) => Zone | null): RoadNet {
   const blocked = (z: Zone | null) => z === 'lake';
   const sea = (z: Zone | null) => z === null || z === 'beach';
   const ruralLine = (k: number) => k % RURAL_EVERY === RURAL_OFFSET;
+  const townNode = (i: number, k: number) =>
+    town(zoneAt(i - 1, k - 1)) || town(zoneAt(i, k - 1)) || town(zoneAt(i - 1, k)) || town(zoneAt(i, k));
 
   // Horizontal segment (i, k)–(i+1, k): cells (i, k−1) north and (i, k) south of it.
   for (let k = 0; k <= N; k++) {
@@ -291,9 +315,42 @@ function buildRoads(zoneAt: (bx: number, bz: number) => Zone | null): RoadNet {
     hasLights: (i, k) => {
       const degree = +hasH(i - 1, k) + +hasH(i, k) + +hasV(i, k - 1) + +hasV(i, k);
       if (degree < 3) return false;
-      return town(zoneAt(i - 1, k - 1)) || town(zoneAt(i, k - 1)) || town(zoneAt(i - 1, k)) || town(zoneAt(i, k));
+      return townNode(i, k);
     },
+    townNode: (i, k) => townNode(i, k),
+    nodeHalf: (i, k) => (townNode(i, k) ? ROAD_WIDTH / 2 : RURAL_ROAD_WIDTH / 2),
   };
+}
+
+/** Distance in cells (Chebyshev) from every cell to the nearest town cell: breadth-first from all town cells. */
+function townCellDistance(zones: Zone[]): Uint8Array {
+  const n = CELLS;
+  const dist = new Uint8Array(n * n).fill(255);
+  const queue: number[] = [];
+  zones.forEach((z, i) => {
+    if (isTown(z)) {
+      dist[i] = 0;
+      queue.push(i);
+    }
+  });
+  for (let q = 0; q < queue.length; q++) {
+    const i = queue[q];
+    const bx = i % n;
+    const bz = (i - bx) / n;
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const x = bx + dx;
+        const z = bz + dz;
+        if (x < 0 || z < 0 || x >= n || z >= n) continue;
+        const j = z * n + x;
+        if (dist[j] > dist[i] + 1) {
+          dist[j] = dist[i] + 1;
+          queue.push(j);
+        }
+      }
+    }
+  }
+  return dist;
 }
 
 /** Intersections (index k·(CELLS+1) + i) reachable by road from the downtown centre. */
@@ -619,7 +676,13 @@ function isHelipadBlock(bx: number, bz: number): boolean {
 /** Centre of the helipad (ground level is the top of the block slab). */
 export function helipadPosition(layout: CityLayout): { x: number; z: number } {
   const block = layout.blockAt(MID + 1, MID + 2)!;
-  return { x: block.cx, z: block.cz };
+  return toWorld(layout, block.cx, block.cz);
+}
+
+/** A layout (grid) point in the world, through the road warp. A fresh object. */
+export function toWorld(layout: CityLayout, x: number, z: number): { x: number; z: number } {
+  const w = layout.warp.forward(x, z);
+  return { x: w.x, z: w.z };
 }
 
 /**
@@ -628,7 +691,7 @@ export function helipadPosition(layout: CityLayout): { x: number; z: number } {
  */
 export function spawnPoint(layout: CityLayout): { x: number; z: number } {
   const block = layout.blockAt(MID, MID + 2)!;
-  return { x: block.cx - BLOCK_SIZE / 2 + 2, z: block.cz + BLOCK_SIZE / 2 - 2 };
+  return toWorld(layout, block.cx - BLOCK_SIZE / 2 + 2, block.cz + BLOCK_SIZE / 2 - 2);
 }
 
 export type ParkedCarType = 'sedan' | 'taxi' | 'van';
@@ -642,9 +705,9 @@ export interface ParkingSpot {
 }
 
 /**
- * A row of parked cars in the outer (parking) lane of the street next to the spawn point.
- * Roads have four 3.5 m lanes; the outer ones (centre 5.25 m from the road's centre line)
- * are kept for parking, traffic uses the inner ones.
+ * A row of parked cars in the outer lane of the street next to the spawn point (in world
+ * coordinates). Town roads have four 3.5 m lanes; traffic drives in both lanes each way and
+ * changes lanes to get round parked cars.
  */
 export function parkingSpots(layout: CityLayout): ParkingSpot[] {
   const rng = new Rng(hashSeed(layout.seed, 991, 17));
@@ -659,7 +722,13 @@ export function parkingSpots(layout: CityLayout): ParkingSpot[] {
     const type: ParkedCarType = i === 2 ? 'taxi' : i === 4 ? 'van' : 'sedan';
     spots.push({ x: laneX, z: block.cz + 22 - i * 8.5, yaw, type, colorIndex: rng.int(0, 8) });
   }
-  return spots;
+  return spots.map((s) => warpSpot(layout, s));
+}
+
+/** A parking spot laid out on the grid, moved and turned with the road warp. */
+export function warpSpot(layout: CityLayout, s: ParkingSpot): ParkingSpot {
+  const w = toWorld(layout, s.x, s.z);
+  return { ...s, x: w.x, z: w.z, yaw: s.yaw + layout.warp.angle(s.x, s.z) };
 }
 
 // --- Countryside features (generated per chunk, from the cell's own seed) ----------------

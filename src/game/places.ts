@@ -15,6 +15,8 @@ import {
   type CityLayout,
   type ParkingSpot,
   type Zone,
+  toWorld,
+  warpSpot,
 } from '../world/layout';
 
 // Special places spread around the world, chosen deterministically from the layout:
@@ -124,11 +126,20 @@ export function createPlaces(
     ];
     b.roofProps = [];
     b.trees = b.trees.filter((tr) => Math.abs(tr.z - b.cz) > LOT / 2); // keep street trees only
-    const door = new THREE.Vector3(b.cx, surface(b.cx, z + depth / 2 + 1), z + depth / 2);
+    // The layout is a grid bent by the road warp: work out spots on the grid, then move
+    // them (and turn them by the warp's local angle) into the world.
+    const angle = layout.warp.angle(b.cx, z);
+    const world = (gx: number, gz: number, lift = 0) => {
+      const w = toWorld(layout, gx, gz);
+      return new THREE.Vector3(w.x, surface(w.x, w.z) + lift, w.z);
+    };
+    const door = world(b.cx, z + depth / 2 + 1);
 
     // Sign over the entrance.
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.8), signMaterial);
-    sign.position.set(door.x, door.y + metrics.groundFloor + 0.45, door.z + 0.08);
+    const signAt = world(b.cx, z + depth / 2 + 0.08);
+    sign.position.set(signAt.x, door.y + metrics.groundFloor + 0.45, signAt.z);
+    sign.rotation.y = angle;
     scene.add(sign);
 
     // Two cars in the parking lane of the street to the south (its northern lane, by the
@@ -136,14 +147,14 @@ export function createPlaces(
     const roadZ = b.cz + PITCH / 2;
     const laneZ = roadZ - ROAD_WIDTH / 2 + 1.75;
     const parking: ParkingSpot[] = [
-      { x: b.cx - 9, z: laneZ, yaw: Math.PI, type: 'sedan', colorIndex: hospitals.length % 9 },
-      { x: b.cx + 4, z: laneZ, yaw: Math.PI, type: hospitals.length % 2 ? 'van' : 'sedan', colorIndex: (hospitals.length + 4) % 9 },
-    ];
+      { x: b.cx - 9, z: laneZ, yaw: Math.PI, type: 'sedan' as const, colorIndex: hospitals.length % 9 },
+      { x: b.cx + 4, z: laneZ, yaw: Math.PI, type: hospitals.length % 2 ? ('van' as const) : ('sedan' as const), colorIndex: (hospitals.length + 4) % 9 },
+    ].map((spot) => warpSpot(layout, spot));
 
     hospitals.push({
       name: t.name,
-      spawn: new THREE.Vector3(door.x, surface(door.x, door.z + 5) + 1.0, door.z + 5),
-      heading: Math.PI, // facing out to the street (+Z); camera yaw π looks toward +Z
+      spawn: world(b.cx, z + depth / 2 + 5, 1.0),
+      heading: Math.PI + angle, // facing out to the street; camera yaw π looks toward +Z
       door,
       parking,
     });
@@ -173,7 +184,14 @@ export function createPlaces(
     });
     b.roofProps = b.roofProps.filter((p) => p.z < z - depth / 2 - 2);
     b.trees = b.trees.filter((tr) => !(Math.abs(tr.x - b.cx) < width / 2 + 2 && Math.abs(tr.z - z) < depth / 2 + 2));
-    stores.push({ name: t.name, door: new THREE.Vector3(b.cx, surface(b.cx, z + depth / 2 + 1), z + depth / 2), normal: new THREE.Vector3(0, 0, 1) });
+    const sa = layout.warp.angle(b.cx, z);
+    const sw = toWorld(layout, b.cx, z + depth / 2);
+    stores.push({
+      name: t.name,
+      door: new THREE.Vector3(sw.x, surface(sw.x + Math.sin(sa), sw.z + Math.cos(sa)), sw.z),
+      // The wall's outward normal (+Z on the grid), turned by the warp.
+      normal: new THREE.Vector3(Math.sin(sa), 0, Math.cos(sa)),
+    });
   }
 
   return {
