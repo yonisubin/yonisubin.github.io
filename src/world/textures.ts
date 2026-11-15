@@ -126,3 +126,21 @@ export function glowTexture(): THREE.CanvasTexture {
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
+
+/**
+ * Near-white grain, multiplied over the terrain's vertex colours: breaks up large flat areas
+ * of colour without tinting them (sand stays sand, grass stays grass).
+ */
+export function grainTexture(): THREE.CanvasTexture {
+  return makeTexture((ctx, rng) => {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    for (let i = 0; i < 40; i++) {
+      ctx.fillStyle = `rgba(0,0,0,${rng.range(0.02, 0.06)})`;
+      ctx.beginPath();
+      ctx.ellipse(rng.float() * SIZE, rng.float() * SIZE, rng.range(20, 70), rng.range(15, 50), rng.float() * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    speckle(ctx, rng, 14000, ['#e2e2e2', '#d2d2d2', '#ececec', '#c4c4c4'], 2.5);
+  }, 9);
+}

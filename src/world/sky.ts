@@ -99,7 +99,7 @@ export function createSky(renderer: THREE.WebGLRenderer, scene: THREE.Scene): Sk
   // Visible sky dome. It must sit inside the camera's far plane, so it's moderately sized
   // and follows the camera every frame (only the view direction matters to the shader).
   const sky = new Sky();
-  sky.scale.setScalar(900);
+  sky.scale.setScalar(2200); // inside the camera's far plane (2500 m)
   configureSky(sky, sunDirection);
   scene.add(sky);
 
@@ -111,7 +111,8 @@ export function createSky(renderer: THREE.WebGLRenderer, scene: THREE.Scene): Sk
   scene.environmentIntensity = ENV_INTENSITY;
 
   // Haze toward the horizon hides the edge of the city.
-  const fog = new THREE.Fog(0xb9c6d2, 150, 750);
+  // Fog hides where streamed detail ends (buildings load out to ~850 m).
+  const fog = new THREE.Fog(0xb9c6d2, 180, 1100);
   scene.fog = fog;
   // Behind the sky dome: shows through once the dome is hidden at night (the scattering
   // sky shader goes pitch black without a sun), as a deep navy matching the night fog.

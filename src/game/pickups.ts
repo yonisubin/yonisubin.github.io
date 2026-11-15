@@ -10,7 +10,8 @@ import { BLOCK_SIZE, CURB_HEIGHT, LOT, type CityLayout } from '../world/layout';
 
 const PICKUP_RADIUS = 1.3; // m
 const RESPAWN_TIME = 120; // s
-const MAX_PICKUPS = 160; // instanced capacity (fixed spots + dropped cash)
+const MAX_PICKUPS = 160; // instanced capacity: how many are drawn at once
+const DRAW_DISTANCE = 180; // m
 
 interface Pickup {
   position: THREE.Vector3;
@@ -36,6 +37,8 @@ export class Cash implements SimEntity {
     private readonly stats: PlayerStats,
     /** Player position when on foot, or null while in a vehicle (no collecting from cars). */
     private readonly collector: () => THREE.Vector3 | null,
+    /** Where the player is, on foot or not: only cash near here is drawn. */
+    private readonly focus: () => THREE.Vector3,
   ) {
     const rng = new Rng(hashSeed(layout.seed, 5150, 77));
     for (const block of layout.blocks) {
@@ -84,7 +87,7 @@ export class Cash implements SimEntity {
 
   /** Drop a one-off bundle of cash (e.g. from a knocked-out pedestrian). */
   drop(position: THREE.Vector3, amount: number): void {
-    if (this.pickups.length >= MAX_PICKUPS) return;
+    if (this.pickups.filter((p) => p.dropped).length >= 40) return;
     this.pickups.push({ position: position.clone(), amount, away: 0, dropped: true });
   }
 
@@ -113,9 +116,14 @@ export class Cash implements SimEntity {
 
   render(): void {
     // Spin and bob; taken pickups are scaled to nothing.
+    // The world has hundreds of spots: draw only those near the player.
     let n = 0;
+    const f = this.focus();
     for (const pickup of this.pickups) {
-      if (pickup.away > 0) continue;
+      if (pickup.away > 0 || n >= MAX_PICKUPS) continue;
+      const dx = pickup.position.x - f.x;
+      const dz = pickup.position.z - f.z;
+      if (dx * dx + dz * dz > DRAW_DISTANCE * DRAW_DISTANCE) continue;
       const phase = pickup.position.x * 0.37 + pickup.position.z * 0.61;
       this.quat.setFromAxisAngle(UP, this.time * 2 + phase);
       this.pos.copy(pickup.position);

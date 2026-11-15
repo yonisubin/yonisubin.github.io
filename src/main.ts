@@ -9,6 +9,8 @@ import { CharacterPicker, hasSavedLook, loadLook } from './ui/characterPicker';
 import { Car, DrivingMode } from './player/car';
 import { FlyingMode, Helicopter } from './player/heli';
 import { createCity } from './world/city';
+import { createWorldMap } from './world/mapImage';
+import { Water } from './world/water';
 import { CURB_HEIGHT, helipadPosition, parkingSpots } from './world/layout';
 import { createSky } from './world/sky';
 import { PAINT_COLORS } from './vehicles/carModel';
@@ -65,24 +67,29 @@ async function main(): Promise<void> {
   document.body.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.2, 1500);
+  const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.2, 2500);
   const sky = createSky(renderer, scene);
 
   const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
   world.timestep = PHYSICS_STEP;
 
   const city = createCity(scene, world, CITY_SEED);
+  // Build the chunks around the spawn now; the rest of the world streams in while you play.
+  city.streamer.loadAround(city.spawn, 450);
+  // The sea and the lake (waves advance with the physics clock).
+  const water = new Water(scene, (x, z) => city.terrain.heightAt(x, z));
 
   const input = new Input(renderer.domElement);
   const touch = isTouchDevice();
   const touchControls = touch ? new TouchControls(input) : null;
-  const minimap = new Minimap(city.layout, input, touch);
+  const minimap = new Minimap(createWorldMap(city.layout, city.terrain, city.coarse), input, touch);
   const hud = new Hud(input, touch, minimap.size + 8);
   const debug = new DebugOverlay(renderer, input);
 
   const player = new PlayerStateMachine(input);
   const stats = new PlayerStats();
   const onFoot = new OnFootMode(world, scene, camera, input, city.spawn, model, stats);
+  onFoot.water = (x, z) => water.surfaceAt(x, z);
 
   // Everything simulated each physics step besides the player.
   const entities: SimEntity[] = [stats];
@@ -140,7 +147,13 @@ async function main(): Promise<void> {
   entities.push(heli);
 
   // Cash lying around (collected on foot only), and the gun store near the spawn.
-  const cash = new Cash(scene, city.layout, stats, () => (player.mode === onFoot ? onFoot.focus() : null));
+  const cash = new Cash(
+    scene,
+    city.layout,
+    stats,
+    () => (player.mode === onFoot ? onFoot.focus() : null),
+    () => player.mode?.focus() ?? city.spawn,
+  );
   cash.onCollect((amount) => hud.toast(`+$${amount}`));
   entities.push(cash);
   const shop = new Shop(scene, city.layout, city.spawn, stats, input);
@@ -169,7 +182,7 @@ async function main(): Promise<void> {
 
   // NPCs, kept in pools around wherever the player is.
   const playerPosition = () => player.mode?.focus() ?? city.spawn;
-  const traffic = new Traffic(world, scene, city.layout, playerPosition, () => [
+  const traffic = new Traffic(world, scene, city.layout, city.terrain, playerPosition, () => [
     playerPosition(),
     ...cars.map((c) => c.interp.currPos),
     heli.interp.currPos,
@@ -281,7 +294,18 @@ async function main(): Promise<void> {
   if (picker && !hasSavedLook()) picker.open();
 
   // One fixed physics step for everything: player controls, entities, the world.
+  // Parked vehicles sleep while the ground under them isn't loaded (they'd fall through).
+  const parkVehicles = () => {
+    for (const v of [...cars, heli]) {
+      if (player.mode === v.mode) continue;
+      const p = v.body.translation();
+      const loaded = city.isLoaded(p.x, p.z);
+      if (v.body.isEnabled() !== loaded) v.body.setEnabled(loaded);
+    }
+  };
   const step = () => {
+    water.step(PHYSICS_STEP);
+    parkVehicles();
     player.update(PHYSICS_STEP); // reads input, sets vehicle controls
     for (const e of entities) e.fixedUpdate(PHYSICS_STEP);
     world.step();
@@ -293,7 +317,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { world, camera, player, onFoot, picker, library, cars, heli, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { world, camera, sky, water, player, onFoot, picker, library, cars, heli, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -329,11 +353,15 @@ async function main(): Promise<void> {
       accumulator -= PHYSICS_STEP;
     }
 
+    city.update(player.mode!.focus()); // stream world chunks around the player
     const alpha = accumulator / PHYSICS_STEP;
     for (const e of entities) e.render(alpha, frameTime);
     player.render(alpha, frameTime); // after entities: vehicle cameras follow the placed meshes
     const mode = player.mode!;
     sky.update(camera, mode.focus());
+    water.render(scene, camera, mode.focus());
+    hud.setUnderwater(water.underwater);
+    hud.setBreath(mode === onFoot ? onFoot.breathFraction : null);
     touchControls?.update();
     hud.update(mode, stats, frameTime);
     shop.render(frameTime);

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ROAD_WIDTH, type CityLayout } from './layout';
+import { CELLS, ROAD_WIDTH, lineCoord, type CityLayout, type RoadNet } from './layout';
 
 // Road graph for traffic. The road grid's intersections are the nodes (i, j); each road
 // segment between neighbouring intersections carries one inner lane per direction
@@ -42,27 +42,59 @@ export interface Piece {
   toI: number;
   toJ: number;
   dir: Dir;
+  /** Country road: higher cruise speed. */
+  rural: boolean;
 }
 
 export class RoadGraph {
-  readonly lines: number[];
-  readonly size: number;
+  /** Grid lines per side: nodes are (i, j) for i, j in 0…size−1. */
+  readonly size = CELLS + 1;
+  private readonly roads: RoadNet;
 
   constructor(layout: CityLayout) {
-    this.lines = layout.roadLines;
-    this.size = this.lines.length;
+    this.roads = layout.roads;
   }
 
   node(i: number, j: number): THREE.Vector3 {
-    return new THREE.Vector3(this.lines[i], 0, this.lines[j]);
+    return new THREE.Vector3(lineCoord(i), 0, lineCoord(j));
   }
 
-  /** The neighbouring intersection in direction d, or null at the edge of the city. */
+  /** Is there a road from (i, j) in direction d? */
+  hasRoad(i: number, j: number, d: Dir): boolean {
+    switch (d) {
+      case 0:
+        return this.roads.hasH(i, j);
+      case 2:
+        return this.roads.hasH(i - 1, j);
+      case 1:
+        return this.roads.hasV(i, j);
+      default:
+        return this.roads.hasV(i, j - 1);
+    }
+  }
+
+  /** Country road (faster, no lights) from (i, j) in direction d. */
+  isRural(i: number, j: number, d: Dir): boolean {
+    switch (d) {
+      case 0:
+        return this.roads.ruralH(i, j);
+      case 2:
+        return this.roads.ruralH(i - 1, j);
+      case 1:
+        return this.roads.ruralV(i, j);
+      default:
+        return this.roads.ruralV(i, j - 1);
+    }
+  }
+
+  hasLights(i: number, j: number): boolean {
+    return this.roads.hasLights(i, j);
+  }
+
+  /** The neighbouring intersection in direction d, or null if no road goes that way. */
   neighbor(i: number, j: number, d: Dir): [number, number] | null {
-    const ni = i + DX[d];
-    const nj = j + DZ[d];
-    if (ni < 0 || nj < 0 || ni >= this.size || nj >= this.size) return null;
-    return [ni, nj];
+    if (!this.hasRoad(i, j, d)) return null;
+    return [i + DX[d], j + DZ[d]];
   }
 
   /** Straight lane from intersection (i, j) toward its neighbour in direction d. */
@@ -82,27 +114,33 @@ export class RoadGraph {
       toI: next[0],
       toJ: next[1],
       dir: d,
+      rural: this.isRural(i, j, d),
     };
   }
 
-  /** Path through intersection (i, j), from arriving in direction `from` to leaving in `to`. */
+  /**
+   * Path through intersection (i, j), from arriving in direction `from` to leaving in `to`.
+   * `to` = the opposite of `from` is a U-turn (only used at dead ends).
+   */
   turn(i: number, j: number, from: Dir, to: Dir): Piece {
     const centre = this.node(i, j);
     const p0 = centre.clone().addScaledVector(dirVector(from), -HALF).add(rightOf(from).multiplyScalar(LANE_OFFSET));
     const p2 = centre.clone().addScaledVector(dirVector(to), HALF).add(rightOf(to).multiplyScalar(LANE_OFFSET));
     // Control point where the incoming and outgoing lane lines cross (a corner);
-    // going straight on, just the midpoint.
+    // going straight on, just the midpoint; a U-turn loops out to the far side.
     let p1: THREE.Vector3;
     if (from === to) p1 = p0.clone().lerp(p2, 0.5);
+    else if ((from + 2) % 4 === to) p1 = centre.clone().addScaledVector(dirVector(from), HALF * 1.4);
     else if (DX[from] !== 0) p1 = new THREE.Vector3(p2.x, 0, p0.z);
     else p1 = new THREE.Vector3(p0.x, 0, p2.z);
-    return { kind: 'turn', p0, p1, p2, length: bezierLength(p0, p1, p2), toI: i, toJ: j, dir: to };
+    return { kind: 'turn', p0, p1, p2, length: bezierLength(p0, p1, p2), toI: i, toJ: j, dir: to, rural: false };
   }
 
-  /** Directions a car arriving at (i, j) travelling in `from` may leave by (no U-turns). */
+  /** Directions a car arriving at (i, j) travelling in `from` may leave by (a U-turn only at dead ends). */
   exits(i: number, j: number, from: Dir): Dir[] {
     const back = ((from + 2) % 4) as Dir;
-    return DIRS.filter((d) => d !== back && this.neighbor(i, j, d) !== null);
+    const out = DIRS.filter((d) => d !== back && this.hasRoad(i, j, d));
+    return out.length ? out : [back];
   }
 }
 

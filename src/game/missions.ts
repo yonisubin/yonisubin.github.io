@@ -7,7 +7,7 @@ import type { CharacterLibrary, Look } from '../player/characterLibrary';
 import type { Interactable } from '../player/onFoot';
 import type { Traffic, TrafficCar } from '../npc/traffic';
 import type { PlayerStats } from './stats';
-import { BLOCKS, BLOCK_SIZE, CITY_HALF, CURB_HEIGHT, type Block, type CityLayout } from '../world/layout';
+import { BLOCK_SIZE, CURB_HEIGHT, MID, WORLD_HALF, type Block, type CityLayout } from '../world/layout';
 
 // Missions, handed out by three characters who stand at fixed spots with a "!" over their
 // heads. They don't walk about and can't be hurt: they aren't pedestrians at all, just a
@@ -115,8 +115,8 @@ export class Missions implements SimEntity {
     private readonly touch: boolean,
   ) {
     // --- The three givers, on sidewalks around the spawn (fixed, not random).
-    const mid = Math.floor(BLOCKS / 2);
-    const block = (bx: number, bz: number) => layout.blocks[bz * BLOCKS + bx];
+    const mid = MID;
+    const block = (bx: number, bz: number) => layout.blockAt(bx, bz)!;
     const specs: [string, MissionKind[], Block, string][] = [
       ['Marco', ['delivery', 'packages'], block(mid, mid + 1), 'Need a courier. Quick money, no questions.'],
       ['Vera', ['wreck'], block(mid - 1, mid + 2), "There's a car out there I want off the road."],
@@ -259,8 +259,14 @@ export class Missions implements SimEntity {
 
   /** A random spot on some block's sidewalk between `min` and `max` metres from `from`. */
   private sidewalkSpot(from: THREE.Vector3, min: number, max: number): THREE.Vector3 | null {
+    // Only town blocks in range (the world has ~1000 of them).
+    const candidates = this.layout.blocks.filter((bl) => {
+      const d = Math.hypot(bl.cx - from.x, bl.cz - from.z);
+      return d > min - BLOCK_SIZE && d < max + BLOCK_SIZE;
+    });
+    if (!candidates.length) return null;
     for (let attempt = 0; attempt < 60; attempt++) {
-      const b = this.layout.blocks[Math.floor(Math.random() * this.layout.blocks.length)];
+      const b = candidates[Math.floor(Math.random() * candidates.length)];
       const edge = BLOCK_SIZE / 2 - 2;
       const along = (Math.random() * 2 - 1) * (edge - 6);
       const side = Math.floor(Math.random() * 4);
@@ -288,7 +294,7 @@ export class Missions implements SimEntity {
       target: null,
     };
     if (kind === 'delivery') {
-      const dest = this.sidewalkSpot(from, 280, 480);
+      const dest = this.sidewalkSpot(from, 400, 1100);
       if (!dest) return false;
       m.points = [dest];
       // Time: the distance at a decent city driving speed, plus time to find a car.
@@ -296,11 +302,11 @@ export class Missions implements SimEntity {
       m.title = 'Delivery — get to the marked spot';
     } else if (kind === 'packages') {
       for (let i = 0; i < 4; i++) {
-        const p = this.sidewalkSpot(from, 40, 230);
+        const p = this.sidewalkSpot(from, 60, 450);
         if (p) m.points.push(p);
       }
       if (m.points.length < 4) return false;
-      m.timeLeft = 150;
+      m.timeLeft = 200;
       m.title = 'Package run — collect the packages';
       for (const p of m.points) {
         const box = new THREE.Mesh(
@@ -350,8 +356,8 @@ export class Missions implements SimEntity {
       const step = i === 0 ? 70 : 110;
       heading += (Math.random() - 0.5) * 1.2;
       p = p.clone().add(new THREE.Vector3(Math.cos(heading) * step, 0, Math.sin(heading) * step));
-      // Keep inside the city.
-      const limit = CITY_HALF - 40;
+      // Keep well inside the world.
+      const limit = WORLD_HALF - 200;
       p.x = THREE.MathUtils.clamp(p.x, -limit, limit);
       p.z = THREE.MathUtils.clamp(p.z, -limit, limit);
       p.y = 45 + i * 10 + Math.random() * 10;

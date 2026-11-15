@@ -97,10 +97,14 @@ const FRAGMENT_COLOR = /* glsl */ `
     } else if (style < 1.5) { // brick: punched windows with stone surrounds
       groundH = ${f(m[1].groundFloor)}; floorH = ${f(m[1].floor)}; colW = 3.0;
       win = vec4(0.27, 0.28, 0.73, 0.8);
-    } else {                  // concrete: continuous ribbon windows
+    } else if (style < 2.5) { // concrete: continuous ribbon windows
       groundH = ${f(m[2].groundFloor)}; floorH = ${f(m[2].floor)}; colW = 2.0;
       win = vec4(-0.1, 0.36, 1.1, 0.82);
+    } else {                  // house / barn: residential windows on every floor, no shops
+      groundH = ${f(m[3].groundFloor)}; floorH = ${f(m[3].floor)}; colW = 3.2;
+      win = vec4(0.3, 0.32, 0.7, 0.8);
     }
+    bool house = style > 2.5;
 
     // Columns: leave 0.6 m of solid corner at each edge of the face.
     float usable = max(faceW - 1.2, 1.0);
@@ -109,7 +113,7 @@ const FRAGMENT_COLOR = /* glsl */ `
     float inCols = band(uc, 0.0, nCols);
     float colId = floor(uc);
     float fx = fract(uc);
-    float topH = vSize.y - ${f(PARAPET)};
+    float topH = vSize.y - (house ? 0.4 : ${f(PARAPET)});
 
     if (h < groundH) {
       // Ground floor: darker stone base, big shop windows, a coloured sign band above them.
@@ -154,6 +158,12 @@ const FRAGMENT_COLOR = /* glsl */ `
           float frame = inCols * band(fx, win.x - 0.05, win.z + 0.05) * band(fy, win.y - 0.07, win.w + 0.04);
           col = mix(col, vec3(0.55, 0.52, 0.47), frame);
         }
+      }
+      // Houses: a front door in the middle of the ground floor on two of the faces.
+      if (house && floorId < 0.5 && abs(colId - floor(nCols * 0.5)) < 0.5 && hash13(vec3(seed, faceKey, 2.0)) > 0.45) {
+        float door = inCols * band(fx, 0.28, 0.72) * band(fy, 0.0, 0.85);
+        col = mix(col, vec3(0.16, 0.09, 0.05), door);
+        w *= 1.0 - door;
       }
       col = mix(col, glass, w);
       facadeGlass = w;

@@ -157,6 +157,32 @@ export class CharacterModel {
     this.oneShot = { action: a, t: 0, duration: spec.duration };
   }
 
+  /**
+   * In the water: lean forward to swim (the whole body pitched ~75°, with the walk cycle as a
+   * kick) or tread water nearly upright. There's no swimming clip in the animation set, so
+   * this is done by tilting the model about the middle of the body.
+   */
+  setSwimming(swimming: boolean, speed: number, dt: number): void {
+    const target = swimming ? (speed > 0.3 ? 1 : 0.25) : 0;
+    this.swimBlend += (target - this.swimBlend) * (1 - Math.exp(-4 * dt));
+    if (this.swimBlend < 1e-3) {
+      // Not swimming: remember where the owner put the feet, and stand straight.
+      this.swimBlend = 0;
+      this.baseY = this.root.position.y;
+      this.root.rotation.x = 0;
+      this.root.position.z = 0;
+      return;
+    }
+    // Rotate about a point 0.9 m up the body (the root's origin is at the feet, `baseY`
+    // below that point): the feet swing back (+Z, since the body faces −Z) as it tips.
+    const tilt = 1.3 * this.swimBlend;
+    this.root.rotation.x = -tilt;
+    this.root.position.y = this.baseY * Math.cos(tilt);
+    this.root.position.z = -this.baseY * Math.sin(tilt);
+  }
+  private swimBlend = 0;
+  private baseY = 0;
+
   /** Fall over (knocked out); stays down until reset(). */
   knockDown(): void {
     if (this.downTime < 0) this.downTime = 0;

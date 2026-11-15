@@ -3,7 +3,7 @@ import type { SimEntity } from '../sim/entity';
 import type { CharacterModel } from '../player/character';
 import type { CharacterLibrary } from '../player/characterLibrary';
 import { Rng } from '../world/rng';
-import { BLOCK_SIZE, CURB_HEIGHT, type Block, type CityLayout } from '../world/layout';
+import { BLOCK_SIZE, CURB_HEIGHT, cellOf, type Block, type CityLayout } from '../world/layout';
 
 // Pedestrians: random people from the character library (each with their own skin tone,
 // hair, outfit colours and height), strolling around the
@@ -119,8 +119,10 @@ export class Pedestrians implements SimEntity {
     const player = this.hooks.player().position;
     if (!ped.model) return;
     ped.model.reset();
-    for (let attempt = 0; attempt < 30; attempt++) {
-      const block = this.rng.pick(this.layout.blocks);
+    // Town blocks within reach (the world has ~1000; only a handful are near the player).
+    const near = this.layout.blocks.filter((b) => Math.hypot(b.cx - player.x, b.cz - player.z) < SPAWN_MAX + BLOCK_SIZE);
+    for (let attempt = 0; attempt < 30 && near.length; attempt++) {
+      const block = this.rng.pick(near);
       ped.block = block;
       ped.half = BLOCK_SIZE / 2 - this.rng.range(LOOP_INSET_MIN, LOOP_INSET_MAX);
       ped.u = this.rng.range(0, 8 * ped.half);
@@ -399,9 +401,8 @@ export class Pedestrians implements SimEntity {
 
   /** Sidewalks (block slabs) are raised by the curb height; roads are at 0. */
   private groundHeight(x: number, z: number): number {
-    for (const b of this.layout.blocks) {
-      if (Math.abs(x - b.cx) < BLOCK_SIZE / 2 && Math.abs(z - b.cz) < BLOCK_SIZE / 2) return CURB_HEIGHT;
-    }
+    const b = this.layout.blockAt(cellOf(x), cellOf(z));
+    if (b && Math.abs(x - b.cx) < BLOCK_SIZE / 2 && Math.abs(z - b.cz) < BLOCK_SIZE / 2) return CURB_HEIGHT;
     return 0;
   }
 

@@ -1,14 +1,13 @@
 import type * as THREE from 'three';
 import type { Input } from '../input/actions';
-import { BLOCK_SIZE, CITY_HALF, LOT, type CityLayout } from '../world/layout';
+import type { WorldMap } from '../world/mapImage';
 
-// Round minimap in the top-right corner. The city is drawn once to an off-screen canvas
-// (1 px per metre); each frame that picture is drawn rotated and moved so the player is in
-// the middle and the camera's view direction points up. Markers (vehicles, traffic) are
-// drawn on top. Zooms out as the player gets higher (helicopter). M toggles it.
+// Round minimap in the top-right corner. Each frame the pre-drawn world picture
+// (world/mapImage.ts) is drawn rotated and moved so the player is in the middle and the
+// camera's view direction points up, with sharp vector roads and buildings for the area in
+// view on top. Markers (vehicles, traffic) are drawn over that. Zooms out as the player gets
+// higher (helicopter). M toggles it.
 
-const PX_PER_M = 1; // resolution of the pre-drawn map
-const MARGIN = 60; // m of countryside drawn around the city
 const VIEW_RADIUS = 110; // m from the centre to the edge of the minimap, at ground level
 
 export type MarkerKind = 'car' | 'heli' | 'traffic' | 'shop' | 'giver' | 'objective';
@@ -21,13 +20,11 @@ export class Minimap {
   readonly size: number; // CSS px
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
-  private readonly map: HTMLCanvasElement;
-  private readonly mapHalf: number; // world metres from the map canvas centre to its edge
   private readonly dpr: number;
   private visible = true;
 
   constructor(
-    layout: CityLayout,
+    private readonly map: WorldMap,
     private readonly input: Input,
     touch: boolean,
   ) {
@@ -48,9 +45,6 @@ export class Minimap {
     ].join(';');
     document.body.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d')!;
-
-    this.mapHalf = CITY_HALF + MARGIN;
-    this.map = drawCityMap(layout, this.mapHalf);
   }
 
   /**
@@ -88,7 +82,8 @@ export class Minimap {
     ctx.rotate(angle);
     ctx.scale(k, k);
     ctx.translate(-centre.x, -centre.z);
-    ctx.drawImage(this.map, -this.mapHalf, -this.mapHalf, this.mapHalf * 2, this.mapHalf * 2);
+    ctx.drawImage(this.map.canvas, -this.map.half, -this.map.half, this.map.half * 2, this.map.half * 2);
+    this.map.drawDetail(ctx, centre.x, centre.z, viewRadius * 1.5);
 
     // Markers, kept a constant size on screen.
     const px = 1 / k;
@@ -192,39 +187,4 @@ export class Minimap {
     ctx.arc(r, r, r - this.dpr, 0, Math.PI * 2);
     ctx.stroke();
   }
-}
-
-/** The static city picture: grass, asphalt, sidewalk blocks, parks and buildings. */
-function drawCityMap(layout: CityLayout, half: number): HTMLCanvasElement {
-  const size = Math.ceil(half * 2 * PX_PER_M);
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  // Map space: world metres, origin at the canvas centre.
-  ctx.setTransform(PX_PER_M, 0, 0, PX_PER_M, size / 2, size / 2);
-  ctx.fillStyle = '#5d7a45';
-  ctx.fillRect(-half, -half, half * 2, half * 2);
-  ctx.fillStyle = '#4a4d52'; // roads
-  ctx.fillRect(-CITY_HALF, -CITY_HALF, CITY_HALF * 2, CITY_HALF * 2);
-  for (const b of layout.blocks) {
-    ctx.fillStyle = '#b9b7b0'; // sidewalk / plaza
-    ctx.fillRect(b.cx - BLOCK_SIZE / 2, b.cz - BLOCK_SIZE / 2, BLOCK_SIZE, BLOCK_SIZE);
-    if (b.park) {
-      ctx.fillStyle = '#6f9150';
-      ctx.fillRect(b.cx - LOT / 2, b.cz - LOT / 2, LOT, LOT);
-    }
-    if (b.helipad) {
-      ctx.fillStyle = '#6a6c70';
-      ctx.beginPath();
-      ctx.arc(b.cx, b.cz, 9, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    for (const bl of b.buildings) {
-      // Taller buildings drawn darker.
-      const shade = Math.max(70, 150 - bl.height * 0.6);
-      ctx.fillStyle = `rgb(${shade},${shade},${shade + 6})`;
-      ctx.fillRect(bl.x - bl.width / 2, bl.z - bl.depth / 2, bl.width, bl.depth);
-    }
-  }
-  return canvas;
 }

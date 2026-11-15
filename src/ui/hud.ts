@@ -43,6 +43,9 @@ export class Hud {
   private readonly vignette: HTMLDivElement;
   private readonly toastBox: HTMLDivElement;
   private readonly fade: HTMLDivElement;
+  private readonly breathBar: HTMLDivElement;
+  private readonly breathFill: HTMLDivElement;
+  private readonly underwaterTint: HTMLDivElement;
   private flash = 0;
   private toastTimer = 0;
 
@@ -83,6 +86,20 @@ export class Hud {
     this.weaponText.style.cssText = 'opacity:0.9;font-weight:500';
     row.append(this.moneyText, this.weaponText);
     statsPanel.append(bar, row);
+
+    // Breath (only while swimming under water or getting it back): a blue bar under health.
+    this.breathBar = document.createElement('div');
+    this.breathBar.style.cssText = 'height:7px;border-radius:4px;background:rgba(255,255,255,0.18);overflow:hidden;margin:4px 0 0;display:none';
+    this.breathFill = document.createElement('div');
+    this.breathFill.style.cssText = 'height:100%;width:100%;border-radius:4px;background:#5ac8fa';
+    this.breathBar.appendChild(this.breathFill);
+    statsPanel.appendChild(this.breathBar);
+
+    // Blue-green tint while the camera is under water.
+    this.underwaterTint = document.createElement('div');
+    this.underwaterTint.style.cssText =
+      'position:fixed;inset:0;pointer-events:none;z-index:13;display:none;background:radial-gradient(circle at 50% 40%, rgba(20,110,130,0.25), rgba(5,40,60,0.6))';
+    document.body.appendChild(this.underwaterTint);
 
     // Crosshair for guns: a small ring in the centre of the screen.
     this.crosshair = document.createElement('div');
@@ -190,6 +207,19 @@ export class Hud {
 
     this.flash = Math.max(0, this.flash - frameDt * 1.8);
     this.vignette.style.opacity = this.flash.toFixed(2);
+  }
+
+  /** Breath left (0…1), or null to hide the bar. Turns red when nearly out. */
+  setBreath(fraction: number | null): void {
+    this.breathBar.style.display = fraction === null ? 'none' : '';
+    if (fraction === null) return;
+    this.breathFill.style.width = `${(fraction * 100).toFixed(1)}%`;
+    this.breathFill.style.background = fraction > 0.25 ? '#5ac8fa' : '#ff3b30';
+  }
+
+  setUnderwater(on: boolean): void {
+    const display = on ? '' : 'none';
+    if (this.underwaterTint.style.display !== display) this.underwaterTint.style.display = display;
   }
 
   /** Red flash, stronger for bigger hits. */

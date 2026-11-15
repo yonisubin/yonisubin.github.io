@@ -3,280 +3,157 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   BLOCK_SIZE,
-  CITY_HALF,
   CURB_HEIGHT,
   LOT,
-  ROAD_WIDTH,
+  WORLD_HALF,
   generateCity,
+  helipadPosition,
   spawnPoint,
   type CityLayout,
 } from './layout';
 import { createFacadeMaterial } from './facadeMaterial';
-import { asphaltTexture, glowTexture, grassTexture, helipadTexture, sidewalkTexture } from './textures';
+import { asphaltTexture, glowTexture, grainTexture, grassTexture, helipadTexture, sidewalkTexture } from './textures';
+import { Terrain } from './terrain';
+import { InstancePool } from './instancePool';
+import { CHUNKS, CHUNK_SIZE, LAMP_HEAD_OUT, WorldStreamer, type WorldPools } from './chunks';
 
-// Turns the city layout into meshes and colliders.
-// Every kind of repeated object is one InstancedMesh, so the whole city is ~a dozen draw calls.
+// The world: shared materials and instance pools, the streamed chunks (world/chunks.ts),
+// the coarse distant terrain, and a few one-off pieces (helipad decal, world boundary).
 
 export interface City {
   layout: CityLayout;
+  terrain: Terrain;
+  streamer: WorldStreamer;
   /** Where the player starts (capsule centre). */
   spawn: THREE.Vector3;
+  /** Coarse height grid of the whole world (for the distant terrain, water depth and maps). */
+  coarse: CoarseGrid;
   /** 0 by day … 1 at night: street lamps glow and light the pavement. */
   setNight(night: number): void;
-  dispose(): void;
+  /** Stream chunks around the player (call every frame). */
+  update(focus: THREE.Vector3): void;
+  /** Is there ground (a loaded terrain collider) at (x, z)? */
+  isLoaded(x: number, z: number): boolean;
 }
 
-// Scratch objects for composing instance matrices.
-const _pos = new THREE.Vector3();
-const _quat = new THREE.Quaternion();
-const _scale = new THREE.Vector3();
-const _mat = new THREE.Matrix4();
-const _color = new THREE.Color();
-const UP = new THREE.Vector3(0, 1, 0);
-
-function setInstance(
-  mesh: THREE.InstancedMesh,
-  i: number,
-  x: number,
-  y: number,
-  z: number,
-  sx = 1,
-  sy = 1,
-  sz = 1,
-  yaw = 0,
-): void {
-  _quat.setFromAxisAngle(UP, yaw);
-  mesh.setMatrixAt(i, _mat.compose(_pos.set(x, y, z), _quat, _scale.set(sx, sy, sz)));
+/** Heights sampled every `step` m over a square of side 2·half centred on the origin. */
+export interface CoarseGrid {
+  step: number;
+  half: number;
+  n: number; // samples per side
+  heights: Float32Array; // row by row, −Z to +Z, −X to +X
 }
+
+const FAR_HALF = 2600; // m covered by the distant terrain (beyond the world's edge)
+const FAR_STEP = 32;
 
 export function createCity(scene: THREE.Scene, world: RAPIER.World, seed: number): City {
   const layout = generateCity(seed);
-  const disposables: { dispose(): void }[] = [];
-  const objects: THREE.Object3D[] = [];
-  const colliders: RAPIER.Collider[] = [];
+  const terrain = new Terrain(layout);
 
-  const add = <T extends THREE.Mesh>(mesh: T): T => {
-    disposables.push(mesh.geometry);
-    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    disposables.push(...mats);
-    scene.add(mesh);
-    objects.push(mesh);
-    return mesh;
-  };
-  const collider = (desc: RAPIER.ColliderDesc) => colliders.push(world.createCollider(desc));
-
-  // --- Ground: asphalt across the city, grass beyond it, one big flat collider.
-  const groundSize = CITY_HALF * 2 + 40;
+  // --- Materials shared by all chunks.
+  const grain = grainTexture();
+  const terrainMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, map: grain, roughness: 1 });
   const asphalt = asphaltTexture();
-  asphalt.repeat.set(groundSize / 10, groundSize / 10);
-  disposables.push(asphalt);
-  const road = add(
-    new THREE.Mesh(
-      new THREE.PlaneGeometry(groundSize, groundSize).rotateX(-Math.PI / 2),
-      new THREE.MeshStandardMaterial({ map: asphalt, roughness: 0.92 }),
-    ),
-  );
-  road.receiveShadow = true;
+  const roadMaterial = new THREE.MeshStandardMaterial({
+    map: asphalt,
+    roughness: 0.92,
+    // Drawn just above the terrain: pull it forward in depth so it never z-fights.
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
+  const paintMaterial = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.7,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
 
-  // Grass beyond the city: four strips around the asphalt (not one plane underneath it,
-  // which would z-fight with the road at a distance).
-  const FIELD = 3000;
-  const outerGrass = grassTexture();
-  outerGrass.repeat.set(FIELD / 10, FIELD / 10);
-  disposables.push(outerGrass);
-  const g = groundSize / 2;
-  const strip = (w: number, d: number, x: number, z: number) =>
-    new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2).translate(x, 0, z);
-  const fieldGeo = mergeGeometries([
-    strip(FIELD, FIELD / 2 - g, 0, -(FIELD / 2 + g) / 2), // north
-    strip(FIELD, FIELD / 2 - g, 0, (FIELD / 2 + g) / 2), // south
-    strip(FIELD / 2 - g, 2 * g, -(FIELD / 2 + g) / 2, 0), // west
-    strip(FIELD / 2 - g, 2 * g, (FIELD / 2 + g) / 2, 0), // east
-  ]);
-  // World-space UVs so the grass texture tiles at the same scale on every strip.
-  const uv = fieldGeo.getAttribute('uv');
-  const pos = fieldGeo.getAttribute('position');
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) / FIELD + 0.5, pos.getZ(i) / FIELD + 0.5);
-  const field = add(new THREE.Mesh(fieldGeo, new THREE.MeshStandardMaterial({ map: outerGrass, roughness: 1 })));
-  field.receiveShadow = true;
+  // --- Instance pools: one draw call per kind of object, whatever is loaded.
+  const pool = (geometry: THREE.BufferGeometry, material: THREE.Material, capacity: number, color = false) => {
+    const p = new InstancePool(geometry, material, capacity, color);
+    scene.add(p.mesh);
+    return p;
+  };
 
-  // Ground collider as 100 m tiles rather than one huge slab: the character controller
-  // rested several cm *inside* a single 3 km collider (observed; most likely precision loss),
-  // and per-tile colliders also suit loading the world in chunks later.
-  const TILE = 100;
-  for (let x = -FIELD / 2; x < FIELD / 2; x += TILE) {
-    for (let z = -FIELD / 2; z < FIELD / 2; z += TILE) {
-      collider(RAPIER.ColliderDesc.cuboid(TILE / 2, 1, TILE / 2).setTranslation(x + TILE / 2, -1, z + TILE / 2));
-    }
-  }
-
-  buildRoadMarkings(layout, add);
-
-  // --- Block slabs: raised sidewalk + lot, all identical so the texture tiles correctly.
   const pavement = sidewalkTexture();
   pavement.repeat.set(BLOCK_SIZE / 8, BLOCK_SIZE / 8); // 2 m paving slabs
-  disposables.push(pavement);
-  const slabs = add(
-    new THREE.InstancedMesh(
-      new THREE.BoxGeometry(BLOCK_SIZE, CURB_HEIGHT, BLOCK_SIZE).translate(0, CURB_HEIGHT / 2, 0),
-      new THREE.MeshStandardMaterial({ map: pavement, roughness: 0.9 }),
-      layout.blocks.length,
-    ),
+  const slabs = pool(
+    new THREE.BoxGeometry(BLOCK_SIZE, CURB_HEIGHT, BLOCK_SIZE).translate(0, CURB_HEIGHT / 2, 0),
+    new THREE.MeshStandardMaterial({ map: pavement, roughness: 0.9 }),
+    700,
   );
-  slabs.receiveShadow = true;
-  layout.blocks.forEach((b, i) => {
-    setInstance(slabs, i, b.cx, 0, b.cz);
-    collider(
-      RAPIER.ColliderDesc.cuboid(BLOCK_SIZE / 2, CURB_HEIGHT / 2, BLOCK_SIZE / 2).setTranslation(b.cx, CURB_HEIGHT / 2, b.cz),
-    );
-  });
+  slabs.mesh.receiveShadow = true;
 
-  // --- Park lawns on top of park blocks.
-  const parks = layout.blocks.filter((b) => b.park);
-  if (parks.length > 0) {
-    const lawn = grassTexture();
-    lawn.repeat.set(LOT / 6, LOT / 6);
-    disposables.push(lawn);
-    const lawns = add(
-      new THREE.InstancedMesh(
-        new THREE.PlaneGeometry(LOT, LOT).rotateX(-Math.PI / 2),
-        new THREE.MeshStandardMaterial({ map: lawn, roughness: 1 }),
-        parks.length,
-      ),
-    );
-    lawns.receiveShadow = true;
-    parks.forEach((b, i) => setInstance(lawns, i, b.cx, CURB_HEIGHT + 0.01, b.cz));
-  }
+  const lawnTex = grassTexture();
+  lawnTex.repeat.set(LOT / 6, LOT / 6);
+  const lawns = pool(new THREE.PlaneGeometry(LOT, LOT).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: lawnTex, roughness: 1 }), 600);
+  lawns.mesh.receiveShadow = true;
 
-  // --- Helipad marking on its park (a flat decal; the slab underneath is the collider).
-  const pad = layout.blocks.find((b) => b.helipad);
-  if (pad) {
-    const padTex = helipadTexture();
-    disposables.push(padTex);
-    const padMesh = add(
-      new THREE.Mesh(
-        new THREE.PlaneGeometry(18, 18).rotateX(-Math.PI / 2),
-        new THREE.MeshStandardMaterial({
-          map: padTex,
-          transparent: true,
-          roughness: 0.85,
-          polygonOffset: true,
-          polygonOffsetFactor: -4,
-          polygonOffsetUnits: -4,
-        }),
-      ),
-    );
-    padMesh.position.set(pad.cx, CURB_HEIGHT + 0.02, pad.cz);
-    padMesh.receiveShadow = true;
-  }
-
-  // --- Buildings: one unit box stretched per instance, facades drawn by the shader.
-  const buildings = layout.blocks.flatMap((b) => b.buildings);
+  // Buildings: one unit box stretched per instance, facades drawn by the shader.
   const buildingGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
-  const style = new Float32Array(buildings.length * 4);
-  buildings.forEach((b, i) => {
-    style[i * 4] = b.style;
-    style[i * 4 + 1] = b.seed;
-  });
-  buildingGeo.setAttribute('aStyle', new THREE.InstancedBufferAttribute(style, 4));
-  const buildingMesh = add(new THREE.InstancedMesh(buildingGeo, createFacadeMaterial(), buildings.length));
-  buildingMesh.castShadow = true;
-  buildingMesh.receiveShadow = true;
-  buildings.forEach((b, i) => {
-    setInstance(buildingMesh, i, b.x, CURB_HEIGHT, b.z, b.width, b.height, b.depth);
-    buildingMesh.setColorAt(i, _color.setRGB(...b.color));
-    collider(
-      RAPIER.ColliderDesc.cuboid(b.width / 2, b.height / 2, b.depth / 2).setTranslation(b.x, CURB_HEIGHT + b.height / 2, b.z),
-    );
-  });
+  const BUILDINGS = 6000;
+  buildingGeo.setAttribute('aStyle', new THREE.InstancedBufferAttribute(new Float32Array(BUILDINGS * 4), 4));
+  const buildings = pool(buildingGeo, createFacadeMaterial(), BUILDINGS, true);
+  buildings.mesh.castShadow = true;
+  buildings.mesh.receiveShadow = true;
 
-  // --- Rooftop AC units and water tanks (no colliders: nothing can reach roofs yet).
-  const props = layout.blocks.flatMap((b) => b.roofProps);
-  const acs = props.filter((p) => p.kind === 'ac');
-  const tanks = props.filter((p) => p.kind === 'tank');
-  const acMesh = add(
-    new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0),
-      new THREE.MeshStandardMaterial({ color: 0x8d9093, roughness: 0.5, metalness: 0.4 }),
-      acs.length,
-    ),
-  );
-  acMesh.castShadow = true;
-  acs.forEach((p, i) => setInstance(acMesh, i, p.x, CURB_HEIGHT + p.y, p.z, ...p.size));
-  const tankMesh = add(
-    new THREE.InstancedMesh(
-      new THREE.CylinderGeometry(0.5, 0.5, 1, 16).translate(0, 0.5, 0),
-      new THREE.MeshStandardMaterial({ color: 0x5e4632, roughness: 0.9 }),
-      tanks.length,
-    ),
-  );
-  tankMesh.castShadow = true;
-  tanks.forEach((p, i) => setInstance(tankMesh, i, p.x, CURB_HEIGHT + p.y, p.z, ...p.size));
+  // Pitched roofs: a unit prism (ridge along X at y = 1, eaves at y = 0).
+  const roofs = pool(roofPrism(), new THREE.MeshStandardMaterial({ roughness: 0.85, flatShading: true }), 5000, true);
+  roofs.mesh.castShadow = true;
+  roofs.mesh.receiveShadow = true;
 
-  // --- Trees: trunk + clustered low-poly canopy, colour varied per instance.
-  const trees = layout.blocks.flatMap((b) => b.trees);
-  const trunkMesh = add(
-    new THREE.InstancedMesh(
-      new THREE.CylinderGeometry(0.12, 0.2, 2.8, 7).translate(0, 1.4, 0),
-      new THREE.MeshStandardMaterial({ color: 0x4a3626, roughness: 1 }),
-      trees.length,
-    ),
+  const acs = pool(
+    new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0),
+    new THREE.MeshStandardMaterial({ color: 0x8d9093, roughness: 0.5, metalness: 0.4 }),
+    2500,
   );
+  acs.mesh.castShadow = true;
+  const tanks = pool(
+    new THREE.CylinderGeometry(0.5, 0.5, 1, 16).translate(0, 0.5, 0),
+    new THREE.MeshStandardMaterial({ color: 0x5e4632, roughness: 0.9 }),
+    400,
+  );
+  tanks.mesh.castShadow = true;
+
+  // Street and park trees: trunk + clustered low-poly canopy, colour varied per instance.
+  const trunks = pool(
+    new THREE.CylinderGeometry(0.12, 0.2, 2.8, 7).translate(0, 1.4, 0),
+    new THREE.MeshStandardMaterial({ color: 0x4a3626, roughness: 1 }),
+    5000,
+  );
+  // One rounder main blob and three simpler ones (140 triangles): the bigger world has
+  // thousands of street and garden trees loaded at once.
   const canopyGeo = mergeGeometries([
     new THREE.IcosahedronGeometry(1.7, 1).translate(0, 4.0, 0),
-    new THREE.IcosahedronGeometry(1.3, 1).translate(1.0, 3.4, 0.4),
-    new THREE.IcosahedronGeometry(1.35, 1).translate(-0.8, 3.6, -0.6),
-    new THREE.IcosahedronGeometry(1.1, 1).translate(0.2, 3.3, -1.1),
+    new THREE.IcosahedronGeometry(1.35, 0).translate(1.0, 3.4, 0.4),
+    new THREE.IcosahedronGeometry(1.4, 0).translate(-0.8, 3.6, -0.6),
+    new THREE.IcosahedronGeometry(1.15, 0).translate(0.2, 3.3, -1.1),
   ]);
-  const canopyMesh = add(
-    new THREE.InstancedMesh(
-      canopyGeo,
-      new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }),
-      trees.length,
-    ),
-  );
-  trunkMesh.castShadow = canopyMesh.castShadow = true;
-  canopyMesh.receiveShadow = true;
-  trees.forEach((t, i) => {
-    const yaw = t.hue * Math.PI * 2;
-    setInstance(trunkMesh, i, t.x, CURB_HEIGHT, t.z, t.scale, t.scale, t.scale, yaw);
-    setInstance(canopyMesh, i, t.x, CURB_HEIGHT, t.z, t.scale, t.scale, t.scale, yaw);
-    canopyMesh.setColorAt(i, _color.setHSL(0.22 + t.hue * 0.09, 0.45, 0.16 + t.hue * 0.08));
-    collider(
-      RAPIER.ColliderDesc.cylinder(1.4 * t.scale, 0.2 * t.scale).setTranslation(t.x, CURB_HEIGHT + 1.4 * t.scale, t.z),
-    );
-  });
+  const canopies = pool(canopyGeo, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), 5000, true);
+  trunks.mesh.castShadow = canopies.mesh.castShadow = true;
+  canopies.mesh.receiveShadow = true;
 
-  // --- Street lamps: pole + arm merged into one geometry; the luminaire is separate so it
-  // can glow at night.
-  const lamps = layout.blocks.flatMap((b) => b.lamps);
+  // Countryside trees: a cheap trunk + two-cone pine (≈ 40 triangles), no shadows (there
+  // are thousands of them).
+  const forest = pool(forestTree(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true }), 9000, true);
+  forest.mesh.receiveShadow = true;
+
+  // Street lamps: pole + arm merged into one geometry; the luminaire is separate so it can glow.
   const lampGeo = mergeGeometries([
     new THREE.CylinderGeometry(0.07, 0.11, 7, 8).translate(0, 3.5, 0),
     new THREE.BoxGeometry(1.9, 0.08, 0.08).translate(0.95, 6.9, 0),
   ]);
-  const lampMesh = add(
-    new THREE.InstancedMesh(
-      lampGeo,
-      new THREE.MeshStandardMaterial({ color: 0x2e3236, roughness: 0.45, metalness: 0.6 }),
-      lamps.length,
-    ),
-  );
-  lampMesh.castShadow = true;
-  const LAMP_HEAD_OUT = 1.8; // m from the pole to the luminaire
+  const lamps = pool(lampGeo, new THREE.MeshStandardMaterial({ color: 0x2e3236, roughness: 0.45, metalness: 0.6 }), 2000);
+  lamps.mesh.castShadow = true;
   const lampHeadMaterial = new THREE.MeshStandardMaterial({ color: 0x3a3c40, emissive: 0xffd9a0, emissiveIntensity: 0 });
-  const lampHeads = add(
-    new THREE.InstancedMesh(
-      new THREE.BoxGeometry(0.7, 0.14, 0.3).translate(LAMP_HEAD_OUT, 6.85, 0),
-      lampHeadMaterial,
-      lamps.length,
-    ),
-  );
+  const lampHeads = pool(new THREE.BoxGeometry(0.7, 0.14, 0.3).translate(LAMP_HEAD_OUT, 6.85, 0), lampHeadMaterial, 2000);
   // Pools of light on the ground under each lamp: soft additive discs (far cheaper than
   // hundreds of real lights). Drawn just above the curb height so they show on the pavement.
-  const glow = glowTexture();
-  disposables.push(glow);
   const poolMaterial = new THREE.MeshBasicMaterial({
-    map: glow,
+    map: glowTexture(),
     color: 0xffc98a,
     transparent: true,
     opacity: 0,
@@ -286,104 +163,159 @@ export function createCity(scene: THREE.Scene, world: RAPIER.World, seed: number
     polygonOffsetFactor: -6,
     polygonOffsetUnits: -6,
   });
-  const pools = add(new THREE.InstancedMesh(new THREE.PlaneGeometry(10, 10).rotateX(-Math.PI / 2), poolMaterial, lamps.length));
-  pools.visible = false;
-  lamps.forEach((l, i) => {
-    setInstance(lampMesh, i, l.x, CURB_HEIGHT, l.z, 1, 1, 1, l.yaw);
-    setInstance(lampHeads, i, l.x, CURB_HEIGHT, l.z, 1, 1, 1, l.yaw);
-    // Ground point under the luminaire: the arm's +X direction after yawing by l.yaw.
-    const gx = l.x + Math.cos(l.yaw) * LAMP_HEAD_OUT;
-    const gz = l.z - Math.sin(l.yaw) * LAMP_HEAD_OUT;
-    setInstance(pools, i, gx, CURB_HEIGHT + 0.02, gz);
-    collider(RAPIER.ColliderDesc.cylinder(3.5, 0.12).setTranslation(l.x, CURB_HEIGHT + 3.5, l.z));
+  const lightPools = pool(new THREE.PlaneGeometry(10, 10).rotateX(-Math.PI / 2), poolMaterial, 2000);
+  lightPools.mesh.visible = false;
+
+  const pools: WorldPools = { buildings, roofs, slabs, lawns, acs, tanks, trunks, canopies, forest, lamps, lampHeads, lightPools };
+  const streamer = new WorldStreamer(scene, world, layout, terrain, pools, {
+    terrain: terrainMaterial,
+    road: roadMaterial,
+    paint: paintMaterial,
   });
+
+  // --- Distant terrain: the whole world at low resolution, hidden wherever a chunk is loaded.
+  const coarse = sampleCoarse(terrain);
+  scene.add(farTerrain(coarse, terrain, streamer));
+
+  // --- Helipad marking on its park (a flat decal; the block slab underneath is the collider).
+  const pad = helipadPosition(layout);
+  const padMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(18, 18).rotateX(-Math.PI / 2),
+    new THREE.MeshStandardMaterial({
+      map: helipadTexture(),
+      transparent: true,
+      roughness: 0.85,
+      polygonOffset: true,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4,
+    }),
+  );
+  padMesh.position.set(pad.x, CURB_HEIGHT + 0.02, pad.z);
+  padMesh.receiveShadow = true;
+  scene.add(padMesh);
+
+  // --- The edge of the world: invisible walls just inside the rim hills and out at sea.
+  const wall = WORLD_HALF - 15;
+  for (const [x, z, hx, hz] of [
+    [wall, 0, 1, wall],
+    [-wall, 0, 1, wall],
+    [0, wall, wall, 1],
+    [0, -wall, wall, 1],
+  ]) {
+    world.createCollider(RAPIER.ColliderDesc.cuboid(hx, 300, hz).setTranslation(x, 0, z));
+  }
 
   const sp = spawnPoint(layout);
   return {
     layout,
+    terrain,
+    streamer,
+    coarse,
     spawn: new THREE.Vector3(sp.x, CURB_HEIGHT + 1.0, sp.z),
     setNight(night) {
       lampHeadMaterial.emissiveIntensity = night * 4;
       poolMaterial.opacity = night * 0.55;
-      pools.visible = night > 0.01;
+      lightPools.mesh.visible = night > 0.01;
     },
-    dispose() {
-      for (const o of objects) scene.remove(o);
-      for (const d of disposables) d.dispose();
-      for (const c of colliders) world.removeCollider(c, false);
+    update(focus) {
+      streamer.update(focus);
     },
+    isLoaded: (x, z) => streamer.isLoaded(x, z),
   };
 }
 
+/** Unit prism: square base [−0.5, 0.5]² at y = 0, ridge along X at y = 1 (gable ends at ±X). */
+function roofPrism(): THREE.BufferGeometry {
+  const v = [
+    // Two sloped faces.
+    [-0.5, 0, 0.5], [0.5, 0, 0.5], [0.5, 1, 0], [-0.5, 1, 0],
+    [0.5, 0, -0.5], [-0.5, 0, -0.5], [-0.5, 1, 0], [0.5, 1, 0],
+  ];
+  const positions: number[] = [];
+  const quad = (a: number[], b: number[], c: number[], d: number[]) => positions.push(...a, ...b, ...c, ...a, ...c, ...d);
+  quad(v[0], v[1], v[2], v[3]);
+  quad(v[4], v[5], v[6], v[7]);
+  // Gable triangles at both ends.
+  positions.push(0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 1, 0);
+  positions.push(-0.5, 0, -0.5, -0.5, 0, 0.5, -0.5, 1, 0);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
+/** A low-poly countryside tree with vertex colours (brown trunk, white crown tinted per instance). */
+function forestTree(): THREE.BufferGeometry {
+  const parts: [THREE.BufferGeometry, [number, number, number]][] = [
+    [new THREE.CylinderGeometry(0.15, 0.25, 2.2, 5).translate(0, 1.1, 0), [0.35, 0.22, 0.13]],
+    [new THREE.ConeGeometry(2.3, 4.2, 7).translate(0, 3.6, 0), [1, 1, 1]],
+    [new THREE.ConeGeometry(1.7, 3.4, 7).translate(0, 5.6, 0), [1, 1, 1]],
+  ];
+  const geos = parts.map(([g, c]) => {
+    const geo = g.toNonIndexed();
+    const n = geo.getAttribute('position').count;
+    const colors = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) colors.set(c, i * 3);
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.deleteAttribute('uv');
+    return geo;
+  });
+  return mergeGeometries(geos);
+}
+
+function sampleCoarse(terrain: Terrain): CoarseGrid {
+  const n = Math.round((FAR_HALF * 2) / FAR_STEP) + 1;
+  const heights = new Float32Array(n * n);
+  for (let iz = 0; iz < n; iz++) {
+    for (let ix = 0; ix < n; ix++) heights[iz * n + ix] = terrain.heightAt(-FAR_HALF + ix * FAR_STEP, -FAR_HALF + iz * FAR_STEP);
+  }
+  return { step: FAR_STEP, half: FAR_HALF, n, heights };
+}
+
 /**
- * Lane markings, drawn as flat instanced quads just above the asphalt:
- *  - double yellow centre line and dashed white lane dividers on each road segment
- *  - zebra crossings and stop lines at every intersection approach
+ * The whole world's terrain at 32 m resolution, so hills and the coast show on the horizon
+ * and from the helicopter. Its fragment shader discards pixels inside loaded chunks (where
+ * the detailed terrain is), using the streamer's loaded-chunk mask as a tiny texture.
  */
-function buildRoadMarkings(layout: CityLayout, add: <T extends THREE.Mesh>(m: T) => T): void {
-  type Strip = { x: number; z: number; sx: number; sz: number };
-  const white: Strip[] = [];
-  const yellow: Strip[] = [];
-  const lines = layout.roadLines;
-  const half = ROAD_WIDTH / 2;
-  const CROSSWALK = 3.2; // length of zebra stripes along the road
-  const CROSS_GAP = 0.6; // between intersection edge and crossing
+function farTerrain(coarse: CoarseGrid, terrain: Terrain, streamer: WorldStreamer): THREE.Mesh {
+  const { n, half, step, heights } = coarse;
+  const geometry = new THREE.PlaneGeometry(half * 2, half * 2, n - 1, n - 1).rotateX(-Math.PI / 2);
+  const pos = geometry.getAttribute('position') as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) pos.setY(i, heights[i] - 0.3);
+  geometry.computeVertexNormals();
+  const normal = geometry.getAttribute('normal') as THREE.BufferAttribute;
+  const colors = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    let c = terrain.colorAt(x, z, heights[i], 1 - normal.getY(i));
+    // From afar, forests read as a dark green canopy and towns as grey.
+    if (terrain.zoneAt(x, z) === 'forest' && heights[i] > 0) c = [c[0] * 0.55, c[1] * 0.75, c[2] * 0.55];
+    if (terrain.townDistance(x, z) === 0) c = [0.22, 0.22, 0.22];
+    colors.set(c, i * 3);
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  void step;
 
-  // Each road segment runs between two adjacent intersections. `alongZ` = the road runs along Z.
-  const segment = (fixed: number, from: number, to: number, alongZ: boolean) => {
-    const strip = (offset: number, a: number, b: number, width: number, list: Strip[]) => {
-      const mid = (a + b) / 2;
-      const len = b - a;
-      list.push(alongZ ? { x: fixed + offset, z: mid, sx: width, sz: len } : { x: mid, z: fixed + offset, sx: len, sz: width });
-    };
-    const start = from + half; // edge of the previous intersection
-    const end = to - half;
-    const linesFrom = start + CROSS_GAP + CROSSWALK + 1.2;
-    const linesTo = end - CROSS_GAP - CROSSWALK - 1.2;
-
-    // Double yellow centre line.
-    strip(-0.17, linesFrom, linesTo, 0.12, yellow);
-    strip(0.17, linesFrom, linesTo, 0.12, yellow);
-    // Dashed lane dividers: 3 m dash, 6 m gap.
-    for (let t = linesFrom + 2; t + 3 < linesTo - 2; t += 9) {
-      strip(-3.5, t, t + 3, 0.12, white);
-      strip(3.5, t, t + 3, 0.12, white);
-    }
-    // Stop lines across the approaching lanes (traffic drives on the right).
-    strip(-half / 2 - 0.1, linesTo, linesTo + 0.45, half - 0.4, white);
-    strip(half / 2 + 0.1, linesFrom - 0.45, linesFrom, half - 0.4, white);
-    // Zebra crossings at both ends: stripes parallel to the road, spread across it.
-    for (const [a, b] of [
-      [start + CROSS_GAP, start + CROSS_GAP + CROSSWALK],
-      [end - CROSS_GAP - CROSSWALK, end - CROSS_GAP],
-    ]) {
-      for (let o = -half + 0.9; o <= half - 0.9; o += 1.1) strip(o, a, b, 0.55, white);
-    }
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+  const origin = -(CHUNKS * CHUNK_SIZE) / 2;
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uLoaded = { value: streamer.loadedTexture };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vWorldXZ;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWorldXZ = (modelMatrix * vec4(position, 1.0)).xz;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vWorldXZ;\nuniform sampler2D uLoaded;')
+      .replace(
+        '#include <clipping_planes_fragment>',
+        `#include <clipping_planes_fragment>
+        vec2 chunk = (vWorldXZ - ${origin.toFixed(1)}) / ${CHUNK_SIZE.toFixed(1)};
+        if (chunk.x >= 0.0 && chunk.y >= 0.0 && chunk.x < ${CHUNKS.toFixed(1)} && chunk.y < ${CHUNKS.toFixed(1)}) {
+          if (texture2D(uLoaded, (floor(chunk) + 0.5) / ${CHUNKS.toFixed(1)}).r > 0.5) discard;
+        }`,
+      );
   };
-
-  for (const fixed of lines) {
-    for (let i = 0; i + 1 < lines.length; i++) {
-      segment(fixed, lines[i], lines[i + 1], true);
-      segment(fixed, lines[i], lines[i + 1], false);
-    }
-  }
-
-  const quad = () => new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-  const paint = (color: number) =>
-    new THREE.MeshStandardMaterial({
-      color,
-      roughness: 0.7,
-      // Pull the paint toward the camera in depth so it never z-fights with the asphalt.
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
-    });
-  for (const [list, color] of [
-    [white, 0xd8d8d2],
-    [yellow, 0xd9a82b],
-  ] as const) {
-    const mesh = add(new THREE.InstancedMesh(quad(), paint(color), list.length));
-    mesh.receiveShadow = true;
-    list.forEach((s, i) => setInstance(mesh, i, s.x, 0.01, s.z, s.sx, 1, s.sz));
-  }
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.receiveShadow = false;
+  return mesh;
 }

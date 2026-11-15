@@ -3,7 +3,8 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import type { SimEntity } from '../sim/entity';
 import type { Smoke } from '../sim/smoke';
 import { Rng } from '../world/rng';
-import { CURB_HEIGHT, ROAD_WIDTH, type CityLayout } from '../world/layout';
+import { CURB_HEIGHT, ROAD_WIDTH, cellOf, type CityLayout } from '../world/layout';
+import type { Terrain } from '../world/terrain';
 import {
   DIRS,
   RoadGraph,
@@ -40,6 +41,7 @@ const SPAWN_MIN = 60; // m from the player (closer spawns would pop in visibly)
 const SPAWN_MAX = 220;
 const DESPAWN = 260;
 const CRUISE_SPEED = 11; // m/s ≈ 40 km/h
+const RURAL_SPEED = 16; // m/s ≈ 58 km/h on country roads
 const TURN_SPEED = 6; // m/s through intersections
 const ACCEL = 2.5; // m/s²
 const BRAKE = 7; // m/s², maximum comfortable braking
@@ -69,6 +71,8 @@ export interface TrafficCar {
   currPos: THREE.Vector3;
   prevYaw: number;
   currYaw: number;
+  /** Nose-up angle (rad) from the slope of the road. */
+  currPitch: number;
   active: boolean;
   health: number;
   /** Seconds since it was wrecked, or −1 while it's still running. */
@@ -108,6 +112,8 @@ export class Traffic implements SimEntity {
     world: RAPIER.World,
     scene: THREE.Scene,
     layout: CityLayout,
+    /** Road heights: traffic follows the ground over the hills. */
+    private readonly terrain: Terrain,
     /** Where the player is (cars spawn and despawn around this point). */
     private readonly playerPosition: () => THREE.Vector3,
     private readonly obstacles: ObstacleSource,
@@ -172,7 +178,7 @@ export class Traffic implements SimEntity {
         color,
         slot,
         body,
-        piece: this.graph.lane(0, 0, 0)!,
+        piece: this.graph.lane(26, 26, 0)!, // placeholder until respawn (downtown always has roads)
         s: 0,
         speed: 0,
         wheelSpin: 0,
@@ -185,6 +191,7 @@ export class Traffic implements SimEntity {
         currPos: new THREE.Vector3(),
         prevYaw: 0,
         currYaw: 0,
+        currPitch: 0,
         active: false,
       });
     }
@@ -195,9 +202,12 @@ export class Traffic implements SimEntity {
   /** Put a car on a random free lane within spawning distance of the player. */
   private respawn(car: TrafficCar, minDist = SPAWN_MIN): void {
     const player = this.playerPosition();
+    // Try intersections within a few blocks of the player (the grid is 53 × 53).
+    const pi = cellOf(player.x);
+    const pj = cellOf(player.z);
     for (let attempt = 0; attempt < 40; attempt++) {
-      const i = this.rng.int(0, this.graph.size - 1);
-      const j = this.rng.int(0, this.graph.size - 1);
+      const i = Math.min(this.graph.size - 1, Math.max(0, pi + this.rng.int(-3, 3)));
+      const j = Math.min(this.graph.size - 1, Math.max(0, pj + this.rng.int(-3, 3)));
       const d = this.rng.pick(DIRS);
       const lane = this.graph.lane(i, j, d);
       if (!lane) continue;
@@ -208,7 +218,7 @@ export class Traffic implements SimEntity {
       if (this.cars.some((o) => o !== car && o.active && o.currPos.distanceToSquared(p) < 15 * 15)) continue;
       car.piece = lane;
       car.s = s;
-      car.speed = CRUISE_SPEED * 0.6;
+      car.speed = (lane.rural ? RURAL_SPEED : CRUISE_SPEED) * 0.6;
       car.active = true;
       car.health = CAR_HEALTH;
       car.wrecked = -1;
@@ -228,9 +238,16 @@ export class Traffic implements SimEntity {
   private place(car: TrafficCar): void {
     const t = Math.min(1, car.s / car.piece.length);
     bezierPoint(car.piece, t, car.currPos);
-    car.currPos.y = 0;
     const tan = bezierTangent(car.piece, t, this.tmp2);
     car.currYaw = Math.atan2(-tan.z, tan.x); // model forward is +X
+    // Follow the road over the hills: height under the car, pitch from the ground 1.5 m
+    // ahead and behind along the direction of travel.
+    const fx = Math.cos(car.currYaw);
+    const fz = -Math.sin(car.currYaw);
+    const ahead = this.terrain.smoothHeight(car.currPos.x + fx * 1.5, car.currPos.z + fz * 1.5);
+    const behind = this.terrain.smoothHeight(car.currPos.x - fx * 1.5, car.currPos.z - fz * 1.5);
+    car.currPos.y = (ahead + behind) / 2;
+    car.currPitch = Math.atan2(ahead - behind, 3);
   }
 
   /**
@@ -253,7 +270,7 @@ export class Traffic implements SimEntity {
     for (const p of obstacles) consider(p, 1);
 
     // Red (or late-yellow) light ahead on this lane: stop at the stop line.
-    if (car.piece.kind === 'lane') {
+    if (car.piece.kind === 'lane' && this.graph.hasLights(car.piece.toI, car.piece.toJ)) {
       const stopS = car.piece.length - STOP_LINE_BACK - car.halfLength;
       const toStop = stopS - car.s;
       if (toStop > -0.5) {
@@ -293,7 +310,7 @@ export class Traffic implements SimEntity {
       // Speed control: cruise (slower in turns), but never faster than lets us stop within
       // the free distance ahead: v_max = √(2·a·d) is the speed you can brake from in d metres.
       const free = this.freeDistance(car, obstacles);
-      const cruise = car.piece.kind === 'turn' ? TURN_SPEED : CRUISE_SPEED;
+      const cruise = car.piece.kind === 'turn' ? TURN_SPEED : car.piece.rural ? RURAL_SPEED : CRUISE_SPEED;
       const target = Math.min(cruise, Math.sqrt(2 * BRAKE * 0.6 * Math.max(0, free)));
       if (target > car.speed) car.speed = Math.min(target, car.speed + ACCEL * dt);
       else car.speed = Math.max(target, car.speed - BRAKE * 1.5 * dt);
@@ -319,7 +336,7 @@ export class Traffic implements SimEntity {
         }
       }
       this.place(car);
-      this.quat.setFromAxisAngle(UP, car.currYaw);
+      this.orientation(car.currYaw, car.currPitch, this.quat);
       car.body.setNextKinematicTranslation(car.currPos);
       car.body.setNextKinematicRotation(this.quat);
     }
@@ -342,7 +359,7 @@ export class Traffic implements SimEntity {
       pos.lerpVectors(car.prevPos, car.currPos, alpha);
       let dyaw = car.currYaw - car.prevYaw;
       dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
-      this.quat.setFromAxisAngle(UP, car.prevYaw + dyaw * alpha);
+      this.orientation(car.prevYaw + dyaw * alpha, car.currPitch, this.quat);
       this.mat.compose(pos, this.quat, this.one);
       for (const m of meshes) m.setMatrixAt(car.slot, this.mat);
       // Wrecked: show the burnt body in place of the painted one.
@@ -390,6 +407,13 @@ export class Traffic implements SimEntity {
     this.tyres.instanceMatrix.needsUpdate = true;
     this.rims.instanceMatrix.needsUpdate = true;
   }
+
+  /** Yaw about Y, then pitch about the car's own Z axis (its forward is +X, so +pitch = nose up). */
+  private orientation(yaw: number, pitch: number, out: THREE.Quaternion): THREE.Quaternion {
+    out.setFromAxisAngle(UP, yaw);
+    return out.multiply(this.pitchQuat.setFromAxisAngle(Z_AXIS, pitch));
+  }
+  private readonly pitchQuat = new THREE.Quaternion();
 
   /** A running traffic car between `minDist` and `maxDist` from `from` (for missions). */
   pickTarget(from: THREE.Vector3, minDist: number, maxDist: number): TrafficCar | null {
@@ -477,6 +501,7 @@ export class Traffic implements SimEntity {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
 const ZERO = new THREE.Vector3(0, 0, 0);
 const IDENTITY_QUAT = new THREE.Quaternion();
 const SCALE = new THREE.Vector3();
@@ -495,6 +520,7 @@ class TrafficLights {
     const half = ROAD_WIDTH / 2;
     for (let i = 0; i < graph.size; i++) {
       for (let j = 0; j < graph.size; j++) {
+        if (!graph.hasLights(i, j)) continue;
         for (const d of DIRS) {
           // An approach exists if a road arrives here travelling in direction d.
           if (graph.neighbor(i, j, ((d + 2) % 4) as Dir)) this.approaches.push({ i, j, d });
