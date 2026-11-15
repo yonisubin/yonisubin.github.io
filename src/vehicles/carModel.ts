@@ -232,10 +232,9 @@ export function paintMaterial(color: number): THREE.MeshPhysicalMaterial {
   });
 }
 
-/** Wheel geometry with its axle along Z (tyre + rim), centred on the wheel centre. */
 const wheelCache = new Map<number, { tyre: THREE.BufferGeometry; rim: THREE.BufferGeometry }>();
 
-/** Tyre and rim geometry for a wheel of this radius (built once per radius, then shared). */
+/** Tyre and rim geometry (axle along Z, centred on the wheel centre) for a wheel of this radius, built once per radius and shared. */
 export function wheelGeometry(radius: number): { tyre: THREE.BufferGeometry; rim: THREE.BufferGeometry } {
   const cached = wheelCache.get(radius);
   if (cached) return cached;

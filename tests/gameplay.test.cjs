@@ -11,7 +11,9 @@ run('gameplay: cash drops, parked boats, menus, mission target, jacked cars, wea
     g.renderer.setAnimationLoop(null);
     g.simulate(1);
     const car = g.traffic.cars.find((c) => c.active && c.wrecked < 0);
+    const count = g.cash.pickups.length;
     g.traffic.damage(car, 9999);
+    const added = g.cash.pickups.length - count;
     const drop = g.cash.pickups[g.cash.pickups.length - 1];
     const road = g.city.terrain.smoothHeight(drop.position.x, drop.position.z);
     // Walk onto it.
@@ -20,8 +22,9 @@ run('gameplay: cash drops, parked boats, menus, mission target, jacked cars, wea
     g.city.streamer.loadAround(drop.position, 200);
     g.onFoot.placeAt(new V(drop.position.x, g.city.terrain.surfaceAt(drop.position.x, drop.position.z) + 1, drop.position.z), 0, 0);
     g.simulate(0.5);
-    return { dropY: drop.position.y, road, gained: g.stats.money - money };
+    return { added, dropped: drop.dropped, dropY: drop.position.y, road, carY: car.currPos.y, gained: g.stats.money - money };
   });
+  t.ok('wrecking a car drops one new bundle of cash', cash.added === 1 && cash.dropped, `${cash.added} new, dropped=${cash.dropped}`);
   t.ok('wreck cash is dropped at road height', Math.abs(cash.dropY - cash.road) < 1.5, `y ${cash.dropY.toFixed(2)}, road ${cash.road.toFixed(2)}`);
   t.ok('…and can be picked up', cash.gained > 0, `+$${cash.gained}`);
   const expiry = await page.evaluate(() => {
@@ -108,6 +111,7 @@ run('gameplay: cash drops, parked boats, menus, mission target, jacked cars, wea
     const jack = g.onFoot.interactables.find((i) => /carjack/.test(i.label()));
     const before = g.cars.length;
     const bodies0 = g.world.bodies.len();
+    let jacks = 0;
     for (let k = 0; k < 10; k++) {
       g.player.setMode(g.onFoot);
       const car = g.traffic.cars.find((c) => c.active && c.wrecked < 0 && c.speed < 4);
@@ -118,13 +122,15 @@ run('gameplay: cash drops, parked boats, menus, mission target, jacked cars, wea
       const V = g.camera.position.constructor;
       g.onFoot.placeAt(new V(car.currPos.x + 2, g.city.terrain.surfaceAt(car.currPos.x + 2, car.currPos.z) + 1, car.currPos.z), 0, 0);
       g.simulate(1 / 60);
+      const n = g.cars.length;
       jack.activate();
+      if (g.cars.length > n || g.player.mode !== g.onFoot) jacks++;
       g.simulate(0.2);
     }
     g.player.setMode(g.onFoot);
-    return { added: g.cars.length - before, bodies: g.world.bodies.len() - bodies0 };
+    return { jacks, added: g.cars.length - before, bodies: g.world.bodies.len() - bodies0 };
   });
-  t.ok('10 carjacks keep at most 4 jacked cars', jacked.added <= 4, `+${jacked.added} cars, +${jacked.bodies} physics bodies`);
+  t.ok('10 carjacks keep exactly 4 jacked cars', jacked.jacks >= 5 && jacked.added === 4, `${jacked.jacks} carjacks → +${jacked.added} cars, +${jacked.bodies} physics bodies`);
 
   // --- Weapon switching reuses the models.
   const weapons = await page.evaluate(() => {

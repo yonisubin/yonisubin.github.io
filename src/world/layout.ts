@@ -158,7 +158,6 @@ export function lineCoord(k: number): number {
 export function cellOf(x: number): number {
   return Math.floor(x / PITCH + CELLS / 2);
 }
-/** Kept for older call sites: the centre of block i along one axis. */
 
 // --- Places (deterministic, not random) ---------------------------------------------
 

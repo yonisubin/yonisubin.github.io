@@ -18,8 +18,8 @@ run('police: patrols, pursuit, busted, hovering, thinning, busted while dying', 
   // --- 2 stars on foot: pursuit, officers, arrest, fine, police station.
   const onFoot = await page.evaluate(() => {
     const g = window.game;
-    g.wanted.crime('knockout');
-    g.wanted.crime('knockout');
+    // Set the heat directly: a patrol car that happens to see crimes counts them double.
+    g.wanted.heat = 2.2;
     const stars = g.wanted.stars;
     let busted = false;
     for (let s = 0; s < 45 && !busted; s++) {
@@ -28,7 +28,7 @@ run('police: patrols, pursuit, busted, hovering, thinning, busted while dying', 
     }
     return { stars, pursuers: g.police.units.filter((u) => u.role === 'pursuit').length, dropped: g.police.stats.dropped, busted, money: g.stats.money };
   });
-  t.ok('two knockouts give 2 stars', onFoot.stars === 2, `${onFoot.stars}`);
+  t.ok('heat 2.2 is 2 stars', onFoot.stars === 2, `${onFoot.stars}`);
   t.ok('2 stars: 4 pursuit cars', onFoot.pursuers === 4, `${onFoot.pursuers}`);
   t.ok('officers get out next to a player on foot', onFoot.dropped >= 1, `${onFoot.dropped}`);
   t.ok('officers arrest the player (busted)', onFoot.busted);
@@ -89,7 +89,7 @@ run('police: patrols, pursuit, busted, hovering, thinning, busted while dying', 
     }
     return { busted, closest };
   });
-  t.ok('hovering 30 m above the police: not busted', !hover.busted, `closest car ${hover.closest.toFixed(1)} m away horizontally`);
+  t.ok('hovering 30 m above the police: not busted (with a car right below)', !hover.busted && hover.closest < 10, `closest car ${hover.closest.toFixed(1)} m away horizontally`);
 
   // --- Losing stars thins the chase (extra cars out of view go back to patrolling).
   const thin = await page.evaluate(() => {

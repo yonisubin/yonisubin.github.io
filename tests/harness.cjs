@@ -21,17 +21,24 @@ async function openGame(options = {}) {
   const browser = await chromium.launch({
     args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required', ...(options.args ?? [])],
   });
-  const context = await browser.newContext({ viewport: options.viewport ?? { width: 640, height: 400 }, ...(options.context ?? {}) });
-  await context.addInitScript(seedStorage);
-  const page = await context.newPage();
-  const errors = [];
-  page.on('pageerror', (e) => errors.push(String(e)));
-  page.on('console', (m) => {
-    if (m.type() === 'error') errors.push(m.text());
-  });
-  await page.goto(URL);
-  await waitForGame(page, options.people);
-  return { browser, context, page, errors };
+  // If anything below fails (the page or the game doesn't load), close the browser: an open
+  // browser keeps Node alive, and the test would hang instead of failing.
+  try {
+    const context = await browser.newContext({ viewport: options.viewport ?? { width: 640, height: 400 }, ...(options.context ?? {}) });
+    await context.addInitScript(seedStorage);
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => {
+      if (m.type() === 'error') errors.push(m.text());
+    });
+    await page.goto(URL);
+    await waitForGame(page, options.people);
+    return { browser, context, page, errors };
+  } catch (e) {
+    await browser.close();
+    throw e;
+  }
 }
 
 async function waitForGame(page, people = false) {

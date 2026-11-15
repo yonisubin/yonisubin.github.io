@@ -1,5 +1,12 @@
 # Builds the game and publishes dist/ to GitHub Pages.
 # Requires Settings → Pages → Source: "GitHub Actions".
+#
+#   build-preview  builds PREVIEW_BRANCH (work in progress) for /preview/, in its own job, so
+#                  that branch's code never runs where the live site is built, and a broken
+#                  preview can't stop the live site from deploying (continue-on-error)
+#   build          builds main for the site root, adds the preview (if one was built) under
+#                  dist/preview, uploads the Pages artifact
+#   deploy         publishes it (the only job allowed to)
 name: Deploy to GitHub Pages
 
 on:
@@ -7,8 +14,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# The build job (which runs every npm package) can only read the repo; only the small
-# deploy job may publish to Pages.
+# Building runs every npm package, so it can only read; only the deploy job may publish.
 permissions:
   contents: read
   pages: read # configure-pages reads the Pages settings; reading can't publish
@@ -17,11 +23,60 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  # The branch previewed at /preview/ (e.g. yonisubin.github.io/preview/). Change it to
+  # preview another branch; if it doesn't exist, there's simply no preview. Pushing to the
+  # preview branch doesn't deploy by itself: re-run this workflow (Actions → Deploy → Run).
+  PREVIEW_BRANCH: feature/police-sound-save-jobs
+
 jobs:
+  build-preview:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Does the preview branch exist?
+        id: branch
+        run: |
+          if git ls-remote --exit-code --heads "https://github.com/${{ github.repository }}.git" "$PREVIEW_BRANCH" > /dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No branch $PREVIEW_BRANCH: no preview"
+          fi
+
+      - if: steps.branch.outputs.exists == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.PREVIEW_BRANCH }}
+          persist-credentials: false # its build scripts get no token
+
+      - if: steps.branch.outputs.exists == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - if: steps.branch.outputs.exists == 'true'
+        name: Build for /preview/
+        run: |
+          npm ci
+          npm run build -- --base=/preview/ --outDir preview-dist --emptyOutDir
+
+      - if: steps.branch.outputs.exists == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: preview
+          path: preview-dist
+          retention-days: 1
+
   build:
+    needs: build-preview
+    # Run even when the preview failed (a broken preview must never block the live site).
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -33,26 +88,17 @@ jobs:
           npm ci
           npm run build
 
-      # A preview of a work-in-progress branch at /preview/ (e.g. yonisubin.github.io/preview/),
-      # next to the live game. Change PREVIEW_BRANCH to preview another branch; if the branch
-      # doesn't exist (merged and deleted), this step does nothing. Pushing to the preview branch
-      # doesn't deploy by itself: re-run this workflow (Actions → Deploy → Run workflow).
-      - name: Build the preview branch into dist/preview
-        env:
-          PREVIEW_BRANCH: feature/police-sound-save-jobs
-        run: |
-          if git ls-remote --exit-code --heads origin "$PREVIEW_BRANCH" > /dev/null; then
-            git fetch --depth 1 origin "$PREVIEW_BRANCH"
-            git worktree add ../preview FETCH_HEAD
-            cd ../preview
-            npm ci
-            npm run build -- --base=/preview/ --outDir "$GITHUB_WORKSPACE/dist/preview" --emptyOutDir
-          else
-            echo "No branch $PREVIEW_BRANCH: no preview"
-          fi
+      - name: Add the preview under dist/preview (if one was built)
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: preview
+          path: dist/preview
 
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
+      # Note: this action itself calls actions/upload-artifact by tag internally (we can only
+      # pin the outer action).
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: dist

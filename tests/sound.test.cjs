@@ -28,6 +28,9 @@ run('sound: start, driving + radio, cleanup, hidden tab, mute', async ({ page },
   t.ok('driving with the radio on makes sound', driving.level > 0.005 && driving.notes > 20, `level ${driving.level.toFixed(4)}, ${driving.notes} radio notes`);
   const cleanup = await page.evaluate(async () => {
     const g = window.game;
+    g.input.setStick(0, 0); // stop driving: no crash sounds of its own during the count
+    await new Promise((r) => setTimeout(r, 1500));
+    const base = g.sound.live;
     const at = g.player.mode.focus();
     for (let k = 0; k < 25; k++) {
       g.sound.gunshot(at, k % 2 === 0);
@@ -35,9 +38,9 @@ run('sound: start, driving + radio, cleanup, hidden tab, mute', async ({ page },
     }
     const peak = g.sound.live;
     await new Promise((r) => setTimeout(r, 2500));
-    return { peak, after: g.sound.live };
+    return { base, peak, after: g.sound.live };
   });
-  t.ok('50 one-shot sounds all clean up', cleanup.peak === 50 && cleanup.after === 0, `${cleanup.peak} → ${cleanup.after}`);
+  t.ok('50 one-shot sounds all clean up', cleanup.peak - cleanup.base === 50 && cleanup.after <= cleanup.base, `${cleanup.base} → ${cleanup.peak} → ${cleanup.after}`);
   // Hidden tab: the audio context suspends; visible again: it resumes.
   const hidden = await page.evaluate(async () => {
     const s = window.game.sound;

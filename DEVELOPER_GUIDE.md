@@ -667,7 +667,7 @@ Eight fixed, invulnerable givers with a "!" marker: three downtown, five out in 
 | **Dusty** | Westbrook | **Long haul**: delivery 1.2–2.2 km away; base pay $150 + $0.15/m. Also **wreck** | — |
 | **Sam** | Northside | **Package run**, **wreck** | — |
 
-`main.ts` passes hooks (`isDriving`, `isSwimming`, `isOnFoot`, `ground`, `usedBlocks`). Buoys bob on the swell, gates are green rings, and flags are red pennants on poles. All show on both maps as objectives.
+`main.ts` passes hooks (`isDriving`, `isSwimming`, `isOnFoot`, `ground`). Buoys bob on the swell, gates are green rings, and flags are red pennants on poles. All show on both maps as objectives.
 
 One mission at a time. You fail on timeout or death, at no cost, and can ask again.
 
@@ -1041,7 +1041,7 @@ A whole-repo audit found 20 issues (and 7 smaller ones). They were fixed with a 
 | Weapon models | Each is built once and reused (switching leaked GPU memory). |
 | Sound | Pauses while the tab is hidden; resumes from iOS's "interrupted" state; the radio skips missed notes instead of bursting them. |
 | Saves | Every field is checked: prototype names (`"constructor"`), NaN times, bad records and radio stations fall back safely. |
-| Deploy | Only the deploy job may publish; actions are pinned to commits. |
+| Deploy | Only the deploy job may publish. The actions we call are pinned to commits (`upload-pages-artifact` still calls `upload-artifact` by tag inside itself). The preview branch builds in its own job (`build-preview`), with no token, and can't block or alter the live build. |
 | Scripts | The art scripts' packages are listed explicitly, and the Quaternius mirror is pinned to a commit. |
 | Removed | ~90 lines of dead code and duplicated helpers. The shared helpers are `sim/pose.ts` (`yawPitchQuaternion`), `sim/vehicleBody.ts` (`placeBody`, `FlipRecovery`, `ImpactMeter`), and `layout.ts` (`isTownZone`, `lawnLift`). |
 
