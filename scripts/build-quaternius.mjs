@@ -27,7 +27,8 @@ const OUT = join(ROOT, 'public/assets/characters');
 
 // Public mirror of the official packs (Google Drive, the official host, refuses automated
 // downloads). Large files are stored with Git LFS, so try the LFS media host first.
-const MIRROR = 'osman-1002/3D-3rd-Person-Godot-Game-With-GenAI-Integration/HEAD/addons';
+// Pinned to one commit, so a change (or force-push) upstream can't silently change the shipped art.
+const MIRROR = 'osman-1002/3D-3rd-Person-Godot-Game-With-GenAI-Integration/108740bd2b28687f95584808f60180341cec64be/addons';
 const MEN = 'Ultimate%20Modular%20Men-%20Feb%202022/Individual%20Characters/glTF';
 const WOMEN = 'Ultimate%20Modular%20Women%20-%20April%202022/Individual%20Characters/glTF';
 
