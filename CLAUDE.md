@@ -25,11 +25,12 @@ npm run dev        # local dev server
 npm run build      # type-check + production build to dist/
 npm run preview    # serve the production build locally
 npm run typecheck  # tsc --noEmit
+npm test           # headless game checks in tests/ (needs `npm run build` first and Playwright; see tests/README.md)
 npm run build:quaternius  # fetch + convert the Quaternius CC0 characters → public/assets/characters
 npm run build:characters  # (optional) Mixamo FBX in art/mixamo → public/assets/characters/mixamo
 ```
 
-Before considering any task done, `npm run typecheck` and `npm run build` must both pass.
+Before considering any task done, `npm run typecheck` and `npm run build` must both pass, and `npm test` should (add a check to `tests/` for new behaviour).
 
 For automated checks, `window.game` exposes the world, player, vehicles and NPCs, and `game.simulate(seconds)` runs fixed physics steps immediately (independent of frame rate — headless browsers render very slowly).
 

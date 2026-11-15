@@ -129,7 +129,7 @@ Pointer Events with per-finger tracking allow moving and looking at once. `isTou
 
 Other `Input` features:
 - `moveAxis()` merges keys and the stick.
-- `setBlocked()` freezes input while menus or the death screen are up.
+- `setBlocked(true / false)` freezes input while menus or the death and busted fades are up. Blocks are **counted**: each `true` needs its own `false`, so closing the map can't unfreeze the game under the look picker or the shop.
 - Pointer lock handles mouse look on desktop (the "Click to play" overlay exists because browsers only grant pointer lock after a click).
 
 ### 3.5 Conventions
@@ -749,6 +749,11 @@ All UI is plain DOM elements styled inline. A UI framework would be a dependency
 - you wake at the nearest of 5 police stations (`places.police`, built like hospitals with a navy "★ POLICE" sign);
 - the stars clear and the police reset. The money change triggers a save.
 
+**Details:**
+- Being busted and dying inside the same fade: the death respawn wins (no fine on top).
+- Busting and ramming ignore police cars more than 3 m above or below you, so hovering over them is safe.
+- Losing a star sends the extra pursuers that are out of view back to patrolling.
+
 **Cost:** ~0.1 ms per physics step with 6 pursuers.
 - Each police car is its own meshes (about 18 draw calls), visible only while active.
 - The maps show pursuers and roadblocks as red/blue flashing dots, and stations as navy shields.
@@ -974,6 +979,7 @@ Each one-shot is retimed so it lasts as long as the gameplay action.
 npm install               # once
 npm run dev               # local dev server with hot reload
 npm run typecheck         # tsc --noEmit
+npm test                  # headless game checks in tests/ (after npm run build; see tests/README.md)
 npm run build             # type-check + production build to dist/
 npm run preview           # serve dist/ locally (port 4173)
 npm run build:quaternius  # re-fetch + rebuild the CC0 characters
@@ -986,7 +992,16 @@ npm run build:characters  # optional Mixamo pipeline (see docs/characters.md)
 
 ## 11. How the game was tested
 
-There is no unit-test suite. Instead the real game is driven in **headless Chromium via Playwright** against `npm run preview`:
+The real game is driven in **headless Chromium via Playwright** against the production build. **`npm test`** (after `npm run build`) runs the checks in `tests/` (see `tests/README.md`):
+- world pools, unloading and determinism;
+- police;
+- gameplay fixes;
+- saving;
+- jobs;
+- directions;
+- sound.
+
+Each file prints ✓ / ✗ per check and the run fails if any check does. Earlier development checks were run the same way from scratch scripts:
 
 - **`window.game`** exposes the world, camera, player and modes, cars, heli, traffic, pedestrians, dialogue, missions, city, day/night, stats, cash, shop, renderer, input, the picker and the character library.
 - **`game.simulate(seconds)`** runs fixed physics steps immediately. Headless browsers render at ~4 fps, so tests don't wait in real time; they simulate. Tests often pause the real loop with `renderer.setAnimationLoop(null)`.
@@ -1010,6 +1025,25 @@ There is no unit-test suite. Instead the real game is driven in **headless Chrom
 When adding a feature, the quickest check is the browser console in `npm run dev`: e.g. `game.stats.money = 5000`, or `game.simulate(5)`.
 
 ---
+
+### 11.1 The 2026-11 audit (ponytail-audit)
+
+A whole-repo audit found 20 issues (and 7 smaller ones). They were fixed with a test each in `tests/`:
+
+| Fix | Detail |
+|---|---|
+| Invisible forest trees | The forest pool (9,000) overflowed in the densest forest (10,371 trees loaded), leaving colliders without meshes. Now: 12,000 slots, and never a collider without a slot. |
+| Chunk-loading hitches | `Terrain.roadDistance` searched 200 m for every height sample; every caller only needs ≤ 32 m. Capped at 40 m, a far chunk builds in ~27 ms instead of 80–200 ms. |
+| Wreck cash | It was dropped at y = 0 (underground on hills). Dropped cash now expires after 120 s, so the 40-drop cap can't fill up. |
+| Boats | A boat left on land is parked like the other vehicles while its ground isn't loaded. |
+| Vera's target car | If carjacked, the mission now fails ("the car got away") instead of silently moving to another car. Traffic slots carry a `serial` and are unpinned on respawn. |
+| Carjacked cars | At most 4 are kept; older ones are removed for good (`Car.dispose`). Wheel geometry is shared per radius. |
+| Weapon models | Each is built once and reused (switching leaked GPU memory). |
+| Sound | Pauses while the tab is hidden; resumes from iOS's "interrupted" state; the radio skips missed notes instead of bursting them. |
+| Saves | Every field is checked: prototype names (`"constructor"`), NaN times, bad records and radio stations fall back safely. |
+| Deploy | Only the deploy job may publish; actions are pinned to commits. |
+| Scripts | The art scripts' packages are listed explicitly, and the Quaternius mirror is pinned to a commit. |
+| Removed | ~90 lines of dead code and duplicated helpers. The shared helpers are `sim/pose.ts` (`yawPitchQuaternion`), `sim/vehicleBody.ts` (`placeBody`, `FlipRecovery`, `ImpactMeter`), and `layout.ts` (`isTownZone`, `lawnLift`). |
 
 ## 12. Where to change common things
 
