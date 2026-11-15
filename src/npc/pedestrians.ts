@@ -325,6 +325,11 @@ export class Pedestrians implements SimEntity {
     return this.peds.filter((p) => p.cop && p.active && p.state === 'cop').length;
   }
 
+  /** Is anyone (not an officer, not knocked out) within `radius` of `position`? */
+  peopleNear(position: THREE.Vector3, radius: number): boolean {
+    return this.peds.some((p) => p.active && !p.cop && p.state !== 'down' && p.currPos.distanceTo(position) < radius);
+  }
+
   /** Is an officer on duty within `radius` of `position`? (They count as police seeing you.) */
   copNear(position: THREE.Vector3, radius: number): boolean {
     return this.peds.some((p) => p.cop && p.active && p.state === 'cop' && p.currPos.distanceTo(position) < radius);

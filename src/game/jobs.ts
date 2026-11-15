@@ -64,6 +64,7 @@ export class Jobs {
   record: Record<string, { done: number; earned: number }> = {};
   private drops: { x: number; z: number }[] = [];
   private dropsDone = 0;
+  private dropsTotal = 0;
   private crashes = 0;
   private savedWaypoint: { x: number; z: number } | null = null;
   private readonly rng = new Rng(Date.now() % 100000);
@@ -150,7 +151,7 @@ export class Jobs {
       this.drops.shift();
       this.pay(30, 'Delivered');
       if (this.drops.length) {
-        this.setTask(`Deliver (${this.dropsDone + 1}/4)`, this.drops[0], at, t.timeLeft);
+        this.setTask(`Deliver (${this.dropsDone + 1}/${this.dropsTotal})`, this.drops[0], at, t.timeLeft);
         return;
       }
       // The whole run inside the time limit: bonus.
@@ -214,7 +215,8 @@ export class Jobs {
         px = d.x;
         pz = d.z;
       }
-      this.setTask('Deliver (1/4)', this.drops[0], from, len / AVERAGE_SPEED + 60);
+      this.dropsTotal = this.drops.length; // fewer than 4 where houses are scarce
+      this.setTask(`Deliver (1/${this.dropsTotal})`, this.drops[0], from, len / AVERAGE_SPEED + 60);
       return;
     }
     this.stage = 'pickup';
@@ -299,6 +301,8 @@ export class Jobs {
       this.scene.add(model.root);
       model.root.visible = false;
       if (this.task && this.stage === 'pickup' && this.kind !== 'delivery') place();
+    }).catch(() => {
+      this.personLoading = false; // a failed download: try again for the next fare
     });
   }
   private personLying = false;

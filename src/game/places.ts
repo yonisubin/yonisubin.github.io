@@ -77,8 +77,6 @@ const STORE_TARGETS: { name: string; x: number; z: number; zones: Zone[] }[] = [
 ];
 
 export interface Places {
-  /** Blocks taken by hospitals, stores, the spawn, the helipad and the downtown givers. */
-  usedBlocks: Set<Block>;
   /** Parcels taken by hospitals and stores. */
   usedParcels: Set<Parcel>;
   hospitals: Hospital[];
@@ -317,7 +315,6 @@ export function createPlaces(
   }
 
   return {
-    usedBlocks: reserved,
     usedParcels,
     hospitals,
     police,

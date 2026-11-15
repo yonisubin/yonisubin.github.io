@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { yawPitchQuaternion } from '../sim/pose';
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { SimEntity } from '../sim/entity';
 import type { Smoke } from '../sim/smoke';
@@ -137,6 +138,8 @@ export interface TrafficCar {
   smokeTimer: number;
   /** A mission target: never recycled for being far from the player. */
   pinned: boolean;
+  /** Counts respawns of this slot, so a mission can tell its car was replaced (carjacked). */
+  serial: number;
 }
 
 /** Things traffic must not drive into: the player (any mode), parked player cars, etc. */
@@ -180,6 +183,10 @@ export class Traffic implements SimEntity {
   private readonly tmp = new THREE.Vector3();
   private readonly tmp2 = new THREE.Vector3();
   private readonly mat = new THREE.Matrix4();
+  // Scratch matrices for the wheels (reused every frame).
+  private readonly carMat = new THREE.Matrix4();
+  private readonly local = new THREE.Matrix4();
+  private readonly spin = new THREE.Matrix4();
   private readonly quat = new THREE.Quaternion();
   private readonly one = new THREE.Vector3(1, 1, 1);
   private readonly at = { x: 0, z: 0, tx: 0, tz: 0 };
@@ -285,6 +292,7 @@ export class Traffic implements SimEntity {
         wrecked: -1,
         smokeTimer: 0,
         pinned: false,
+        serial: 0,
         halfLength: d.length / 2,
         prevPos: new THREE.Vector3(),
         currPos: new THREE.Vector3(),
@@ -317,6 +325,9 @@ export class Traffic implements SimEntity {
   /** Put a car on a random free lane within spawning distance of the player. */
   private respawn(car: TrafficCar, minDist = SPAWN_MIN): void {
     const player = this.playerPosition();
+    // A new car in this slot: not anyone's mission target any more.
+    car.pinned = false;
+    car.serial++;
     const net = this.graph.net;
     // Roads near the player, weighted toward the busier ones.
     const candidates: number[] = [];
@@ -1033,7 +1044,7 @@ export class Traffic implements SimEntity {
       }
     }
     this.place(car);
-    this.orientation(car.currYaw, car.currPitch, this.quat);
+    yawPitchQuaternion(car.currYaw, car.currPitch, this.quat);
     car.body.setNextKinematicTranslation(car.currPos);
     car.body.setNextKinematicRotation(this.quat);
   }
@@ -1073,25 +1084,23 @@ export class Traffic implements SimEntity {
       pos.lerpVectors(car.prevPos, car.currPos, alpha);
       let dyaw = car.currYaw - car.prevYaw;
       dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
-      this.orientation(car.prevYaw + dyaw * alpha, car.currPitch, this.quat);
+      yawPitchQuaternion(car.prevYaw + dyaw * alpha, car.currPitch, this.quat);
       this.mat.compose(pos, this.quat, this.one);
       for (const m of meshes) m.setMatrixAt(car.slot, this.mat);
       // Brake lights: on while slowing down or standing.
       const braking = car.wrecked < 0 && (car.acc < -0.8 || car.speed < 0.3);
-      this.brakeLights.get(car.type)!.setMatrixAt(car.slot, braking ? this.mat : this.mat.clone().scale(ZERO));
+      this.brakeLights.get(car.type)!.setMatrixAt(car.slot, braking ? this.mat : HIDDEN);
       // Wrecked: show the burnt body in place of the painted one.
       const wreck = this.wreckBodies.get(car.type)!;
       if (car.wrecked >= 0) {
         wreck.setMatrixAt(car.slot, this.mat);
-        meshes[0].setMatrixAt(car.slot, this.mat.clone().scale(ZERO));
+        meshes[0].setMatrixAt(car.slot, HIDDEN);
       } else {
-        wreck.setMatrixAt(car.slot, this.mat.clone().scale(ZERO));
+        wreck.setMatrixAt(car.slot, HIDDEN);
       }
     }
     // Wheels: four per car, positioned in the car's frame and spun about their axle.
-    const carMat = new THREE.Matrix4();
-    const local = new THREE.Matrix4();
-    const spin = new THREE.Matrix4();
+    const { carMat, local, spin } = this;
     this.cars.forEach((car, k) => {
       const d = CAR_DIMENSIONS[car.type];
       if (!car.active) {
@@ -1127,11 +1136,6 @@ export class Traffic implements SimEntity {
   }
 
   /** Yaw about Y, then pitch about the car's own Z axis (its forward is +X, so +pitch = nose up). */
-  private orientation(yaw: number, pitch: number, out: THREE.Quaternion): THREE.Quaternion {
-    out.setFromAxisAngle(UP, yaw);
-    return out.multiply(this.pitchQuat.setFromAxisAngle(Z_AXIS, pitch));
-  }
-  private readonly pitchQuat = new THREE.Quaternion();
 
   /** A running traffic car between `minDist` and `maxDist` from `from` (for missions). */
   pickTarget(from: THREE.Vector3, minDist: number, maxDist: number): TrafficCar | null {
@@ -1242,9 +1246,8 @@ export class Traffic implements SimEntity {
   }
 }
 
-const UP = new THREE.Vector3(0, 1, 0);
-const Z_AXIS = new THREE.Vector3(0, 0, 1);
-const ZERO = new THREE.Vector3(0, 0, 0);
+/** Zero scale: hides an instance. Shared, never modified. */
+const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 const IDENTITY_QUAT = new THREE.Quaternion();
 const SCALE = new THREE.Vector3();
 

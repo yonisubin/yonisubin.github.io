@@ -3,7 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { Input } from './input/actions';
 import { TouchControls, isTouchDevice } from './input/touch';
 import { PlayerStateMachine } from './player/state';
-import { OnFootMode, STAND_HEIGHT } from './player/onFoot';
+import { OnFootMode, STAND_HEIGHT, type Interactable } from './player/onFoot';
 import { CharacterLibrary } from './player/characterLibrary';
 import { CharacterPicker, hasSavedLook, loadLook } from './ui/characterPicker';
 import { Car, DrivingMode } from './player/car';
@@ -184,6 +184,7 @@ async function main(): Promise<void> {
 
   // Cars the player can drive: the parked ones near the spawn (and later, jacked ones).
   const cars: Car[] = [];
+  const carInteractables = new Map<Car, Interactable>();
   const addPlayerCar = (car: Car) => {
     const mode = new DrivingMode(car, input, camera, world, getOut, vehicleLight, stats);
     car.mode = mode;
@@ -191,16 +192,34 @@ async function main(): Promise<void> {
     car.onSink = onSink;
     mode.touchButtons.push({ label: () => (jobs.active ? 'END JOB' : 'JOB'), action: 'job', visible: () => jobKind(car) !== null });
     mode.touchButtons.push({ label: 'RADIO', action: 'radio' });
-    onFoot.interactables.push({
+    const enter: Interactable = {
       label: () => 'drive',
       position: () => car.interp.currPos,
       radius: 3.2,
       available: () => !car.sinking.active && !car.gone,
       activate: () => player.setMode(mode),
-    });
+    };
+    onFoot.interactables.push(enter);
+    carInteractables.set(car, enter);
     entities.push(car);
     cars.push(car);
   };
+  /** Take a car out of the game entirely (an old carjacked car nobody is using). */
+  const removePlayerCar = (car: Car) => {
+    const drop = <T,>(list: T[], item: T) => {
+      const k = list.indexOf(item);
+      if (k >= 0) list.splice(k, 1);
+    };
+    drop(cars, car);
+    drop(entities, car as SimEntity);
+    drop(onFoot.interactables, carInteractables.get(car)!);
+    carInteractables.delete(car);
+    car.dispose(world, scene);
+  };
+  // Carjacked cars stay where you leave them, but only the last few: each one is a physics
+  // body and a model that every step has to look at.
+  const MAX_JACKED = 4;
+  const jacked: Car[] = [];
   for (const spot of parkingSpots(city.layout)) {
     addPlayerCar(
       new Car(world, scene, {
@@ -396,6 +415,14 @@ async function main(): Promise<void> {
       const taken = traffic.take(target);
       const car = new Car(world, scene, { type: taken.type, color: taken.color, position: taken.position, yaw: taken.yaw });
       addPlayerCar(car);
+      jacked.push(car);
+      // Over the limit: the oldest one you're not in goes (sunk ones first).
+      while (jacked.length > MAX_JACKED) {
+        const old = jacked.find((c) => c.gone) ?? jacked.find((c) => c.mode !== player.mode && c !== car);
+        if (!old) break;
+        jacked.splice(jacked.indexOf(old), 1);
+        removePlayerCar(old);
+      }
       pedestrians?.alarm(taken.position, 25);
       wanted.crime('carjack');
       hud.toast('The driver ran off!');
@@ -412,7 +439,6 @@ async function main(): Promise<void> {
   traffic.onWreck = (position) => {
     const side = position.clone();
     side.x += 2.2;
-    side.y = 0;
     cash.drop(side, 10 * dropRng.int(3, 8)); // $30–80
     pedestrians?.alarm(position, 30);
     sound.crash(position, 1);
@@ -423,15 +449,17 @@ async function main(): Promise<void> {
 
   // The police. They need to know where you are, how fast you're going and in what.
   const OFFICER_DAMAGE = 6;
-  const playerVehicle = () => [...cars, heli, ...boats].find((v) => v.mode === player.mode) ?? null;
+  const playerVehicle = () =>
+    cars.find((c) => c.mode === player.mode) ?? (heli.mode === player.mode ? heli : null) ?? boats.find((b) => b.mode === player.mode) ?? null;
   const zero = new THREE.Vector3();
+  const playerVelocity = new THREE.Vector3();
   const police = new Police(world, scene, city.layout.streets.net, city.terrain, camera, pedestrians, {
     player: () => {
       const v = playerVehicle();
       const lv = v?.body.linvel();
       return {
         position: playerPosition(),
-        velocity: lv ? new THREE.Vector3(lv.x, lv.y, lv.z) : zero,
+        velocity: lv ? playerVelocity.set(lv.x, lv.y, lv.z) : zero,
         onFoot: player.mode === onFoot,
         body: v?.body ?? null,
       };
@@ -471,7 +499,7 @@ async function main(): Promise<void> {
   onFoot.combat.onMelee = (position, hit, bat) => (hit ? sound.hit(position, bat) : sound.swoosh(position));
   onFoot.combat.onGunfire = (position) => {
     sound.gunshot(position, stats.current === 'rifle');
-    const people = pedestrians?.debugPeds.some((p) => p.active && !p.cop && p.state !== 'down' && p.pos.distanceTo(position) < 45);
+    const people = pedestrians?.peopleNear(position, 45);
     if (people || police.witnesses(position)) wanted.crime('gunfire');
   };
   wanted.onChange((stars, before) => {
@@ -489,6 +517,12 @@ async function main(): Promise<void> {
     hud.setFade(true, 'BUSTED');
     jobs.end('busted');
     window.setTimeout(() => {
+      bustedPending = false;
+      // Shot dead during the fade: the hospital respawn (stats.onDeath) takes over.
+      if (stats.dead) {
+        input.setBlocked(false);
+        return;
+      }
       const where = (player.mode ?? onFoot).focus();
       const station = places.nearestPolice(where.x, where.z);
       const fine = Math.min(stats.money, 100 * stars);
@@ -501,7 +535,6 @@ async function main(): Promise<void> {
       input.setBlocked(false);
       hud.setFade(false);
       hud.toast(`Busted! Fined $${fine} at ${station.name}`, 3.5);
-      bustedPending = false;
     }, 2500);
   };
 
@@ -525,7 +558,6 @@ async function main(): Promise<void> {
       isSwimming: () => player.mode === onFoot && onFoot.swimming,
       isOnFoot: () => player.mode === onFoot,
       ground: (x, z) => city.terrain.heightAt(x, z),
-      usedBlocks: places.usedBlocks,
     },
   );
   entities.push(missions);
@@ -614,7 +646,7 @@ async function main(): Promise<void> {
   // One fixed physics step for everything: player controls, entities, the world.
   // Parked vehicles sleep while the ground under them isn't loaded (they'd fall through).
   const parkVehicles = () => {
-    for (const v of [...cars, heli]) {
+    for (const v of [...cars, heli, ...boats]) {
       if (player.mode === v.mode || (v instanceof Car && v.gone)) continue;
       const p = v.body.translation();
       const loaded = city.isLoaded(p.x, p.z);
@@ -636,7 +668,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { RAPIER, scene, sound, director, jobs, navigator, autosave, wanted, police, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { RAPIER, scene, fullMap, sound, director, jobs, navigator, autosave, wanted, police, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -675,7 +707,7 @@ async function main(): Promise<void> {
   document.body.appendChild(muteButton);
   const mapMarkers = (): Marker[] => [
     ...traffic.positions().map((position) => ({ kind: 'traffic' as const, position })),
-    ...cars.map((c) => ({ kind: 'car' as const, position: c.interp.currPos })),
+    ...cars.filter((c) => !c.gone).map((c) => ({ kind: 'car' as const, position: c.interp.currPos })),
     { kind: 'heli', position: heli.interp.currPos },
     ...boats.map((b) => ({ kind: 'boat' as const, position: b.interp.currPos })),
     ...shop.doors.map((position) => ({ kind: 'shop' as const, position })),

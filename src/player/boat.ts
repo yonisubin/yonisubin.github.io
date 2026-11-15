@@ -5,6 +5,7 @@ import type { PlayerMode, TouchButton } from './state';
 import { BodyInterpolator, type SimEntity } from '../sim/entity';
 import { findFreeSpot } from '../sim/exit';
 import { ChaseCamera } from '../camera/chaseCamera';
+import { ImpactMeter } from '../sim/vehicleBody';
 import type { VehicleLight } from '../sim/vehicleLight';
 import type { PlayerStats } from '../game/stats';
 import { BOAT_DIMENSIONS, buildBoat, type BoatType } from '../vehicles/boatModel';
@@ -55,8 +56,7 @@ export class Boat implements SimEntity {
   speed = 0;
   /** True while any part of the hull is in the water. */
   afloat = false;
-  private impact = 0;
-  private readonly velBefore = new THREE.Vector3();
+  private readonly impacts = new ImpactMeter();
   private readonly points: THREE.Vector3[];
   private readonly mass: number;
 
@@ -118,7 +118,7 @@ export class Boat implements SimEntity {
     const q = new THREE.Quaternion(r.x, r.y, r.z, r.w);
     const v = this.body.linvel();
     const w = this.body.angvel();
-    this.velBefore.set(v.x, v.y, v.z);
+    this.impacts.before(this.body);
     const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
     const right = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
     const fwdH = new THREE.Vector3(fwd.x, 0, fwd.z).normalize();
@@ -204,16 +204,12 @@ export class Boat implements SimEntity {
 
   afterStep(): void {
     this.interp.capture();
-    const v = this.body.linvel();
-    const dv = Math.hypot(v.x - this.velBefore.x, v.y - this.velBefore.y, v.z - this.velBefore.z);
-    this.impact = Math.max(this.impact, dv);
+    this.impacts.after(this.body);
   }
 
   /** Read and reset the biggest jolt since the last call (m/s of velocity change). */
   takeImpact(): number {
-    const i = this.impact;
-    this.impact = 0;
-    return i;
+    return this.impacts.take();
   }
 
   render(alpha: number): void {

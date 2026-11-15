@@ -3,6 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import type { Input } from '../input/actions';
 import type { PlayerMode, TouchButton } from './state';
 import { Sinking } from '../sim/sinking';
+import { FlipRecovery, ImpactMeter, placeBody } from '../sim/vehicleBody';
 import { BodyInterpolator, type SimEntity } from '../sim/entity';
 import { findFreeSpot } from '../sim/exit';
 import { ChaseCamera } from '../camera/chaseCamera';
@@ -58,7 +59,7 @@ export class Helicopter implements SimEntity {
 
   // Pilot inputs, set each step by FlyingMode.
   piloted = false;
-  private flipTimer = 0;
+  private readonly flip = new FlipRecovery(3, 2);
   stickForward = 0; // −1..1 (W/S)
   stickTurn = 0; // −1..1 (A/D), positive = right
   climb = 0; // −1 (Shift), 0, +1 (Space)
@@ -76,8 +77,7 @@ export class Helicopter implements SimEntity {
 
   private rotorAngle = 0;
   private tailAngle = 0;
-  private readonly velBefore = new THREE.Vector3();
-  private impact = 0;
+  private readonly impacts = new ImpactMeter();
 
   constructor(
     private readonly world: RAPIER.World,
@@ -146,7 +146,7 @@ export class Helicopter implements SimEntity {
     const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
     const right = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
     const v = this.body.linvel();
-    this.velBefore.set(v.x, v.y, v.z);
+    this.impacts.before(this.body);
     const w = this.body.angvel();
     const angVel = new THREE.Vector3(w.x, w.y, w.z);
     this.altitude = this.measureAltitude();
@@ -214,18 +214,7 @@ export class Helicopter implements SimEntity {
     if (lift > 0) this.body.wakeUp();
 
     // On its side or roof and nearly still (after a fall): set it back on its skids.
-    if (up.y < 0.3 && speed < 2) this.flipTimer += dt;
-    else this.flipTimer = 0;
-    if (this.flipTimer > 3) {
-      this.flipTimer = 0;
-      const f = new THREE.Vector3(1, 0, 0).applyQuaternion(q); // (fwd was scaled for the torque)
-      const yaw = Math.atan2(-f.z, f.x);
-      const t = this.body.translation();
-      this.body.setTranslation({ x: t.x, y: t.y + 2, z: t.z }, true);
-      this.body.setRotation(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), true);
-      this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-      this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    }
+    this.flip.update(this.body, this.interp, dt, speed);
 
     // Skids in deep water: it's going down.
     if (this.sinking.check(this.body.translation(), 0.3)) {
@@ -239,12 +228,7 @@ export class Helicopter implements SimEntity {
   private backToHelipad(): void {
     const { position, yaw } = this.origin;
     this.sinking.restore(this.body, 0.05, 1.5);
-    this.body.setTranslation({ x: position.x, y: position.y + 0.05, z: position.z }, true);
-    this.body.setRotation(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), true);
-    this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    this.body.resetForces(true);
-    this.interp.snap();
+    placeBody(this.body, this.interp, position.x, position.y + 0.05, position.z, yaw);
   }
 
   /** Distance from the skids to the first thing below (ground, roof), excluding ourselves. */
@@ -264,17 +248,12 @@ export class Helicopter implements SimEntity {
 
   afterStep(): void {
     this.interp.capture();
-    const v = this.body.linvel();
-    const dv = Math.hypot(v.x - this.velBefore.x, v.y - this.velBefore.y, v.z - this.velBefore.z);
-    this.impact = Math.max(this.impact, dv);
-    this.velBefore.set(v.x, v.y, v.z);
+    this.impacts.after(this.body);
   }
 
   /** Read and reset the biggest crash since the last call (m/s of velocity change). */
   takeImpact(): number {
-    const i = this.impact;
-    this.impact = 0;
-    return i;
+    return this.impacts.take();
   }
 
   render(alpha: number, frameDt: number): void {

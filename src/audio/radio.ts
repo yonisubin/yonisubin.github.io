@@ -110,6 +110,8 @@ export class Radio {
     if (!ctx || this.station < 0) return;
     const st = STATIONS[this.station];
     const beat = 60 / st.bpm;
+    // After a stall (a hidden tab throttles timers), skip the missed notes, don't burst them.
+    if (this.nextTime < ctx.currentTime) this.nextTime = ctx.currentTime + 0.05;
     while (this.nextTime < ctx.currentTime + 0.2) {
       const e = this.eighth;
       const offBeat = e % 2 === 1;

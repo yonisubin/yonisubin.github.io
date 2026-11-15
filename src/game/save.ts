@@ -37,14 +37,32 @@ export interface SaveData {
 export function loadSave(): SaveData | null {
   try {
     const data = JSON.parse(localStorage.getItem(KEY) ?? 'null') as SaveData | null;
-    if (!data || data.version !== VERSION || !data.stats || !data.player) return null;
-    if (!Number.isFinite(data.player.x) || !Number.isFinite(data.player.z)) return null;
-    data.missions ??= {};
-    data.jobs ??= {};
+    // Saved data can be old, half-written or edited by hand: check every field before use.
+    if (!isObject(data) || data.version !== VERSION || !isObject(data.stats) || !isObject(data.player)) return null;
+    const { x, z, heading } = data.player;
+    if (![x, z, heading, data.hours].every(Number.isFinite)) return null;
+    data.missions = records(data.missions, ['done', 'best']);
+    data.jobs = records(data.jobs, ['done', 'earned']);
+    const w = data.waypoint;
+    data.waypoint = isObject(w) && Number.isFinite(w.x) && Number.isFinite(w.z) ? { x: w.x, z: w.z } : null;
     return data;
   } catch {
     return null; // corrupt or blocked storage: a new game
   }
+}
+
+function isObject(v: unknown): v is Record<string, any> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/** Keep only well-formed { name: { field: number … } } entries; anything else is dropped. */
+function records<K extends string>(v: unknown, fields: K[]): Record<string, Record<K, number>> {
+  const out: Record<string, Record<K, number>> = {};
+  if (!isObject(v)) return out;
+  for (const [name, rec] of Object.entries(v)) {
+    if (isObject(rec) && fields.every((f) => Number.isFinite(rec[f]))) out[name] = Object.fromEntries(fields.map((f) => [f, rec[f]])) as Record<K, number>;
+  }
+  return out;
 }
 
 export function writeSave(data: Omit<SaveData, 'version'>): void {

@@ -55,6 +55,8 @@ interface Mission {
   points: THREE.Vector3[];
   done: number; // how many points reached
   target: TrafficCar | null; // wreck missions
+  /** The target slot's serial when the mission started (it changes if the car is taken). */
+  targetSerial: number;
 }
 
 const DELIVERY_RADIUS = 6; // m
@@ -89,8 +91,6 @@ export interface MissionHooks {
   isOnFoot(): boolean;
   /** Ground height (no sidewalks) at (x, z). */
   ground(x: number, z: number): number;
-  /** Blocks taken by other places (hospitals, stores…); givers stand elsewhere. */
-  usedBlocks: Set<Block>;
 }
 
 /** "!" badge for the markers. */
@@ -191,7 +191,6 @@ export class Missions implements SimEntity {
       specs.push([o.name, o.kinds, { x: hit.x + nx * off, z: hit.z + nz * off, facing: Math.atan2(nx, nz) }, o.greeting]);
       looks.push(o.look);
     }
-    void hooks.usedBlocks;
     const badge = badgeTexture();
     specs.forEach(([name, kinds, spot, greeting], k) => {
       const position = new THREE.Vector3(spot.x, 0, spot.z);
@@ -387,6 +386,7 @@ export class Missions implements SimEntity {
       points: [],
       done: 0,
       target: null,
+      targetSerial: 0,
     };
     if (kind === 'delivery') {
       const dest = this.sidewalkSpot(from, 400, 1100);
@@ -418,6 +418,7 @@ export class Missions implements SimEntity {
       if (!car) return false;
       car.pinned = true;
       m.target = car;
+      m.targetSerial = car.serial;
       m.timeLeft = 120;
       m.title = 'Wreck the marked car';
     } else if (kind === 'longhaul') {
@@ -726,7 +727,7 @@ export class Missions implements SimEntity {
     } else if (m.kind === 'wreck') {
       const car = m.target!;
       if (car.wrecked >= 0) this.finish(true);
-      else if (!car.active) this.finish(false, 'the car got away');
+      else if (!car.active || car.serial !== m.targetSerial) this.finish(false, 'the car got away');
     } else if (m.kind === 'longhaul') {
       if (Math.hypot(p.x - m.points[0].x, p.z - m.points[0].z) < DELIVERY_RADIUS && Math.abs(p.y - m.points[0].y) < 4) {
         this.finish(true);

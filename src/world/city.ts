@@ -137,7 +137,7 @@ export function createCity(scene: THREE.Scene, world: RAPIER.World, seed: number
 
   // Countryside trees: a cheap trunk + two-cone pine (≈ 40 triangles), no shadows (there
   // are thousands of them).
-  const forest = pool(forestTree(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true }), 9000, true);
+  const forest = pool(forestTree(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true }), 12000, true); // dense northern forest: up to ~10.4k loaded
   forest.mesh.receiveShadow = true;
 
   // Street lamps: pole + arm merged into one geometry; the luminaire is separate so it can glow.
@@ -291,7 +291,7 @@ function sampleCoarse(terrain: Terrain): CoarseGrid {
  * the detailed terrain is), using the streamer's loaded-chunk mask as a tiny texture.
  */
 function farTerrain(coarse: CoarseGrid, terrain: Terrain, streamer: WorldStreamer): THREE.Mesh {
-  const { n, half, step, heights } = coarse;
+  const { n, half, heights } = coarse;
   const geometry = new THREE.PlaneGeometry(half * 2, half * 2, n - 1, n - 1).rotateX(-Math.PI / 2);
   const pos = geometry.getAttribute('position') as THREE.BufferAttribute;
   for (let i = 0; i < pos.count; i++) pos.setY(i, heights[i] - 0.3);
@@ -308,7 +308,6 @@ function farTerrain(coarse: CoarseGrid, terrain: Terrain, streamer: WorldStreame
     colors.set(c, i * 3);
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  void step;
 
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
   const origin = -(CHUNKS * CHUNK_SIZE) / 2;

@@ -78,6 +78,7 @@ export class Input {
   private locked = false;
   /** While a menu (shop, chat) is open, gameplay sees no movement or held actions. */
   private blocked = false;
+  private blockCount = 0;
   /** Analog stick from on-screen touch controls; x = right, y = forward, length ≤ 1. */
   private stickX = 0;
   private stickY = 0;
@@ -142,9 +143,14 @@ export class Input {
     if (result instanceof Promise) result.catch(() => {});
   }
 
-  /** Block (or unblock) gameplay input while a menu is open. */
+  /**
+   * Block gameplay input while a menu or fade is up (true), or release one block (false).
+   * Blocks are counted, so closing the map can't unfreeze the game under a menu that's
+   * still open: input comes back when every block has been released.
+   */
   setBlocked(blocked: boolean): void {
-    this.blocked = blocked;
+    this.blockCount = Math.max(0, this.blockCount + (blocked ? 1 : -1));
+    this.blocked = this.blockCount > 0;
     if (blocked) {
       this.held.clear();
       this.pressed.clear();

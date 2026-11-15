@@ -13,7 +13,7 @@ import {
   type RoadClass,
   type StreetNet,
 } from './streets';
-import type { Building, Tree, Zone } from './layout';
+import { isTownZone, type Building, type Tree, type Zone } from './layout';
 
 // Generating the streets outside downtown, the way American sprawl is laid out:
 //
@@ -96,7 +96,6 @@ const BULB = 11; // cul-de-sac radius, m
 /** Parcels on an arterial start this far from its centre line (clear of its marked corridor). */
 const FRONT = 14;
 
-const isTownZone = (z: Zone) => z === 'suburb' || z === 'beachtown' || z === 'village';
 
 export function generateStreets(inp: StreetInputs): StreetWorld {
   const rng = new Rng(hashSeed(inp.seed, 901, 77));

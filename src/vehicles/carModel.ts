@@ -233,7 +233,12 @@ export function paintMaterial(color: number): THREE.MeshPhysicalMaterial {
 }
 
 /** Wheel geometry with its axle along Z (tyre + rim), centred on the wheel centre. */
+const wheelCache = new Map<number, { tyre: THREE.BufferGeometry; rim: THREE.BufferGeometry }>();
+
+/** Tyre and rim geometry for a wheel of this radius (built once per radius, then shared). */
 export function wheelGeometry(radius: number): { tyre: THREE.BufferGeometry; rim: THREE.BufferGeometry } {
+  const cached = wheelCache.get(radius);
+  if (cached) return cached;
   const tyre = new THREE.CylinderGeometry(radius, radius, 0.24, 24).rotateX(Math.PI / 2);
   // Rim: a disc plus five spokes, so you can see the wheels turn.
   const parts: THREE.BufferGeometry[] = [new THREE.CylinderGeometry(radius * 0.62, radius * 0.62, 0.26, 20).rotateX(Math.PI / 2)];
@@ -243,7 +248,9 @@ export function wheelGeometry(radius: number): { tyre: THREE.BufferGeometry; rim
     );
   }
   const rim = merge(parts);
-  return { tyre, rim };
+  const wheel = { tyre, rim };
+  wheelCache.set(radius, wheel);
+  return wheel;
 }
 
 /** Build a complete car body (no wheels) as a Group, for player-drivable cars. */

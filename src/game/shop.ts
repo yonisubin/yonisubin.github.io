@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Input } from '../input/actions';
 import type { Interactable } from '../player/onFoot';
-import { CURB_HEIGHT, type CityLayout } from '../world/layout';
+import type { CityLayout } from '../world/layout';
 import type { StoreSite } from './places';
 import { ADDONS, AP_AMMO, AP_DAMAGE, WEAPONS, type AddonId, type PlayerStats, type WeaponId } from './stats';
 
@@ -78,7 +78,7 @@ export class Shop {
     private readonly stats: PlayerStats,
     private readonly input: Input,
     sites: StoreSite[] = [],
-    surface: (x: number, z: number) => number = () => CURB_HEIGHT,
+    surface: (x: number, z: number) => number,
   ) {
     const signTex = signTexture();
     const signMaterial = new THREE.MeshStandardMaterial({ map: signTex, emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: 0.5 });
@@ -119,15 +119,6 @@ export class Shop {
     this.door = this.doors[0];
   }
 
-  /** The first store (kept for older call sites and tests). */
-  get interactable(): Interactable {
-    return this.interactables[0];
-  }
-
-  get isOpen(): boolean {
-    return this.panel !== null;
-  }
-
   /** Pulse the door marker. Call each frame. */
   render(frameDt: number): void {
     this.time += frameDt;
@@ -164,7 +155,8 @@ export class Shop {
   }
 
   close(): void {
-    this.panel?.remove();
+    if (!this.panel) return; // input blocks are counted: release only the one we took
+    this.panel.remove();
     this.panel = null;
     this.input.setBlocked(false);
   }

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { BLOCK_SIZE, CELLS, CURB_HEIGHT, LOT, PITCH, lineCoord, ruralFeatures, type Block, type Building, type CityLayout, type Tree } from './layout';
+import { BLOCK_SIZE, CELLS, CURB_HEIGHT, LOT, PITCH, lawnLift, lineCoord, ruralFeatures, type Block, type Building, type CityLayout, type Tree } from './layout';
 import { ROAD_SPECS, type StreetEdge, type StreetNet } from './streets';
 import { hashSeed, Rng } from './rng';
 import { CAR_DIMENSIONS, PAINT_COLORS } from '../vehicles/carModel';
@@ -544,7 +544,7 @@ export class WorldStreamer {
         };
         // Sidewalks are always a curb above the road; the verge slopes from there (or from
         // the road edge, with no sidewalk) to the lawn level of the zone (raised in town).
-        const lawn = liftOf(this.terrain.zoneAt(midx + geo.nx[i0] * (hw + VERGE) * side, midz + geo.nz[i0] * (hw + VERGE) * side));
+        const lawn = lawnLift(this.terrain.zoneAt(midx + geo.nx[i0] * (hw + VERGE) * side, midz + geo.nz[i0] * (hw + VERGE) * side));
         const sw = spec.sidewalk;
         const up = sw > 0 ? CURB_HEIGHT : 0;
         if (sw > 0 && !blocked(hw + 0.05) && !blocked(hw + sw / 2) && !blocked(hw + sw)) {
@@ -692,7 +692,7 @@ export class WorldStreamer {
       const vz = Math.cos(r.yaw);
       const na = Math.max(1, Math.ceil(r.w / step));
       const nb = Math.max(1, Math.ceil(r.d / step));
-      const up = liftOf(this.terrain.zoneAt(r.x, r.z));
+      const up = lawnLift(this.terrain.zoneAt(r.x, r.z));
       const P = (a: number, b: number) => {
         const la = -r.w / 2 + (r.w * a) / na;
         const lb = -r.d / 2 + (r.d * b) / nb;
@@ -720,7 +720,7 @@ export class WorldStreamer {
       for (const f of p.fields) this.fieldLines(f, g.paint);
       for (const o of p.ponds) {
         // A pond: dark water in a shallow hollow (drawn just above the lawn).
-        const y = this.terrain.smoothHeight(o.x, o.z) + liftOf(this.terrain.zoneAt(o.x, o.z)) + 0.05;
+        const y = this.terrain.smoothHeight(o.x, o.z) + lawnLift(this.terrain.zoneAt(o.x, o.z)) + 0.05;
         const c = Math.cos(o.yaw);
         const sn = Math.sin(o.yaw);
         const P = (a: number) => {
@@ -743,7 +743,7 @@ export class WorldStreamer {
     const uz = -Math.sin(r.yaw);
     const vx = Math.sin(r.yaw);
     const vz = Math.cos(r.yaw);
-    const up = liftOf(this.terrain.zoneAt(r.x, r.z)) + 0.04;
+    const up = lawnLift(this.terrain.zoneAt(r.x, r.z)) + 0.04;
     const P = (a: number, b: number) => {
       const x = r.x + ux * a + vx * b;
       const z = r.z + uz * a + vz * b;
@@ -776,7 +776,7 @@ export class WorldStreamer {
     const uz = -Math.sin(r.yaw);
     const vx = Math.sin(r.yaw);
     const vz = Math.cos(r.yaw);
-    const up = liftOf(this.terrain.zoneAt(r.x, r.z));
+    const up = lawnLift(this.terrain.zoneAt(r.x, r.z));
     // A line along the depth direction at `a`, from depth b0 to b1, 0.12 m wide.
     const line = (a: number, b0: number, b1: number) => {
       const P = (la: number, lb: number) => {
@@ -922,7 +922,7 @@ export class WorldStreamer {
     for (const tr of own.trees) tree(tr, this.terrain.surfaceAt(tr.x, tr.z) - 0.05);
 
     for (const parcel of own.parcels) {
-      const up = liftOf(this.terrain.zoneAt(parcel.x, parcel.z));
+      const up = lawnLift(this.terrain.zoneAt(parcel.x, parcel.z));
       // Gas station: a flat canopy on four posts over two islands of pumps.
       const cnp = parcel.canopy;
       if (cnp) {
@@ -1002,6 +1002,7 @@ export class WorldStreamer {
     // Countryside trees (low-poly pines and broadleaves, one pool).
     for (const tr of c.rural?.trees ?? []) {
       const slot = take(p.forest);
+      if (slot < 0) continue; // pool full: no tree, and so no (invisible) collider either
       p.forest.place(slot, tr.x, tr.y - 0.2, tr.z, tr.scale, tr.scale * (0.9 + tr.hue * 0.3), tr.scale, tr.hue * Math.PI * 2);
       p.forest.setColor(slot, _color.setHSL(0.25 + tr.hue * 0.08, 0.55, 0.06 + tr.hue * 0.05));
       collider(RAPIER.ColliderDesc.cylinder(2 * tr.scale, 0.25 * tr.scale).setTranslation(tr.x, tr.y + 2 * tr.scale, tr.z));
@@ -1040,11 +1041,7 @@ export class WorldStreamer {
   }
 }
 
-/** How far lawns (and sidewalks) sit above the road in a zone. */
 const _quat = new THREE.Quaternion();
-function liftOf(zone: string): number {
-  return zone === 'suburb' || zone === 'village' || zone === 'beachtown' ? CURB_HEIGHT : 0;
-}
 
 interface Builders {
   asphalt: GeometryBuilder;

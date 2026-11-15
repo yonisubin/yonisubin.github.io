@@ -222,18 +222,20 @@ export class PlayerStats implements SimEntity {
 
   /** Restore saved stats, ignoring anything that isn't a known weapon or add-on. */
   load(data: ReturnType<PlayerStats['toJSON']>): void {
-    const isWeapon = (id: string): id is WeaponId => id in WEAPONS;
+    // Own keys only: `"constructor" in WEAPONS` is true too.
+    const isWeapon = (id: unknown): id is WeaponId => typeof id === 'string' && Object.hasOwn(WEAPONS, id);
     const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0);
     this.money = num(data.money);
     this.health = Math.max(20, Math.min(MAX_HEALTH, num(data.health))); // never wake up nearly dead
-    for (const id of data.owned ?? []) if (isWeapon(id)) this.owned.add(id);
+    for (const id of Array.isArray(data.owned) ? data.owned : []) if (isWeapon(id)) this.owned.add(id);
     for (const id of WEAPON_ORDER) {
       this.ammo[id] = num(data.ammo?.[id]);
       this.apAmmo[id] = num(data.apAmmo?.[id]);
     }
-    for (const key of data.addons ?? []) {
+    for (const key of Array.isArray(data.addons) ? data.addons : []) {
+      if (typeof key !== 'string') continue;
       const [w, a] = key.split(':');
-      if (isWeapon(w) && a in ADDONS) this.addons.add(key);
+      if (isWeapon(w) && Object.hasOwn(ADDONS, a)) this.addons.add(key);
     }
     if (isWeapon(data.current) && this.owned.has(data.current)) this.current = data.current;
   }

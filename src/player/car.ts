@@ -5,6 +5,7 @@ import type { PlayerMode, TouchButton } from './state';
 import { BodyInterpolator, type SimEntity } from '../sim/entity';
 import { findFreeSpot } from '../sim/exit';
 import { Sinking } from '../sim/sinking';
+import { FlipRecovery, ImpactMeter, placeBody } from '../sim/vehicleBody';
 import { ChaseCamera } from '../camera/chaseCamera';
 import type { VehicleLight } from '../sim/vehicleLight';
 import type { PlayerStats } from '../game/stats';
@@ -73,6 +74,8 @@ export class Car implements SimEntity {
   readonly controller: RAPIER.DynamicRayCastVehicleController;
   readonly object = new THREE.Group();
   readonly livery: 'ambulance' | null;
+  /** Its own paint material (everything else in the model is shared between cars). */
+  private readonly paint: THREE.Material;
   /** Roof light materials (ambulance), flashed while on a job. */
   beacons: { red: THREE.MeshBasicMaterial; blue: THREE.MeshBasicMaterial } | null = null;
   readonly interp: BodyInterpolator;
@@ -94,10 +97,9 @@ export class Car implements SimEntity {
 
   private readonly wheels: THREE.Group[] = [];
   private steer = 0;
-  private flipTimer = 0;
-  private readonly velBefore = new THREE.Vector3();
+  private readonly flip = new FlipRecovery(FLIP_DELAY, 1.5);
   /** Largest sudden velocity change (m/s) since takeImpact() was last called. */
-  private impact = 0;
+  private readonly impacts = new ImpactMeter();
   private readonly mass: number;
   private readonly wheelConnections: THREE.Vector3[] = [];
 
@@ -171,7 +173,9 @@ export class Car implements SimEntity {
     }
 
     // Visuals.
-    this.object.add(buildCarBody(options.type, options.color));
+    const bodyMeshes = buildCarBody(options.type, options.color);
+    this.paint = (bodyMeshes.children[0] as THREE.Mesh).material as THREE.Material;
+    this.object.add(bodyMeshes);
     this.livery = options.livery ?? null;
     if (options.livery === 'ambulance') {
       const l = ambulanceLivery();
@@ -185,6 +189,15 @@ export class Car implements SimEntity {
     }
     scene.add(this.object);
     this.interp = new BodyInterpolator(this.body);
+  }
+
+  /** Remove the car for good: physics body (with its colliders), vehicle controller, model. */
+  dispose(world: RAPIER.World, scene: THREE.Scene): void {
+    world.removeVehicleController(this.controller);
+    world.removeRigidBody(this.body);
+    scene.remove(this.object);
+    this.paint.dispose();
+    this.gone = true;
   }
 
   /** Signed speed along the car's forward axis, m/s. */
@@ -207,8 +220,7 @@ export class Car implements SimEntity {
     }
     // A parked car at rest sleeps; skip it entirely until something bumps it awake.
     if (!this.driven && this.body.isSleeping()) return;
-    const v0 = this.body.linvel();
-    this.velBefore.set(v0.x, v0.y, v0.z);
+    this.impacts.before(this.body);
 
     const speed = this.speed;
     const absSpeed = Math.abs(speed);
@@ -263,7 +275,7 @@ export class Car implements SimEntity {
     this.body.addForce({ x: -k * vLen * v.x, y: -k * vLen * v.y, z: -k * vLen * v.z }, false);
 
     this.controller.updateVehicle(dt);
-    this.recoverIfFlipped(dt, absSpeed);
+    this.flip.update(this.body, this.interp, dt, absSpeed);
 
     // Driven into deep water: the car floor is under the surface.
     if (this.sinking.check(this.body.translation(), 0.4)) {
@@ -283,46 +295,17 @@ export class Car implements SimEntity {
     }
     const { position, yaw } = this.origin;
     this.sinking.restore(this.body, 0.05, 0.4);
-    this.body.setTranslation({ x: position.x, y: position.y + 0.15, z: position.z }, true);
-    this.body.setRotation(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), true);
-    this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    this.body.resetForces(true);
-    this.interp.snap();
-  }
-
-  /** If the car ends up on its roof or side and isn't moving, put it back on its wheels. */
-  private recoverIfFlipped(dt: number, absSpeed: number): void {
-    const r = this.body.rotation();
-    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w));
-    if (up.y < 0.3 && absSpeed < 2) this.flipTimer += dt;
-    else this.flipTimer = 0;
-    if (this.flipTimer < FLIP_DELAY) return;
-    this.flipTimer = 0;
-    // Keep the heading, drop the roll and pitch, and lift it clear of the ground.
-    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w));
-    const yaw = Math.atan2(-fwd.z, fwd.x);
-    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-    const t = this.body.translation();
-    this.body.setTranslation({ x: t.x, y: t.y + 1.5, z: t.z }, true);
-    this.body.setRotation(q, true);
-    this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    placeBody(this.body, this.interp, position.x, position.y + 0.15, position.z, yaw);
   }
 
   afterStep(): void {
     this.interp.capture();
-    const v = this.body.linvel();
-    const dv = Math.hypot(v.x - this.velBefore.x, v.y - this.velBefore.y, v.z - this.velBefore.z);
-    this.impact = Math.max(this.impact, dv);
-    this.velBefore.set(v.x, v.y, v.z);
+    this.impacts.after(this.body);
   }
 
   /** Read and reset the biggest crash since the last call (m/s of velocity change). */
   takeImpact(): number {
-    const i = this.impact;
-    this.impact = 0;
-    return i;
+    return this.impacts.take();
   }
 
   render(alpha: number): void {
@@ -388,14 +371,10 @@ export class DrivingMode implements PlayerMode {
     this.cameraRig = new ChaseCamera(camera, input, world, { distance: 7.5, pivotHeight: 1.6, pitch: 0.22 }, car.body);
     this.touchButtons = [
       { label: 'BRAKE', action: 'handbrake' },
-      { label: 'EXIT', action: 'interact', visible: () => this.canExit() },
+      { label: 'EXIT', action: 'interact' },
     ];
   }
 
-  /** You can always get out; at speed you bail out and get hurt (see main.ts), and the car brakes to a stop. */
-  private canExit(): boolean {
-    return true;
-  }
 
   enter(): void {
     this.car.takeImpact(); // ignore anything from before we got in
@@ -419,7 +398,7 @@ export class DrivingMode implements PlayerMode {
     this.car.handbrake = this.input.isDown('handbrake');
     const impact = this.car.takeImpact();
     if (impact > CRASH_THRESHOLD) this.stats.damage((impact - CRASH_THRESHOLD) * CRASH_DAMAGE);
-    if (this.input.consumePressed('interact') && this.canExit()) this.onExit(this.car);
+    if (this.input.consumePressed('interact')) this.onExit(this.car);
   }
 
   render(_alpha: number, frameDt: number): void {

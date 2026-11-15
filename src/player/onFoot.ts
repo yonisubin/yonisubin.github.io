@@ -89,6 +89,7 @@ export class OnFootMode implements PlayerMode {
   // Weapon held in the right hand.
   private weaponHolder: THREE.Group | null = null;
   private heldWeapon: WeaponId | null = null;
+  private readonly weaponModels = new Map<WeaponId, THREE.Object3D | null>();
   private scopeToggled = false; // touch screens toggle the scope instead of holding a button
   private scoping = false;
 
@@ -221,7 +222,13 @@ export class OnFootMode implements PlayerMode {
     if (this.heldWeapon !== this.stats.current) {
       this.heldWeapon = this.stats.current;
       this.weaponHolder.clear();
-      const model = buildWeaponModel(this.heldWeapon);
+      // Each weapon's model is built once and reused (rebuilding on every switch leaked
+      // geometries and materials on the GPU).
+      let model = this.weaponModels.get(this.heldWeapon);
+      if (model === undefined) {
+        model = buildWeaponModel(this.heldWeapon);
+        this.weaponModels.set(this.heldWeapon, model);
+      }
       if (model) this.weaponHolder.add(model);
     }
   }

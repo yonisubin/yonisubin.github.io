@@ -9,6 +9,7 @@ import {
   cellOf,
   isTown,
   lakeRadius,
+  lawnLift,
   lineCoord,
   type Block,
   type CityLayout,
@@ -76,9 +77,13 @@ export class Terrain {
     return this.townDistanceGrid(x, z);
   }
 
-  /** Metres from a world point to the centre line of the nearest road (capped at 200). */
+  /**
+   * Metres from a world point to the centre line of the nearest road, capped at 40. Every
+   * caller only asks "closer than ≤ 32 m?", and the search cost grows with the square of the
+   * cap (a 200 m cap scanned 169 index buckets per height sample: 80–200 ms per chunk built).
+   */
   roadDistance(x: number, z: number): number {
-    return this.layout.streets ? this.layout.streets.net.distance(x, z, 200) : 200;
+    return this.layout.streets ? this.layout.streets.net.distance(x, z, 40) : 40;
   }
 
   /** Metres from a world point to the nearest road's edge (negative on the road; capped at 40). */
@@ -88,8 +93,7 @@ export class Terrain {
 
   /** In a town zone outside downtown: lawns are raised to sidewalk level there. */
   private lawnLift(x: number, z: number): number {
-    const zone = this.zoneAt(x, z);
-    return zone === 'suburb' || zone === 'village' || zone === 'beachtown' ? CURB_HEIGHT : 0;
+    return lawnLift(this.zoneAt(x, z));
   }
 
   private townDistanceGrid(x: number, z: number): number {

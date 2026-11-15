@@ -11,6 +11,7 @@ import { ROAD_SPECS } from '../world/streets';
 
 const PICKUP_RADIUS = 1.3; // m
 const RESPAWN_TIME = 120; // s
+const DROP_LIFE = 120; // s before dropped cash nobody picked up disappears
 const MAX_PICKUPS = 160; // instanced capacity: how many are drawn at once
 const DRAW_DISTANCE = 180; // m
 
@@ -20,6 +21,8 @@ interface Pickup {
   /** Seconds until it reappears (0 = present). Dropped cash is removed instead. */
   away: number;
   dropped: boolean;
+  /** Dropped cash: seconds left before it disappears. */
+  life: number;
 }
 
 export class Cash implements SimEntity {
@@ -66,6 +69,7 @@ export class Cash implements SimEntity {
           amount: 5 * rng.int(2, 16), // $10–80
           away: 0,
           dropped: false,
+          life: Infinity,
         });
       }
     }
@@ -74,7 +78,7 @@ export class Cash implements SimEntity {
     const net = layout.streets.net;
     const pt = { x: 0, z: 0, tx: 0, tz: 0 };
     const add = (x: number, z: number) =>
-      this.pickups.push({ position: new THREE.Vector3(x, surface(x, z), z), amount: 5 * rng.int(2, 16), away: 0, dropped: false });
+      this.pickups.push({ position: new THREE.Vector3(x, surface(x, z), z), amount: 5 * rng.int(2, 16), away: 0, dropped: false, life: Infinity });
     for (const e of net.edges) {
       const spec = ROAD_SPECS[e.cls];
       if (!spec.sidewalk || e.cls === 'downtown') continue;
@@ -116,7 +120,7 @@ export class Cash implements SimEntity {
   /** Drop a one-off bundle of cash (e.g. from a knocked-out pedestrian). */
   drop(position: THREE.Vector3, amount: number): void {
     if (this.pickups.filter((p) => p.dropped).length >= 40) return;
-    this.pickups.push({ position: position.clone(), amount, away: 0, dropped: true });
+    this.pickups.push({ position: position.clone(), amount, away: 0, dropped: true, life: DROP_LIFE });
   }
 
   fixedUpdate(dt: number): void {
@@ -124,6 +128,11 @@ export class Cash implements SimEntity {
     const p = this.collector();
     for (let i = this.pickups.length - 1; i >= 0; i--) {
       const pickup = this.pickups[i];
+      // Dropped cash nobody picks up blows away after a while (and frees its slot).
+      if (pickup.dropped && (pickup.life -= dt) <= 0) {
+        this.pickups.splice(i, 1);
+        continue;
+      }
       if (pickup.away > 0) {
         pickup.away = Math.max(0, pickup.away - dt);
         continue;

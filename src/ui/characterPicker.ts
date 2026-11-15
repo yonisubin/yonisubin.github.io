@@ -111,6 +111,8 @@ export class CharacterPicker {
     return this.open_;
   }
 
+  private keysHooked = false;
+
   toggle(): void {
     if (this.open_) this.close();
     else this.open();
@@ -118,6 +120,16 @@ export class CharacterPicker {
 
   open(): void {
     if (this.open_ || !this.canOpen()) return;
+    // While the picker is open game input is blocked, so its own P / Esc listener closes it
+    // (like the full map's).
+    if (!this.keysHooked) {
+      this.keysHooked = true;
+      window.addEventListener('keydown', (e) => {
+        if (!this.open_ || (e.code !== 'KeyP' && e.code !== 'Escape') || e.repeat) return;
+        e.preventDefault();
+        this.close();
+      });
+    }
     this.open_ = true;
     this.angle = this.playerFacing(); // start in front of the character (see update())
     this.input.setBlocked(true);

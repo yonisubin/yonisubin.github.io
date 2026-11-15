@@ -24,6 +24,7 @@
 // BUST_TIME seconds; on foot, officers do it (pedestrians.ts).
 
 import * as THREE from 'three';
+import { yawPitchQuaternion } from '../sim/pose';
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { SimEntity } from '../sim/entity';
 import type { StreetNet } from '../world/streets';
@@ -112,8 +113,6 @@ export interface PoliceHooks {
   traffic(): THREE.Vector3[];
 }
 
-const UP = new THREE.Vector3(0, 1, 0);
-const Z_AXIS = new THREE.Vector3(0, 0, 1);
 
 export class Police implements SimEntity {
   private readonly units: Unit[] = [];
@@ -133,8 +132,8 @@ export class Police implements SimEntity {
   private flash = 0;
   private readonly tmp = new THREE.Vector3();
   private readonly quat = new THREE.Quaternion();
-  private readonly pitchQuat = new THREE.Quaternion();
   smoke: Smoke | null = null;
+  private trafficNow: THREE.Vector3[] = [];
   /** For tests: what happened lately. */
   readonly stats = { spawned: 0, roadblocks: 0, dropped: 0, busted: 0 };
 
@@ -226,7 +225,7 @@ export class Police implements SimEntity {
 
   /** Positions of police cars chasing you or blocking roads (for the maps). */
   markers(): THREE.Vector3[] {
-    const out = this.units.filter((u) => u.role === 'pursuit' || u.role === 'block').map((u) => u.pos);
+    const out = this.sirens();
     if (this.heliOn) out.push(this.heliPos);
     return out;
   }
@@ -280,6 +279,7 @@ export class Police implements SimEntity {
   fixedUpdate(dt: number): void {
     const player = this.hooks.player();
     const stars = this.hooks.stars();
+    this.trafficNow = this.hooks.traffic(); // once per step, shared by every car's gap check
     this.attackCooldown = Math.max(0, this.attackCooldown - dt);
     this.manageUnits(player.position, stars);
     let seen = false;
@@ -325,6 +325,20 @@ export class Police implements SimEntity {
       const free = this.units.find((u) => u.role === 'off');
       if (free && this.spawn(free, player, 'pursuit')) this.stats.spawned++;
       return;
+    }
+    if (stars > 0 && chasing > wantPursuit) {
+      // Lost a star: the extra pursuers (farthest first, and only ones you can't see
+      // turn round) give up and go back to patrolling.
+      const spare = this.units
+        .filter((u) => u.role === 'pursuit' && !this.visible(u.pos, player))
+        .sort((a, b) => b.pos.distanceTo(player) - a.pos.distanceTo(player))
+        .slice(0, chasing - wantPursuit);
+      for (const u of spare) {
+        u.role = 'patrol';
+        u.parked = false;
+        u.goal = null;
+        u.route = null;
+      }
     }
     if (stars === 0) {
       // Pursuers go back to patrolling (and the ones far away just leave).
@@ -575,7 +589,7 @@ export class Police implements SimEntity {
       if (Math.abs(dx * -fz + dz * fx) > 2.4) return;
       limit = Math.min(limit, Math.max(0, (along - 6) * 1.2));
     };
-    for (const q of this.hooks.traffic()) check(q);
+    for (const q of this.trafficNow) check(q);
     for (const o of this.units) if (o !== u && o.role !== 'off') check(o.pos);
     // Waiting long behind a jam: squeeze past (ghosting slowly through is better than stuck).
     return u.stuck > 2 ? Math.max(limit, 5) : limit;
@@ -590,15 +604,11 @@ export class Police implements SimEntity {
     const back = this.terrain.smoothHeight(u.pos.x - fx * h, u.pos.z - fz * h);
     u.pos.y = (front + back) / 2;
     u.pitch = Math.atan2(front - back, DIM.wheelBase);
-    this.orientation(u.yaw, u.pitch, this.quat);
+    yawPitchQuaternion(u.yaw, u.pitch, this.quat);
     u.body.setNextKinematicTranslation(u.pos);
     u.body.setNextKinematicRotation(this.quat);
   }
 
-  private orientation(yaw: number, pitch: number, out: THREE.Quaternion): THREE.Quaternion {
-    out.setFromAxisAngle(UP, yaw);
-    return out.multiply(this.pitchQuat.setFromAxisAngle(Z_AXIS, pitch));
-  }
 
   /** The player driving hard into a police car counts as attacking the police. */
   private checkRam(u: Unit, player: ReturnType<PoliceHooks['player']>): void {
@@ -606,7 +616,7 @@ export class Police implements SimEntity {
     const dx = u.pos.x - player.position.x;
     const dz = u.pos.z - player.position.z;
     const d = Math.hypot(dx, dz);
-    if (d > 4.2 || d < 0.01) return;
+    if (d > 4.2 || d < 0.01 || Math.abs(u.pos.y - player.position.y) > 3) return; // flying over isn't ramming
     // Player's speed toward the police car, and the police car's toward the player: only
     // count it when the player did the ramming.
     const closing = (player.velocity.x * dx + player.velocity.z * dz) / d;
@@ -629,7 +639,10 @@ export class Police implements SimEntity {
     }
     const slow = Math.hypot(player.velocity.x, player.velocity.z) < 1;
     const close = this.units.some(
-      (u) => (u.role === 'pursuit' || u.role === 'block') && Math.hypot(u.pos.x - player.position.x, u.pos.z - player.position.z) < BUST_RANGE,
+      (u) =>
+        (u.role === 'pursuit' || u.role === 'block') &&
+        Math.hypot(u.pos.x - player.position.x, u.pos.z - player.position.z) < BUST_RANGE &&
+        Math.abs(u.pos.y - player.position.y) < 3, // not while hovering above them
     );
     this.bustTimer = slow && close ? this.bustTimer + dt : 0;
     if (this.bustTimer > BUST_TIME) {
@@ -769,7 +782,7 @@ export class Police implements SimEntity {
       if (u.role === 'off') continue;
       u.group.position.lerpVectors(u.prevPos, u.pos, alpha);
       const yaw = u.prevYaw + Math.atan2(Math.sin(u.yaw - u.prevYaw), Math.cos(u.yaw - u.prevYaw)) * alpha;
-      this.orientation(yaw, u.pitch, u.group.quaternion);
+      yawPitchQuaternion(yaw, u.pitch, u.group.quaternion);
       u.wheelSpin -= (u.speed / DIM.wheelRadius) * frameDt;
       for (const w of u.wheels) w.rotation.z = u.wheelSpin;
       // Light bar: flashing while chasing or blocking, dark on patrol or wrecked.

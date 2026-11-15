@@ -27,7 +27,6 @@ import { generateStreets, type StreetWorld } from './suburbs';
 
 export const CELLS = 52; // cells per side
 export const ROAD_WIDTH = 14; // town roads: 4 lanes × 3.5 m (two each way)
-export const RURAL_ROAD_WIDTH = 8; // country roads: one lane each way, with narrow shoulders
 export const SIDEWALK = 4;
 export const LOT = 56;
 export const BLOCK_SIZE = LOT + 2 * SIDEWALK; // 64
@@ -55,6 +54,19 @@ export const STYLE_METRICS = [
 export const PARAPET = 1.0; // wall above the top floor hiding the roof
 
 export type Zone = 'downtown' | 'suburb' | 'village' | 'beachtown' | 'farm' | 'forest' | 'beach' | 'lake';
+
+/** Towns outside downtown: houses on lots, curbed streets. */
+export function isTownZone(zone: Zone): boolean {
+  return zone === 'suburb' || zone === 'village' || zone === 'beachtown';
+}
+
+/**
+ * How far lawns (and sidewalks) sit above the road in a zone: curb height in the towns, 0
+ * elsewhere. The chunk meshes and Terrain.surfaceAt (where people stand) must agree on it.
+ */
+export function lawnLift(zone: Zone): number {
+  return isTownZone(zone) ? CURB_HEIGHT : 0;
+}
 const TOWN_ZONES: ReadonlySet<Zone> = new Set(['downtown', 'suburb', 'village', 'beachtown']);
 export function isTown(zone: Zone): boolean {
   return TOWN_ZONES.has(zone);
@@ -147,7 +159,6 @@ export function cellOf(x: number): number {
   return Math.floor(x / PITCH + CELLS / 2);
 }
 /** Kept for older call sites: the centre of block i along one axis. */
-export const blockCenter = cellCenter;
 
 // --- Places (deterministic, not random) ---------------------------------------------
 
@@ -301,35 +312,21 @@ export function generateBlock(seed: number, bx: number, bz: number, zone: Zone):
     trees: [],
     lamps: [],
   };
-  const homes = zone !== 'downtown';
-  addStreetFurniture(block, rng, homes ? 0.55 : 0.85);
+  addStreetFurniture(block, rng, 0.85);
 
   // "Downtown-ness": 1 at the centre, 0 at the edge of downtown. Drives building height.
-  const downtown = zone === 'downtown' ? 1 - Math.min(1, Math.hypot(cx, cz) / 450) : 0;
-  block.park = helipad || (zone === 'downtown' ? downtown < 0.85 && rng.chance(0.1) : rng.chance(0.08));
+  const downtown = 1 - Math.min(1, Math.hypot(cx, cz) / 450);
+  block.park = helipad || (downtown < 0.85 && rng.chance(0.1));
   if (block.park) {
     block.lawn = true;
     addParkTrees(block, rng, helipad ? HELIPAD_CLEAR_RADIUS : 0);
     return block;
   }
 
-  if (zone === 'downtown') {
-    // Split the lot into a grid of parcels with randomised split positions.
-    const splitsX = splitSpan(rng, LOT, downtown > 0.6 && rng.chance(0.35) ? 1 : rng.int(2, 3));
-    const splitsZ = splitSpan(rng, LOT, downtown > 0.6 && rng.chance(0.35) ? 1 : 2);
-    forEachParcel(block, splitsX, splitsZ, (px, pz, w, d) => addTowerBuilding(block, rng, px, pz, w, d, downtown));
-  } else if (zone === 'beachtown' && rng.chance(0.6)) {
-    // Seaside shops and flats: low, pastel stucco.
-    forEachParcel(block, splitSpan(rng, LOT, 3), splitSpan(rng, LOT, 2), (px, pz, w, d) =>
-      addSeasideBuilding(block, rng, px, pz, w, d),
-    );
-  } else {
-    // Houses with front gardens on a lawn.
-    block.lawn = true;
-    forEachParcel(block, splitSpan(rng, LOT, 3), splitSpan(rng, LOT, 2), (px, pz, w, d) =>
-      addHouse(block, rng, px, pz, w, d),
-    );
-  }
+  // Split the lot into a grid of parcels with randomised split positions.
+  const splitsX = splitSpan(rng, LOT, downtown > 0.6 && rng.chance(0.35) ? 1 : rng.int(2, 3));
+  const splitsZ = splitSpan(rng, LOT, downtown > 0.6 && rng.chance(0.35) ? 1 : 2);
+  forEachParcel(block, splitsX, splitsZ, (px, pz, w, d) => addTowerBuilding(block, rng, px, pz, w, d, downtown));
   return block;
 }
 
@@ -399,68 +396,7 @@ function addTowerBuilding(
   addRoofClutter(block, rng, block.buildings[block.buildings.length - 1], px, pz, width, depth, height, style);
 }
 
-function addSeasideBuilding(block: Block, rng: Rng, px: number, pz: number, parcelW: number, parcelD: number): void {
-  const metrics = STYLE_METRICS[STYLE_BRICK];
-  const height = metrics.groundFloor + rng.int(1, 3) * metrics.floor + PARAPET;
-  const inset = 1.2 + rng.range(0, 1.5);
-  const width = parcelW - inset * 2;
-  const depth = parcelD - inset * 2;
-  if (width < 8 || depth < 8) return;
-  const pastel = rng.pick<[number, number, number]>([
-    [0.75, 0.6, 0.45],
-    [0.55, 0.7, 0.75],
-    [0.8, 0.72, 0.55],
-    [0.75, 0.55, 0.55],
-    [0.62, 0.72, 0.6],
-    [0.82, 0.8, 0.74],
-  ]);
-  block.buildings.push({ x: px, z: pz, y: CURB_HEIGHT, width, depth, height, style: STYLE_BRICK, color: pastel, seed: rng.int(0, 999) });
-  addRoofClutter(block, rng, block.buildings[block.buildings.length - 1], px, pz, width, depth, height, STYLE_BRICK);
-}
 
-/** A detached house set back from the street, with a pitched roof and a garden tree or two. */
-function addHouse(block: Block, rng: Rng, px: number, pz: number, parcelW: number, parcelD: number): void {
-  const floors = rng.chance(0.6) ? 2 : 1;
-  const width = Math.min(parcelW - 5, rng.range(9, 13));
-  const depth = Math.min(parcelD - 8, rng.range(8, 11));
-  if (width < 7 || depth < 7) return;
-  // Front of the house faces the nearer street (the block edge on the parcel's side).
-  const towardZ = Math.sign(pz - block.cz) || 1;
-  const z = pz + towardZ * (parcelD / 2 - depth / 2 - rng.range(3.5, 5.5));
-  const x = px + rng.range(-1, 1) * Math.max(0, (parcelW - width) / 2 - 2);
-  const wall = rng.pick<[number, number, number]>([
-    [0.78, 0.74, 0.66],
-    [0.7, 0.62, 0.5],
-    [0.62, 0.66, 0.68],
-    [0.8, 0.78, 0.72],
-    [0.55, 0.42, 0.32],
-    [0.72, 0.68, 0.55],
-    [0.5, 0.56, 0.5],
-  ]);
-  const roofColor = rng.pick<[number, number, number]>([
-    [0.12, 0.12, 0.13],
-    [0.32, 0.12, 0.08],
-    [0.22, 0.16, 0.12],
-    [0.2, 0.22, 0.25],
-  ]);
-  block.buildings.push({
-    x,
-    z,
-    y: CURB_HEIGHT,
-    width,
-    depth,
-    height: floors * STYLE_METRICS[STYLE_HOUSE].floor + 0.4,
-    style: STYLE_HOUSE,
-    color: wall,
-    seed: rng.int(0, 999),
-    roof: { height: rng.range(2.2, 3.4), color: roofColor },
-  });
-  // A garden tree in the back yard.
-  if (rng.chance(0.7)) {
-    const tz = pz - towardZ * (parcelD / 2 - 3.5);
-    block.trees.push({ x: px + rng.range(-parcelW / 3, parcelW / 3), y: CURB_HEIGHT, z: tz, scale: rng.range(0.8, 1.2), hue: rng.float() });
-  }
-}
 
 function addRoofClutter(
   block: Block,

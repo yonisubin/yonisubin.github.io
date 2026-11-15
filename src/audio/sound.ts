@@ -28,7 +28,9 @@ interface Settings {
 function loadSettings(): Settings {
   try {
     const s = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Partial<Settings> | null;
-    return { muted: !!s?.muted, station: typeof s?.station === 'number' ? s.station : 0 };
+    // Station: −1 (off) … 2; anything else (an old or edited value) falls back to the first.
+    const station = typeof s?.station === 'number' && Number.isInteger(s.station) && s.station >= -1 && s.station <= 2 ? s.station : 0;
+    return { muted: !!s?.muted, station };
   } catch {
     return { muted: false, station: 0 };
   }
@@ -48,6 +50,12 @@ export class Sound {
   constructor() {
     const start = () => this.start();
     for (const type of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(type, start, { capture: true, passive: true });
+    // Silence while the tab or app is in the background (the game loop stops there).
+    document.addEventListener('visibilitychange', () => {
+      if (!this.ctx) return;
+      if (document.visibilityState === 'hidden') void this.ctx.suspend();
+      else void this.ctx.resume();
+    });
   }
 
   /** Called when the audio context starts (to build loops). */
@@ -59,7 +67,8 @@ export class Sound {
   /** Create / resume the context (needs a user gesture). */
   start(): void {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      // 'suspended', or iOS's 'interrupted' after a call: resume on the next tap.
+      if (this.ctx.state !== 'running' && document.visibilityState === 'visible') void this.ctx.resume();
       return;
     }
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
