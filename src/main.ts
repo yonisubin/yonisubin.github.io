@@ -100,7 +100,10 @@ async function main(): Promise<void> {
   const fullMap = new FullMap(
     worldMap,
     input,
-    (open) => hud.hideClickToPlay(open),
+    (open) => {
+      hud.hideClickToPlay(open);
+      touchControls?.reset();
+    },
     (point) => (point ? navigator.setWaypoint(point.x, point.z) : navigator.clear()),
   );
   const debug = new DebugOverlay(renderer, input);
@@ -426,7 +429,10 @@ async function main(): Promise<void> {
         () => onFoot.facingYaw,
         (m) => onFoot.setModel(m),
         () => player.mode === onFoot,
-        (open) => hud.hideClickToPlay(open),
+        (open) => {
+          hud.hideClickToPlay(open);
+          touchControls?.reset();
+        },
         touch,
       )
     : null;

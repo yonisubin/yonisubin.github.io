@@ -127,6 +127,10 @@ export class Input {
   }
 
   requestPointerLock(): void {
+    // Never on phones/tablets: touch controls don't use it, and where a browser grants it
+    // anyway (Android Chrome, from a tap) every touch then goes to the locked canvas instead
+    // of the on-screen joystick, leaving the player stuck. iPhone Safari doesn't have it.
+    if (window.matchMedia('(pointer: coarse)').matches || typeof this.element.requestPointerLock !== 'function') return;
     // Some browsers return a promise that rejects (e.g. too soon after Esc); ignore that.
     const result = this.element.requestPointerLock() as unknown;
     if (result instanceof Promise) result.catch(() => {});

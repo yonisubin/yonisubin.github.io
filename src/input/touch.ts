@@ -104,6 +104,9 @@ export class TouchControls {
     this.root.addEventListener('pointermove', (e) => this.onMove(e));
     this.root.addEventListener('pointerup', (e) => this.onUp(e));
     this.root.addEventListener('pointercancel', (e) => this.onUp(e));
+    // If the browser takes a finger away from us (an overlay, a system gesture), free its
+    // slot too, or the stick/look would stay "taken" by a finger that's gone.
+    this.root.addEventListener('lostpointercapture', (e) => this.onUp(e));
     // A long-press would otherwise open the context menu on some Android browsers.
     this.root.addEventListener('contextmenu', (e) => e.preventDefault());
   }
@@ -164,9 +167,28 @@ export class TouchControls {
     }
   }
 
+  /**
+   * Forget every finger and centre the stick. Called when a full-screen menu (the map, the
+   * look picker) opens or closes, since fingers lifted over the menu never reach us.
+   */
+  reset(): void {
+    this.stickPointer = null;
+    this.lookPointer = null;
+    this.down.clear();
+    this.input.setStick(0, 0);
+    this.showIdleStick();
+  }
+
+  /** Fingers currently on our layer, to spot a slot held by a finger whose release we missed. */
+  private readonly down = new Set<number>();
+
   private onDown(e: PointerEvent): void {
     e.preventDefault();
     this.root.setPointerCapture(e.pointerId);
+    // A slot whose finger we no longer see is stale (its release went elsewhere): free it.
+    if (this.stickPointer !== null && !this.down.has(this.stickPointer)) this.stickPointer = null;
+    if (this.lookPointer !== null && !this.down.has(this.lookPointer)) this.lookPointer = null;
+    this.down.add(e.pointerId);
     if (e.clientX < window.innerWidth / 2) {
       if (this.stickPointer !== null) return;
       // Floating joystick: the base appears wherever the thumb lands.
@@ -196,6 +218,7 @@ export class TouchControls {
   }
 
   private onUp(e: PointerEvent): void {
+    this.down.delete(e.pointerId);
     if (e.pointerId === this.stickPointer) {
       this.stickPointer = null;
       this.input.setStick(0, 0);

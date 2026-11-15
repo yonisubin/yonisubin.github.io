@@ -124,6 +124,8 @@ All key bindings live in one table in `actions.ts`. It uses `KeyboardEvent.code`
 - **Buttons:** stacked bottom-right, whatever the current mode asks for (JUMP, DRIVE, BRAKE, UP/DOWN, EXIT, ATTACK…).
 
 Pointer Events with per-finger tracking allow moving and looking at once. `isTouchDevice()` checks for a coarse primary pointer, so touchscreen laptops keep mouse controls.
+- **Never pointer lock on touch.** `Input.requestPointerLock()` does nothing on a coarse pointer. Android Chrome grants pointer lock from a tap, and then every touch goes to the locked canvas instead of the joystick. That was the "no control after closing the map" bug: the map and the look picker request pointer lock as they close, to put desktop players back into mouse look.
+- **Self-healing finger slots.** The stick and look each remember their finger. A slot is freed on `pointerup`, `pointercancel` and `lostpointercapture`, and a slot whose finger we no longer see is taken over by the next touch. The map and the picker also call `TouchControls.reset()` when they open or close, since fingers lifted over a menu never reach the touch layer.
 
 Other `Input` features:
 - `moveAxis()` merges keys and the stick.
