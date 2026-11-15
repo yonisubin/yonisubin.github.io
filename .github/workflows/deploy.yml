@@ -32,6 +32,24 @@ jobs:
           npm ci
           npm run build
 
+      # A preview of a work-in-progress branch at /preview/ (e.g. yonisubin.github.io/preview/),
+      # next to the live game. Change PREVIEW_BRANCH to preview another branch; if the branch
+      # doesn't exist (merged and deleted), this step does nothing. Pushing to the preview branch
+      # doesn't deploy by itself: re-run this workflow (Actions → Deploy → Run workflow).
+      - name: Build the preview branch into dist/preview
+        env:
+          PREVIEW_BRANCH: feature/police-sound-save-jobs
+        run: |
+          if git ls-remote --exit-code --heads origin "$PREVIEW_BRANCH" > /dev/null; then
+            git fetch --depth 1 origin "$PREVIEW_BRANCH"
+            git worktree add ../preview FETCH_HEAD
+            cd ../preview
+            npm ci
+            npm run build -- --base=/preview/ --outDir "$GITHUB_WORKSPACE/dist/preview" --emptyOutDir
+          else
+            echo "No branch $PREVIEW_BRANCH: no preview"
+          fi
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
