@@ -38,6 +38,7 @@ import { Navigator } from './game/route';
 import { Autosave, clearSave, loadSave, writeSave } from './game/save';
 import { Wanted } from './game/wanted';
 import { Police } from './npc/police';
+import { Jobs, type JobKind } from './game/jobs';
 import { DebugOverlay } from './ui/debug';
 
 // Physics runs at a fixed 60 Hz regardless of display refresh rate.
@@ -107,7 +108,14 @@ async function main(): Promise<void> {
       hud.hideClickToPlay(open);
       touchControls?.reset();
     },
-    (point) => (point ? navigator.setWaypoint(point.x, point.z) : navigator.clear()),
+    (point) => {
+      if (jobs.active) {
+        hud.toast('You’re on a job — press J (END JOB) to stop first', 2.5);
+        return;
+      }
+      if (point) navigator.setWaypoint(point.x, point.z);
+      else navigator.clear();
+    },
   );
   const debug = new DebugOverlay(renderer, input);
 
@@ -175,6 +183,7 @@ async function main(): Promise<void> {
     car.mode = mode;
     car.sinking.water = deepWater;
     car.onSink = onSink;
+    mode.touchButtons.push({ label: () => (jobs.active ? 'END JOB' : 'JOB'), action: 'job', visible: () => jobKind(car) !== null });
     onFoot.interactables.push({
       label: () => 'drive',
       position: () => car.interp.currPos,
@@ -197,16 +206,19 @@ async function main(): Promise<void> {
     );
   }
 
-  // Two cars outside every hospital, so there's something to drive after waking up.
+  // Outside every hospital: a car, so there's something to drive after waking up, and an
+  // ambulance (for the ambulance side job).
   for (const h of places.hospitals) {
-    for (const spot of h.parking) {
+    for (const [k, spot] of h.parking.entries()) {
+      const ambulance = k === 1;
       addPlayerCar(
         new Car(world, scene, {
-          type: spot.type,
-          color: PAINT_COLORS[spot.colorIndex],
+          type: ambulance ? 'van' : spot.type,
+          color: ambulance ? 0xf4f4f2 : PAINT_COLORS[spot.colorIndex],
           position: new THREE.Vector3(spot.x, city.terrain.smoothHeight(spot.x, spot.z), spot.z),
           yaw: spot.yaw,
           respawn: true,
+          livery: ambulance ? 'ambulance' : undefined,
         }),
       );
     }
@@ -291,6 +303,7 @@ async function main(): Promise<void> {
     hud.setFade(true, 'You were knocked out');
     wanted.clear();
     police.reset();
+    jobs.end('you were knocked out');
     window.setTimeout(() => {
       stats.respawn();
       onFoot.standUp();
@@ -421,6 +434,21 @@ async function main(): Promise<void> {
   });
   police.smoke = smoke;
   entities.push(police);
+
+  // Side jobs (game/jobs.ts): taxis, ambulances and vans; J / JOB starts or ends a shift.
+  const jobKind = (car: Car): JobKind | null =>
+    car.livery === 'ambulance' ? 'ambulance' : car.type === 'taxi' ? 'taxi' : car.type === 'van' ? 'delivery' : null;
+  const jobs = new Jobs(scene, city.layout.streets.net, city.layout.streets.houses, library, navigator, stats, {
+    vehicle: () => {
+      const car = cars.find((c) => c.mode === player.mode);
+      if (!car) return null;
+      return { kind: jobKind(car), position: car.interp.currPos, speed: Math.abs(car.speed) };
+    },
+    hospital: (x, z) => places.nearestHospital(x, z).door,
+    surface,
+    toast: (text, seconds) => hud.toast(text, seconds),
+  });
+  entities.push({ fixedUpdate: (dt) => jobs.fixedUpdate(dt), afterStep: () => {}, render: () => {} });
   wanted.witnessed = () => police.witnesses(playerPosition());
   // Gunfire is a crime when someone's around to hear it (or the police see it).
   onFoot.combat.onHit = (collider, damage) => void police.damageCollider(collider, damage);
@@ -441,6 +469,7 @@ async function main(): Promise<void> {
     const stars = Math.max(1, wanted.stars);
     input.setBlocked(true);
     hud.setFade(true, 'BUSTED');
+    jobs.end('busted');
     window.setTimeout(() => {
       const where = (player.mode ?? onFoot).focus();
       const station = places.nearestPolice(where.x, where.z);
@@ -530,6 +559,7 @@ async function main(): Promise<void> {
   if (saved) {
     stats.load(saved.stats);
     missions.record = saved.missions;
+    jobs.record = saved.jobs;
     dayNight.hours = ((saved.hours % 24) + 24) % 24;
     const { x, z, heading } = saved.player;
     const spot = new THREE.Vector3(x, city.terrain.surfaceAt(x, z) + 1.0, z);
@@ -550,10 +580,10 @@ async function main(): Promise<void> {
     writeSave({
       stats: stats.toJSON(),
       missions: missions.record,
-      jobs: {},
+      jobs: jobs.record,
       player: { x, z, heading: onFoot.facingYaw },
       hours: dayNight.hours,
-      waypoint: navigator.waypoint ? { x: navigator.waypoint.x, z: navigator.waypoint.z } : null,
+      waypoint: navigator.waypoint && navigator.owner === 'user' ? { x: navigator.waypoint.x, z: navigator.waypoint.z } : null,
     });
   });
   fullMap.onNewGame = () => {
@@ -577,6 +607,7 @@ async function main(): Promise<void> {
     water.step(PHYSICS_STEP);
     parkVehicles();
     player.update(PHYSICS_STEP); // reads input, sets vehicle controls
+    if (input.consumePressed('job')) jobs.toggle();
     for (const e of entities) e.fixedUpdate(PHYSICS_STEP);
     world.step();
     for (const e of entities) e.afterStep();
@@ -587,7 +618,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { RAPIER, scene, navigator, autosave, wanted, police, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { RAPIER, scene, jobs, navigator, autosave, wanted, police, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -658,6 +689,16 @@ async function main(): Promise<void> {
     fullMap.waypoint = navigator.waypoint;
     hud.setRoute(navigator.remaining);
     hud.setWanted(wanted.stars, wanted.evading, police.bustProgress);
+    hud.setJob(jobs.hudText());
+    jobs.render(frameTime, mode.focus());
+    // Ambulance beacons flash while it's working.
+    const flashOn = Math.floor(performance.now() / 250) % 2 === 0;
+    for (const c of cars) {
+      if (!c.beacons) continue;
+      const on = jobs.kind === 'ambulance' && c.mode === player.mode;
+      c.beacons.red.color.setHex(on && flashOn ? 0xff2020 : 0x551111);
+      c.beacons.blue.color.setHex(on && !flashOn ? 0x2050ff : 0x111a55);
+    }
     const markers = mapMarkers();
     if (navigator.waypoint) markers.push({ kind: 'waypoint', position: new THREE.Vector3(navigator.waypoint.x, 0, navigator.waypoint.z) });
     minimap.update(mode.focus(), camera.getWorldDirection(viewDir), markers, dayNight.clock);

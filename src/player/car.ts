@@ -8,7 +8,7 @@ import { Sinking } from '../sim/sinking';
 import { ChaseCamera } from '../camera/chaseCamera';
 import type { VehicleLight } from '../sim/vehicleLight';
 import type { PlayerStats } from '../game/stats';
-import { CAR_DIMENSIONS, buildCarBody, buildWheel, type CarType } from '../vehicles/carModel';
+import { CAR_DIMENSIONS, ambulanceLivery, buildCarBody, buildWheel, type CarType } from '../vehicles/carModel';
 
 // Drivable car built on Rapier's ray-cast vehicle controller.
 //
@@ -63,6 +63,8 @@ export interface CarOptions {
   yaw: number; // rad; 0 = facing +X
   /** Put it back here after it's lost (sunk); otherwise it's gone for good (jacked cars). */
   respawn?: boolean;
+  /** Special markings (an ambulance is a white van with them). */
+  livery?: 'ambulance';
 }
 
 export class Car implements SimEntity {
@@ -70,6 +72,9 @@ export class Car implements SimEntity {
   readonly body: RAPIER.RigidBody;
   readonly controller: RAPIER.DynamicRayCastVehicleController;
   readonly object = new THREE.Group();
+  readonly livery: 'ambulance' | null;
+  /** Roof light materials (ambulance), flashed while on a job. */
+  beacons: { red: THREE.MeshBasicMaterial; blue: THREE.MeshBasicMaterial } | null = null;
   readonly interp: BodyInterpolator;
   /** Set by the game once the player exists (see main.ts). */
   mode: DrivingMode | null = null;
@@ -167,6 +172,12 @@ export class Car implements SimEntity {
 
     // Visuals.
     this.object.add(buildCarBody(options.type, options.color));
+    this.livery = options.livery ?? null;
+    if (options.livery === 'ambulance') {
+      const l = ambulanceLivery();
+      this.object.add(l.group);
+      this.beacons = { red: l.red, blue: l.blue };
+    }
     for (let i = 0; i < 4; i++) {
       const wheel = buildWheel(d.wheelRadius);
       this.wheels.push(wheel);
@@ -356,7 +367,7 @@ export class Car implements SimEntity {
 /** Player-in-car mode: reads input, drives the car, runs the chase camera. */
 export class DrivingMode implements PlayerMode {
   readonly name = 'Driving';
-  readonly controlsHint = 'W gas · S brake/reverse · A/D steer · Space handbrake · E get out';
+  readonly controlsHint = 'W gas · S brake/reverse · A/D steer · Space handbrake · E get out · J job (taxi, ambulance, van)';
   readonly touchButtons: TouchButton[];
   private readonly cameraRig: ChaseCamera;
   private readonly fwd = new THREE.Vector3();

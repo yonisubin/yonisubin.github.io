@@ -229,6 +229,8 @@ export class Router {
 /** The waypoint, the route to it, and keeping that route up to date as you move. */
 export class Navigator {
   waypoint: { x: number; z: number } | null = null;
+  /** Who set the waypoint: you (on the map; cleared on arrival) or a side job (it decides). */
+  owner: 'user' | 'job' = 'user';
   /** The route from where you are now (trimmed as you go), or null. */
   route: Route | null = null;
   private full: Route | null = null;
@@ -245,8 +247,9 @@ export class Navigator {
     this.router = new Router(net);
   }
 
-  setWaypoint(x: number, z: number): void {
+  setWaypoint(x: number, z: number, owner: 'user' | 'job' = 'user'): void {
     this.waypoint = { x, z };
+    this.owner = owner;
     this.full = this.route = null;
     this.sinceRoute = Infinity; // route on the next update
   }
@@ -265,7 +268,7 @@ export class Navigator {
   update(dt: number, x: number, z: number, mode: TravelMode): void {
     const w = this.waypoint;
     if (!w) return;
-    if (Math.hypot(w.x - x, w.z - z) < 15) {
+    if (Math.hypot(w.x - x, w.z - z) < 15 && this.owner === 'user') {
       this.clear();
       this.onArrive();
       return;

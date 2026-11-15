@@ -266,6 +266,35 @@ export function buildCarBody(type: CarType, color: number): THREE.Group {
   return group;
 }
 
+/**
+ * Ambulance markings for the white van: a red band along each side, a red cross on each
+ * side and a light bar on the roof (its two halves are returned so they can flash).
+ */
+export function ambulanceLivery(): { group: THREE.Group; red: THREE.MeshBasicMaterial; blue: THREE.MeshBasicMaterial } {
+  const d = CAR_DIMENSIONS.van;
+  const group = new THREE.Group();
+  const redPaint = new THREE.MeshStandardMaterial({ color: 0xc62828, roughness: 0.5 });
+  const half = d.width / 2 + 0.006;
+  for (const side of [-1, 1]) {
+    const band = new THREE.Mesh(new THREE.BoxGeometry(d.length - 0.5, 0.22, 0.02), redPaint);
+    band.position.set(-0.1, 0.95, side * half);
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.16, 0.02), redPaint);
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.55, 0.02), redPaint);
+    bar.position.set(-1.0, 1.45, side * half);
+    post.position.set(-1.0, 1.45, side * half);
+    group.add(band, bar, post);
+  }
+  const red = new THREE.MeshBasicMaterial({ color: 0x551111 });
+  const blue = new THREE.MeshBasicMaterial({ color: 0x111a55 });
+  const roof = d.boxCenter[1] + d.boxHalf[1];
+  const left = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.13, 0.55), red);
+  const right = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.13, 0.55), blue);
+  left.position.set(1.2, roof + 0.07, -0.3);
+  right.position.set(1.2, roof + 0.07, 0.3);
+  group.add(left, right);
+  return { group, red, blue };
+}
+
 /** One wheel as a Group (tyre + rim), origin at the wheel centre, axle along Z. */
 export function buildWheel(radius: number): THREE.Group {
   const { tyre, rim } = wheelGeometry(radius);

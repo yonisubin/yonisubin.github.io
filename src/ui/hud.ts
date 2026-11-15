@@ -35,6 +35,7 @@ export class Hud {
   private readonly prompt: HTMLDivElement;
   private readonly status: HTMLDivElement;
   private readonly routeInfo: HTMLDivElement;
+  private readonly jobInfo: HTMLDivElement;
   private readonly hint: HTMLDivElement | null;
   private readonly healthFill: HTMLDivElement;
   private readonly moneyText: HTMLSpanElement;
@@ -66,6 +67,14 @@ export class Hud {
       'right:max(12px, env(safe-area-inset-right))',
       `top:calc(max(10px, env(safe-area-inset-top)) + ${statusTop}px)`,
       'font:600 20px/1.2 ui-monospace,monospace',
+    ]);
+    // Side job: what to do, time left, shift earnings (under the stats, top left).
+    this.jobInfo = panel([
+      'left:max(8px, env(safe-area-inset-left))',
+      'top:calc(max(8px, env(safe-area-inset-top)) + 96px)',
+      'font:600 14px/1.3 system-ui,sans-serif',
+      'color:#ffe28a',
+      'max-width:60vw',
     ]);
     this.routeInfo = panel([
       'right:max(12px, env(safe-area-inset-right))',
@@ -258,6 +267,11 @@ export class Hud {
     if (bust !== null) this.bustBar.style.width = `${Math.min(100, bust * 100).toFixed(0)}%`;
   }
 
+  /** Side-job line (null hides it). */
+  setJob(text: string | null): void {
+    setText(this.jobInfo, text);
+  }
+
   /** Distance left on the route (m), or null to hide it. */
   setRoute(metres: number | null): void {
     setText(this.routeInfo, metres === null ? null : `⚑ ${metres >= 1000 ? `${(metres / 1000).toFixed(1)} km` : `${Math.round(metres / 10) * 10} m`}`);
@@ -299,7 +313,7 @@ function createClickToPlay(input: Input, hidden: () => boolean): HTMLDivElement 
     <div style="font-size:28px;font-weight:600">Click to play</div>
     <div style="opacity:0.85">
       WASD — move &nbsp;·&nbsp; Shift — run &nbsp;·&nbsp; Space — jump &nbsp;·&nbsp; Mouse — look<br />
-      E — get in / out of cars and the helicopter &nbsp;·&nbsp; M — map &nbsp;·&nbsp; P — change your look &nbsp;·&nbsp; Esc — release mouse<br />C — dive when swimming
+      E — get in / out of cars and the helicopter &nbsp;·&nbsp; M — map &nbsp;·&nbsp; P — change your look &nbsp;·&nbsp; Esc — release mouse<br />C — dive when swimming &nbsp;·&nbsp; J — side job (in a taxi, ambulance or van)
     </div>`;
   overlay.addEventListener('click', () => input.requestPointerLock());
   document.body.appendChild(overlay);

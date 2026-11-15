@@ -762,6 +762,29 @@ All UI is plain DOM elements styled inline. A UI framework would be a dependency
 - gunfire raises heat;
 - a star drops after 20 s unseen.
 
+### 7.11 Side jobs (`game/jobs.ts`)
+
+**Starting:** get into a job vehicle and press **J** (the **JOB** button on touch). Press it again (**END JOB**), or get out, to end the shift. The HUD shows the task, the time left and the shift's earnings under the stats panel.
+
+| Job | Vehicles | Task | Pay |
+|---|---|---|---|
+| Taxi | any taxi (parked or carjacked) | a fare waves at the kerb 300–900 m away; then a drop-off 600–2000 m away | $25 + $15/km + ½ $/s left, −10 % per hard crash (a ≥5 health hit) |
+| Ambulance | the white van with a red band and light bar at each of the 8 hospitals | a patient lies 400–1200 m away; then the nearest hospital | $60 + $20/km + $1/s left |
+| Delivery | any other van | 4 houses within ~1 km, nearest first | $30 a drop, +$60 for the full run in time |
+
+**How it works:**
+- **Arriving:** stop within 9 m of the spot, slower than 2.5 m/s.
+- **Time limits:** route length ÷ 9 m/s + 30 s. A delivery run gets 1.4 × the straight-line tour + 60 s. Running out starts the next task.
+- **Route line:** each task sets the destination through `Navigator.setWaypoint(x, z, 'job')`.
+  - A job's waypoint isn't cleared on arrival; the job decides when it's done.
+  - Map clicks are ignored during a shift, and your own destination comes back afterwards.
+  - Only your own destinations are saved.
+- **The person at the pickup:** one character model, shared. A fare stands, faces you and waves; a patient lies knocked out.
+- **Ambulance look:** `ambulanceLivery()` in `vehicles/carModel.ts`, set with the `livery: 'ambulance'` car option. Its beacons flash while it's on a job.
+- **Ending:** death and busted end the shift too.
+- **Saved:** lifetime totals per job (`Jobs.record`).
+- **Test:** scratchpad `jobs.cjs` teleports the vehicle to each target. Results: a taxi fare paid $222 for a 2.6 km ride, an ambulance run $240, a delivery run $180; getting out ends the shift; a sedan can't start one.
+
 ## 8. People: characters, animation, recolouring
 
 This was the most recent and most involved piece of work.
@@ -978,6 +1001,7 @@ When adding a feature, the quickest check is the browser console in `npm run dev
 | Tune the police (how many, speed, aggression, busting) | `npc/police.ts` constants; officers in `npc/pedestrians.ts` (`ARREST_*`, `SHOOT_*`) |
 | Change what counts as a crime, or how fast stars go | `game/wanted.ts` (`CRIMES`, `LOSE_TIME`) |
 | Move or add police stations | `game/places.ts` (`POLICE_TARGETS`) |
+| Change side-job pay, distances or time limits | `game/jobs.ts` (constants, `arrived`, `next`) |
 | Change skin/hair/outfit palettes | `player/characterLibrary.ts` |
 | Change which clip plays for an action | `player/character.ts` (`ONE_SHOTS`, aims) |
 | Add or replace characters | `scripts/build-quaternius.mjs` (`CHARACTERS`, `OVERRIDES`), then `npm run build:quaternius` |
