@@ -58,6 +58,7 @@ export class Helicopter implements SimEntity {
 
   // Pilot inputs, set each step by FlyingMode.
   piloted = false;
+  private flipTimer = 0;
   stickForward = 0; // −1..1 (W/S)
   stickTurn = 0; // −1..1 (A/D), positive = right
   climb = 0; // −1 (Shift), 0, +1 (Space)
@@ -161,6 +162,9 @@ export class Helicopter implements SimEntity {
     const targetVy = this.piloted ? this.climb * (this.climb > 0 ? CLIMB_RATE : DESCENT_RATE) : -3;
     let lift = (MASS * (G + CLIMB_GAIN * (targetVy - v.y))) / Math.max(up.y, 0.6);
     lift = THREE.MathUtils.clamp(lift, 0, MAX_LIFT * MASS * G) * thrust;
+    // Nobody at the controls: no collective at all, so a helicopter left in the air drops.
+    // (The rotor still spins down and the attitude hold keeps it roughly level as it falls.)
+    if (!this.piloted) lift = 0;
     this.body.addForce({ x: up.x * lift, y: up.y * lift, z: up.z * lift }, false);
 
     // --- Cyclic: choose a target pitch and roll.
@@ -208,6 +212,20 @@ export class Helicopter implements SimEntity {
     const k = (MASS * G * Math.tan(MAX_TILT)) / (TOP_SPEED * TOP_SPEED);
     this.body.addForce({ x: -k * speed * v.x, y: -k * speed * v.y, z: -k * speed * v.z }, false);
     if (lift > 0) this.body.wakeUp();
+
+    // On its side or roof and nearly still (after a fall): set it back on its skids.
+    if (up.y < 0.3 && speed < 2) this.flipTimer += dt;
+    else this.flipTimer = 0;
+    if (this.flipTimer > 3) {
+      this.flipTimer = 0;
+      const f = new THREE.Vector3(1, 0, 0).applyQuaternion(q); // (fwd was scaled for the torque)
+      const yaw = Math.atan2(-f.z, f.x);
+      const t = this.body.translation();
+      this.body.setTranslation({ x: t.x, y: t.y + 2, z: t.z }, true);
+      this.body.setRotation(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), true);
+      this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    }
 
     // Skids in deep water: it's going down.
     if (this.sinking.check(this.body.translation(), 0.3)) {
@@ -293,7 +311,7 @@ export class Helicopter implements SimEntity {
 /** Player-flying mode: reads input, flies the helicopter, runs the chase camera. */
 export class FlyingMode implements PlayerMode {
   readonly name = 'Flying';
-  readonly controlsHint = 'W/S tilt forward/back · A/D turn · Space climb · Shift descend · E get out (landed)';
+  readonly controlsHint = 'W/S tilt forward/back · A/D turn · Space climb · Shift descend · E get out';
   readonly touchButtons: TouchButton[];
   private readonly cameraRig: ChaseCamera;
   private readonly fwd = new THREE.Vector3();
@@ -314,7 +332,7 @@ export class FlyingMode implements PlayerMode {
     this.touchButtons = [
       { label: 'DOWN', action: 'descend' },
       { label: 'UP', action: 'ascend' },
-      { label: 'EXIT', action: 'interact', visible: () => this.heli.landed },
+      { label: 'EXIT', action: 'interact' },
     ];
   }
 
@@ -340,7 +358,8 @@ export class FlyingMode implements PlayerMode {
     this.heli.climb = Number(this.input.isDown('ascend')) - Number(this.input.isDown('descend'));
     const impact = this.heli.takeImpact();
     if (impact > CRASH_THRESHOLD) this.stats.damage((impact - CRASH_THRESHOLD) * CRASH_DAMAGE);
-    if (this.input.consumePressed('interact') && this.heli.landed) this.onExit(this.heli);
+    // Getting out in the air means jumping: you fall (and the helicopter falls too).
+    if (this.input.consumePressed('interact')) this.onExit(this.heli);
   }
 
   render(_alpha: number, frameDt: number): void {

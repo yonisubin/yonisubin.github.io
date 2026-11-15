@@ -408,7 +408,7 @@ export class OnFootMode implements PlayerMode {
   /**
    * Swimming: move relative to the camera like walking (slower), no gravity. With no
    * vertical input, buoyancy eases the body back up to floating height at the surface;
-   * C (dive) swims down, Space swims up. No attacks or interacting while in the water.
+   * C (dive) swims down, Space swims up. No attacks in the water; E still climbs into a boat.
    */
   private swim(dt: number, surface: number): void {
     this.scoping = false;
@@ -429,6 +429,11 @@ export class OnFootMode implements PlayerMode {
     this.velocity.y += (targetVy - this.velocity.y) * (1 - Math.exp(-5 * dt));
     this.input.consumePressed('jump');
     this.input.consumePressed('attack');
+    // Climbing aboard a boat (or anything else in reach) works from the water too.
+    if (this.input.consumePressed('interact') && this.nearest) {
+      this.nearest.activate();
+      return;
+    }
 
     const desired = { x: this.velocity.x * dt, y: this.velocity.y * dt, z: this.velocity.z * dt };
     // Never rise above floating height (no leaping out of the water).

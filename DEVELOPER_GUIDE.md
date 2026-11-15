@@ -411,9 +411,34 @@ On top sits an **arcade flight assist**. It only *chooses* the forces; physics s
 ### 5.5 Getting in and out (`sim/exit.ts`, `sim/vehicleLight.ts`)
 
 - `findFreeSpot` tests candidate spots around the vehicle and places you at the first one where the capsule fits.
+- **You can get out at any time** (`getOut` in `main.ts`):
+  - **Bailing out at speed:** above 4 m/s you take 3 health per m/s of ground speed beyond that (≈ 35 at 50 km/h, 70 at 90 km/h). Half that off a boat, since you land in the water.
+  - **Out of a helicopter in the air:** you fall, and the fall hurts like any other (a 24 m drop is fatal).
+  - **What happens to the vehicle:**
+    - An abandoned car brakes at full brake force (9 m/s²) until it stops.
+    - A helicopter with no pilot has no collective, so it drops (its attitude hold keeps it roughly level while the rotor spins down). If it ends up on its side it's set back on its skids after 3 s.
+    - A boat's engine dies and it slows at 3 m/s².
 - One spotlight is shared by whichever vehicle you're in (headlights or searchlight). It's created once and only moved, because adding or removing lights makes three.js recompile every shader.
 
 ---
+
+### 5.5b Boats and jet skis (`player/boat.ts`, `vehicles/boatModel.ts`)
+
+- **Where:** a speedboat and a jet ski float off the beach (near Lena) and another pair on the lake, each where the water is at least 1.6 m deep. Board with **E** from the shore or while swimming alongside. They're marked "B" on both maps.
+- **Controls:** W throttle, S reverse, A/D steer, E get out (into the water, swimming).
+- **Models:** procedural, like the cars. The hull is built from V-shaped cross-sections tapering to the bow, with a flat transom. The speedboat has a stripe, windscreen, console, seats and an outboard; the jet ski has a seat, handlebars and a jet nozzle.
+- **Physics:** one dynamic body (a box collider; its density gives the mass).
+  - **Buoyancy:** at five points on the hull bottom, each a spring on its depth under the actual wave surface (`Water.surfaceAt`). The stiffness k = m·g / (5·draft) floats the boat at its draft, so it pitches and rolls over the swell; a damper on each point's vertical speed stops the bobbing.
+  - **Hull drag, in the boat's frame:**
+    - quadratic along it, which sets the top speed (speedboat ~75 km/h, jet ski ~70 km/h);
+    - strong and linear sideways, like a keel, so turns carve instead of skid;
+    - vertical water resistance.
+  - **Thrust:** only while the stern is wet.
+  - **Steering:** chases a turn rate, stronger with speed (a rudder needs flow). The jet ski can turn a little even when stopped.
+  - **Planing:** the bow lifts a few degrees at speed.
+  - **On land:** no water forces; it rests on its hull ("Aground").
+- **Crashes:** a jolt over 5 m/s hurts the driver.
+- **Not affected by sinking:** boats don't use `sim/sinking.ts`. That's only for cars and the helicopter.
 
 ### 5.6 Swimming (`player/onFoot.ts`)
 

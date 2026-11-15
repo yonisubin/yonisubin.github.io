@@ -217,7 +217,9 @@ export class Car implements SimEntity {
     let engine = 0;
     let brake = 0;
     if (!this.driven) {
-      brake = brakeImpulse(PARK_DECEL, 4);
+      // Nobody at the wheel: brakes full on while it's still rolling (someone bailed out),
+      // the parking brake once it has stopped.
+      brake = brakeImpulse(absSpeed > 0.5 ? BRAKE_DECEL : PARK_DECEL, 4);
     } else if (this.throttle > 0.05) {
       // Pressing forward while rolling backward brakes first, then drives.
       if (speed < -0.5) brake = brakeImpulse(BRAKE_DECEL * this.throttle, 4);
@@ -379,8 +381,9 @@ export class DrivingMode implements PlayerMode {
     ];
   }
 
+  /** You can always get out; at speed you bail out and get hurt (see main.ts), and the car brakes to a stop. */
   private canExit(): boolean {
-    return Math.abs(this.car.speed) < 5;
+    return true;
   }
 
   enter(): void {

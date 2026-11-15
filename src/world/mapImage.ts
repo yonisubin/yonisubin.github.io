@@ -195,7 +195,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, layout: CityLayout, x: number
   }
 }
 
-export type MarkerKind = 'car' | 'heli' | 'traffic' | 'shop' | 'giver' | 'objective' | 'hospital';
+export type MarkerKind = 'car' | 'heli' | 'boat' | 'traffic' | 'shop' | 'giver' | 'objective' | 'hospital';
 
 /**
  * A map symbol at (x, z) in world units; `px` is the size of one screen pixel in world units,
@@ -244,6 +244,10 @@ export function drawMarker(ctx: CanvasRenderingContext2D, kind: MarkerKind, x: n
     case 'car':
       ctx.fillStyle = '#3d8cff';
       ctx.fillRect(x - 3.5 * px, z - 3.5 * px, 7 * px, 7 * px);
+      return;
+    case 'boat':
+      disc(5.5, '#2ec4c4');
+      letter('B', 8);
       return;
     case 'heli':
       disc(6, '#ffcc33');

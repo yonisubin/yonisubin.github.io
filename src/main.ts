@@ -8,6 +8,9 @@ import { CharacterLibrary } from './player/characterLibrary';
 import { CharacterPicker, hasSavedLook, loadLook } from './ui/characterPicker';
 import { Car, DrivingMode } from './player/car';
 import { FlyingMode, Helicopter } from './player/heli';
+import { Boat, BoatMode } from './player/boat';
+import { BOAT_DIMENSIONS, type BoatType } from './vehicles/boatModel';
+import { LAKE } from './world/layout';
 import { createCity } from './world/city';
 import { createWorldMap } from './world/mapImage';
 import { FullMap } from './ui/fullMap';
@@ -107,12 +110,25 @@ async function main(): Promise<void> {
   const vehicleLight = new VehicleLight(scene, () => dayNight.lighting.night);
 
   // Getting out of any vehicle: stand beside it, camera looking the way the vehicle faces.
-  const getOut = (vehicle: Car | Helicopter) => {
+  // You can get out at any time. Jumping out of something moving hurts (more the faster
+  // it's going); out of a helicopter in the air you fall, and the fall hurts as usual. The
+  // abandoned car brakes to a stop, the helicopter drops, the boat coasts to a stop.
+  const BAIL_SAFE_SPEED = 4; // m/s: slower than this you just step out
+  const BAIL_DAMAGE = 3; // health per m/s above that (≈ 35 at 50 km/h, 70 at 90 km/h)
+  const getOut = (vehicle: Car | Helicopter | Boat) => {
+    const v = vehicle.body.linvel();
+    const speed = Math.hypot(v.x, v.z);
     const spot = vehicle.findExitPoint(onFoot.shape, STAND_HEIGHT);
     const fwd = vehicle.forward(new THREE.Vector3());
     const heading = Math.atan2(-fwd.x, -fwd.z); // same convention as the camera yaw
     onFoot.placeAt(spot, heading, heading);
     player.setMode(onFoot);
+    if (speed > BAIL_SAFE_SPEED) {
+      // Landing in water is gentler.
+      const soft = vehicle instanceof Boat ? 0.5 : 1;
+      stats.damage((speed - BAIL_SAFE_SPEED) * BAIL_DAMAGE * soft);
+      hud.toast('You bailed out!', 1.5);
+    }
   };
 
   // Vehicles in deep water sink. If you're in one, you're thrown out into the water beside it.
@@ -194,6 +210,40 @@ async function main(): Promise<void> {
     activate: () => player.setMode(flying),
   });
   entities.push(heli);
+
+  // Boats: a speedboat and a jet ski off the beach (near Lena), and the same on the lake.
+  // Each waits where the water is deep enough to float it, a little way out from the shore.
+  const boats: Boat[] = [];
+  const launchSpot = (x: number, z: number, dx: number, dz: number): THREE.Vector3 => {
+    // Walk out from (x, z) along (dx, dz) until the water is 1.6 m deep.
+    for (let s = 0; s < 400; s += 2) {
+      const px = x + dx * s;
+      const pz = z + dz * s;
+      if (water.depthAt(px, pz) > 1.6) return new THREE.Vector3(px, 0, pz);
+    }
+    return new THREE.Vector3(x + dx * 400, 0, z + dz * 400);
+  };
+  const addBoat = (type: BoatType, color: number, spot: THREE.Vector3, yaw: number) => {
+    const d = BOAT_DIMENSIONS[type];
+    spot.y = (water.surfaceAt(spot.x, spot.z) ?? -0.5) - d.draft + 0.05;
+    const boat = new Boat(world, scene, type, color, spot, yaw, (x, z) => water.surfaceAt(x, z));
+    const mode = new BoatMode(boat, input, camera, world, getOut, vehicleLight, stats);
+    boat.mode = mode;
+    onFoot.interactables.push({
+      label: () => (type === 'jetski' ? 'ride' : 'drive boat'),
+      position: () => boat.interp.currPos,
+      radius: type === 'jetski' ? 2.8 : 4,
+      activate: () => player.setMode(mode),
+    });
+    entities.push(boat);
+    boats.push(boat);
+  };
+  const beach = launchSpot(-80, 1600, 0, 1);
+  addBoat('speedboat', 0x1e5aa8, beach, -Math.PI / 2);
+  addBoat('jetski', 0xe8b10f, beach.clone().add(new THREE.Vector3(12, 0, 0)), -Math.PI / 2);
+  const lake = launchSpot(LAKE.x, LAKE.z + LAKE.rz * 1.2, 0, -1); // from the south shore, out
+  addBoat('speedboat', 0xb02a2a, lake, Math.PI / 2);
+  addBoat('jetski', 0x2a9d6f, lake.clone().add(new THREE.Vector3(10, 0, 0)), Math.PI / 2);
 
   // Cash lying around (collected on foot only), and the gun store near the spawn.
   const cash = new Cash(
@@ -397,7 +447,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -410,6 +460,7 @@ async function main(): Promise<void> {
     ...traffic.positions().map((position) => ({ kind: 'traffic' as const, position })),
     ...cars.map((c) => ({ kind: 'car' as const, position: c.interp.currPos })),
     { kind: 'heli', position: heli.interp.currPos },
+    ...boats.map((b) => ({ kind: 'boat' as const, position: b.interp.currPos })),
     ...shop.doors.map((position) => ({ kind: 'shop' as const, position })),
     ...places.hospitals.map((h) => ({ kind: 'hospital' as const, position: h.door })),
     ...missions.givers.filter((g) => g.marker.visible).map((g) => ({ kind: 'giver' as const, position: g.position })),
