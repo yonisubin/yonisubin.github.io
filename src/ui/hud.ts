@@ -34,6 +34,7 @@ function setText(el: HTMLDivElement, text: string | null): void {
 export class Hud {
   private readonly prompt: HTMLDivElement;
   private readonly status: HTMLDivElement;
+  private readonly routeInfo: HTMLDivElement;
   private readonly hint: HTMLDivElement | null;
   private readonly healthFill: HTMLDivElement;
   private readonly moneyText: HTMLSpanElement;
@@ -62,6 +63,12 @@ export class Hud {
       'right:max(12px, env(safe-area-inset-right))',
       `top:calc(max(10px, env(safe-area-inset-top)) + ${statusTop}px)`,
       'font:600 20px/1.2 ui-monospace,monospace',
+    ]);
+    this.routeInfo = panel([
+      'right:max(12px, env(safe-area-inset-right))',
+      `top:calc(max(10px, env(safe-area-inset-top)) + ${statusTop + 34}px)`,
+      'font:600 15px/1.2 system-ui,sans-serif',
+      'color:#f7b9fa',
     ]);
     this.hint = touch ? null : panel(['left:12px', 'bottom:12px', 'font-size:13px', 'opacity:0.85']);
 
@@ -225,6 +232,11 @@ export class Hud {
   /** Red flash, stronger for bigger hits. */
   hurt(amount: number): void {
     this.flash = Math.min(1, this.flash + 0.25 + amount / 40);
+  }
+
+  /** Distance left on the route (m), or null to hide it. */
+  setRoute(metres: number | null): void {
+    setText(this.routeInfo, metres === null ? null : `⚑ ${metres >= 1000 ? `${(metres / 1000).toFixed(1)} km` : `${Math.round(metres / 10) * 10} m`}`);
   }
 
   toast(text: string, seconds = 1.6): void {

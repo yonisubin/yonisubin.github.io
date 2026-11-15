@@ -7,6 +7,7 @@ import { CAR_DIMENSIONS, PAINT_COLORS } from '../vehicles/carModel';
 import type { Parcel, Rect } from './suburbs';
 import type { InstancePool } from './instancePool';
 import { VERGE, type Terrain } from './terrain';
+import { smoothstep } from './noise';
 
 // Streaming: the world is cut into CHUNKS × CHUNKS square chunks of 4 × 4 grid cells
 // (312 m). Only chunks near the player have meshes and colliders, in two tiers:
@@ -425,6 +426,23 @@ export class WorldStreamer {
 
   // ------------------------------------------------------------------ roads
 
+  /** Distance from (x, z) to one edge's centre line. */
+  private edgeDistance(edgeId: number, x: number, z: number): number {
+    const p = this.net.edges[edgeId].pts;
+    let best = Infinity;
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const dx = p[i + 2] - p[i];
+      const dz = p[i + 3] - p[i + 1];
+      const l2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((x - p[i]) * dx + (z - p[i + 1]) * dz) / l2));
+      best = Math.min(best, Math.hypot(x - p[i] - dx * t, z - p[i + 1] - dz * t));
+    }
+    return best;
+  }
+
+  /** Road level at a point (the smooth height layer, which the terrain dip follows too). */
+  private readonly roadLevel = (x: number, z: number): number => this.terrain.smoothHeight(x, z);
+
   /** Mitred normals and road heights along an edge (cached). */
   private geoOf(e: StreetEdge): { nx: Float32Array; nz: Float32Array; h: Float32Array } {
     let geo = this.edgeGeo.get(e.id);
@@ -485,18 +503,24 @@ export class WorldStreamer {
       const z0 = p[i0 * 2 + 1];
       const x1 = p[i1 * 2];
       const z1 = p[i1 * 2 + 1];
-      const h0 = geo.h[i0];
-      const h1 = geo.h[i1];
       const hw = spec.width / 2;
+      // Road level at a point: the smooth layer *at that point*. Roads are draped over the
+      // hill across their width too (banked with the hillside), so they always sit exactly on
+      // top of the terrain dip under them, which follows the same layer. (A road kept level
+      // across, at its centre line's height, let the hillside collider poke up through its
+      // uphill edge: an invisible bump.)
+      const H = this.roadLevel;
       // A strip from offset a to offset b (m right of the centre line), lifted y0 / y1.
       const ribbon = (target: GeometryBuilder, a: number, b: number, y0: number, y1: number, color: Rgb) => {
-        target.quadY(
-          x0 + geo.nx[i0] * a, h0 + y0, z0 + geo.nz[i0] * a,
-          x1 + geo.nx[i1] * a, h1 + y0, z1 + geo.nz[i1] * a,
-          x1 + geo.nx[i1] * b, h1 + y1, z1 + geo.nz[i1] * b,
-          x0 + geo.nx[i0] * b, h0 + y1, z0 + geo.nz[i0] * b,
-          color,
-        );
+        const ax0 = x0 + geo.nx[i0] * a;
+        const az0 = z0 + geo.nz[i0] * a;
+        const ax1 = x1 + geo.nx[i1] * a;
+        const az1 = z1 + geo.nz[i1] * a;
+        const bx1 = x1 + geo.nx[i1] * b;
+        const bz1 = z1 + geo.nz[i1] * b;
+        const bx0 = x0 + geo.nx[i0] * b;
+        const bz0 = z0 + geo.nz[i0] * b;
+        target.quadY(ax0, H(ax0, az0) + y0, az0, ax1, H(ax1, az1) + y0, az1, bx1, H(bx1, bz1) + y1, bz1, bx0, H(bx0, bz0) + y1, bz0, color);
       };
       ribbon(g.asphalt, -hw, hw, ROAD_Y, ROAD_Y, PLAIN);
       ribbon(g.solid, -hw, hw, ROAD_Y, ROAD_Y, PLAIN);
@@ -507,10 +531,13 @@ export class WorldStreamer {
       const midz = (z0 + z1) / 2;
       for (const side of [1, -1]) {
         const at = (o: number, i: number) => [p[i * 2] + geo.nx[i] * o * side, p[i * 2 + 1] + geo.nz[i] * o * side] as const;
+        // Clear of every other road's surface (at both ends and the middle of this piece,
+        // with half a metre to spare), so no sidewalk or verge juts into a junction as a curb.
         const blocked = (o: number) => {
-          for (const i of [i0, i1]) {
-            const [x, z] = at(o, i);
-            if (net.kerbDistance(x, z, 10, e.id) < 0.3) return true;
+          const [ax, az] = at(o, i0);
+          const [bx, bz] = at(o, i1);
+          for (const [x, z] of [[ax, az], [bx, bz], [(ax + bx) / 2, (az + bz) / 2]]) {
+            if (net.kerbDistance(x, z, 10, e.id) < 0.5) return true;
             if (this.terrain.blockUnder(x, z)) return true;
           }
           return false;
@@ -520,18 +547,18 @@ export class WorldStreamer {
         const lawn = liftOf(this.terrain.zoneAt(midx + geo.nx[i0] * (hw + VERGE) * side, midz + geo.nz[i0] * (hw + VERGE) * side));
         const sw = spec.sidewalk;
         const up = sw > 0 ? CURB_HEIGHT : 0;
-        if (sw > 0 && !blocked(hw + 0.2) && !blocked(hw + sw)) {
+        if (sw > 0 && !blocked(hw + 0.05) && !blocked(hw + sw / 2) && !blocked(hw + sw)) {
           // Curb face: from the sidewalk top down to the road, facing the road.
           const [ax, az] = at(hw, i0);
           const [bx, bz] = at(hw, i1);
-          g.pavement.wallY(ax, az, h0 + up, bx, bz, h1 + up, up + 0.05, -geo.nx[i0] * side, -geo.nz[i0] * side, CONCRETE);
+          g.pavement.wallY(ax, az, H(ax, az) + up, bx, bz, H(bx, bz) + up, up + 0.05, -geo.nx[i0] * side, -geo.nz[i0] * side, CONCRETE);
           ribbon(g.pavement, hw * side, (hw + sw) * side, up, up, PLAIN);
           ribbon(g.solid, hw * side, (hw + sw) * side, up, up, PLAIN);
         }
         // Grass verge out to where the terrain is back at its own level.
         const v0 = sw > 0 ? hw + sw : hw;
         if (!blocked(v0 + 0.5) && !blocked(hw + VERGE)) {
-          const col = this.terrain.colorAt(midx + geo.nx[i0] * (hw + 3) * side, midz + geo.nz[i0] * (hw + 3) * side, h0 + up, 0);
+          const col = this.terrain.colorAt(midx + geo.nx[i0] * (hw + 3) * side, midz + geo.nz[i0] * (hw + 3) * side, geo.h[i0] + up, 0);
           ribbon(g.verge, v0 * side, (hw + VERGE + 0.4) * side, up, lawn, col);
           ribbon(g.solid, v0 * side, (hw + VERGE + 0.4) * side, up, lawn, col);
         }
@@ -543,24 +570,30 @@ export class WorldStreamer {
     for (const id of own.nodes) {
       const n = net.nodes[id];
       if (!n.edges.length) continue;
-      const h = this.terrain.smoothHeight(n.x, n.z);
+      // Discs and rings are draped over the hill vertex by vertex too: a flat disc on a
+      // slope stood proud of the road on its downhill side (another invisible step).
+      const H = this.roadLevel;
+      const lifted = (dy: number) => (x: number, z: number) => H(x, z) + dy;
       if (n.bulb) {
         const up = CURB_HEIGHT;
         const sw = ROAD_SPECS[net.edges[n.edges[0]].cls].sidewalk;
-        disc(g.asphalt, n.x, n.z, h + JUNCTION_Y, n.bulb, PLAIN);
-        disc(g.solid, n.x, n.z, h + JUNCTION_Y, n.bulb, PLAIN);
-        ring(g.pavement, n.x, n.z, h + up, n.bulb, n.bulb + sw, PLAIN, true, up + 0.05);
-        ring(g.solid, n.x, n.z, h + up, n.bulb, n.bulb + sw, PLAIN, false, 0);
-        const col = this.terrain.colorAt(n.x + n.bulb + 3, n.z, h + up, 0);
-        ring(g.verge, n.x, n.z, h + up, n.bulb + sw, n.bulb + VERGE + 0.5, col, false, 0);
-        ring(g.solid, n.x, n.z, h + up, n.bulb + sw, n.bulb + VERGE + 0.5, col, false, 0);
+        disc(g.asphalt, n.x, n.z, lifted(JUNCTION_Y), n.bulb, PLAIN);
+        disc(g.solid, n.x, n.z, lifted(JUNCTION_Y), n.bulb, PLAIN);
+        // The sidewalk and verge go round the circle except across the street's mouth.
+        const street = n.edges[0];
+        const open = (x: number, z: number) => this.edgeDistance(street, x, z) < net.halfWidth(net.edges[street]) + 0.5;
+        ring(g.pavement, n.x, n.z, lifted(up), n.bulb, n.bulb + sw, PLAIN, true, up + 0.05, open);
+        ring(g.solid, n.x, n.z, lifted(up), n.bulb, n.bulb + sw, PLAIN, false, 0, open);
+        const col = this.terrain.colorAt(n.x + n.bulb + 3, n.z, H(n.x, n.z) + up, 0);
+        ring(g.verge, n.x, n.z, lifted(up), n.bulb + sw, n.bulb + VERGE + 0.5, col, false, 0, open);
+        ring(g.solid, n.x, n.z, lifted(up), n.bulb + sw, n.bulb + VERGE + 0.5, col, false, 0, open);
         continue;
       }
       let hw = 0;
       for (const e of n.edges) hw = Math.max(hw, net.halfWidth(net.edges[e]));
       const r = n.edges.length >= 3 ? hw + 1.2 : hw;
-      disc(g.asphalt, n.x, n.z, h + JUNCTION_Y, r, PLAIN);
-      disc(g.solid, n.x, n.z, h + JUNCTION_Y, r, PLAIN);
+      disc(g.asphalt, n.x, n.z, lifted(JUNCTION_Y), r, PLAIN);
+      disc(g.solid, n.x, n.z, lifted(JUNCTION_Y), r, PLAIN);
     }
   }
 
@@ -581,8 +614,7 @@ export class WorldStreamer {
       const nz = geo.nz[s] + (geo.nz[s + 1] - geo.nz[s]) * t;
       const x = p[s * 2] + (p[s * 2 + 2] - p[s * 2]) * t + nx * off;
       const z = p[s * 2 + 1] + (p[s * 2 + 3] - p[s * 2 + 1]) * t + nz * off;
-      const y = geo.h[s] + (geo.h[s + 1] - geo.h[s]) * t + PAINT_Y;
-      return [x, y, z] as const;
+      return [x, this.roadLevel(x, z) + PAINT_Y, z] as const;
     };
     // A painted strip `width` wide centred `off` m right of the centre line, from a to b,
     // clipped to this segment and to [lo, hi].
@@ -666,7 +698,10 @@ export class WorldStreamer {
         const lb = -r.d / 2 + (r.d * b) / nb;
         const x = r.x + ux * la + vx * lb;
         const z = r.z + uz * la + vz * lb;
-        return [x, this.terrain.smoothHeight(x, z) + up + y, z] as const;
+        // A curb cut: within 1.5 m of a road the surface ramps down to road level, so a
+        // driveway or lot entrance that meets a curving street never overhangs it as a lip.
+        const ramp = smoothstep(-0.2, 1.5, this.net.kerbDistance(x, z, 10));
+        return [x, this.terrain.smoothHeight(x, z) + (up + y) * ramp + 0.01, z] as const;
       };
       for (let a = 0; a < na; a++) {
         for (let b = 0; b < nb; b++) {
@@ -1021,18 +1056,42 @@ interface Builders {
   solid: GeometryBuilder;
 }
 
-/** A flat circle of radius r at height y (a fan of thin quads). */
-function disc(b: GeometryBuilder, x: number, z: number, y: number, r: number, color: Rgb): void {
+/**
+ * A circle of radius r draped over `y(x, z)`: a fan out to half the radius, then a ring, so
+ * it bends with the hill instead of being one flat plate.
+ */
+function disc(b: GeometryBuilder, x: number, z: number, y: (x: number, z: number) => number, r: number, color: Rgb): void {
   const n = 20;
+  const yc = y(x, z);
   for (let i = 0; i < n; i++) {
     const a0 = (i / n) * Math.PI * 2;
     const a1 = ((i + 1) / n) * Math.PI * 2;
-    b.quadY(x, y, z, x + Math.cos(a0) * r, y, z + Math.sin(a0) * r, x + Math.cos(a1) * r, y, z + Math.sin(a1) * r, x, y, z, color);
+    const hx0 = x + Math.cos(a0) * r * 0.5;
+    const hz0 = z + Math.sin(a0) * r * 0.5;
+    const hx1 = x + Math.cos(a1) * r * 0.5;
+    const hz1 = z + Math.sin(a1) * r * 0.5;
+    b.quadY(x, yc, z, hx0, y(hx0, hz0), hz0, hx1, y(hx1, hz1), hz1, x, yc, z, color);
   }
+  ring(b, x, z, y, r * 0.5, r, color, false, 0);
 }
 
-/** A flat ring from r0 to r1 at height y; with `curb`, a vertical face `drop` deep at r0, facing in. */
-function ring(b: GeometryBuilder, x: number, z: number, y: number, r0: number, r1: number, color: Rgb, curb: boolean, drop: number): void {
+/**
+ * A ring from r0 to r1 draped over `y(x, z)`; with `curb`, a vertical face `drop` deep at
+ * r0, facing in.
+ */
+function ring(
+  b: GeometryBuilder,
+  x: number,
+  z: number,
+  y: (x: number, z: number) => number,
+  r0: number,
+  r1: number,
+  color: Rgb,
+  curb: boolean,
+  drop: number,
+  /** Leave out pieces whose middle is here (e.g. where a street runs through). */
+  skip?: (x: number, z: number) => boolean,
+): void {
   const n = 24;
   for (let i = 0; i < n; i++) {
     const a0 = (i / n) * Math.PI * 2;
@@ -1041,8 +1100,30 @@ function ring(b: GeometryBuilder, x: number, z: number, y: number, r0: number, r
     const s0 = Math.sin(a0);
     const c1 = Math.cos(a1);
     const s1 = Math.sin(a1);
-    b.quadY(x + c0 * r0, y, z + s0 * r0, x + c0 * r1, y, z + s0 * r1, x + c1 * r1, y, z + s1 * r1, x + c1 * r0, y, z + s1 * r0, color);
-    if (curb) b.wallY(x + c0 * r0, z + s0 * r0, y, x + c1 * r0, z + s1 * r0, y, drop, -(c0 + c1) / 2, -(s0 + s1) / 2, CONCRETE);
+    const p = (c: number, s: number, r: number) => {
+      const px = x + c * r;
+      const pz = z + s * r;
+      return [px, y(px, pz), pz] as const;
+    };
+    if (skip) {
+      const cm = Math.cos((a0 + a1) / 2);
+      const sm = Math.sin((a0 + a1) / 2);
+      // Any part of the piece over the street (its corners or its middle) leaves it out.
+      const pts: [number, number][] = [
+        [x + cm * (r0 + r1) / 2, z + sm * (r0 + r1) / 2],
+        [x + c0 * r0, z + s0 * r0],
+        [x + c1 * r0, z + s1 * r0],
+        [x + c0 * r1, z + s0 * r1],
+        [x + c1 * r1, z + s1 * r1],
+      ];
+      if (pts.some(([px, pz]) => skip(px, pz))) continue;
+    }
+    b.quadY(...p(c0, s0, r0), ...p(c0, s0, r1), ...p(c1, s1, r1), ...p(c1, s1, r0), color);
+    if (curb) {
+      const [ax, ay, az] = p(c0, s0, r0);
+      const [bx, by, bz] = p(c1, s1, r0);
+      b.wallY(ax, az, ay, bx, bz, by, drop, -(c0 + c1) / 2, -(s0 + s1) / 2, CONCRETE);
+    }
   }
 }
 

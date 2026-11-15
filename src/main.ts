@@ -34,6 +34,7 @@ import { Dialogue } from './ui/dialogue';
 import { Rng } from './world/rng';
 import { Smoke } from './sim/smoke';
 import { Missions } from './game/missions';
+import { Navigator } from './game/route';
 import { DebugOverlay } from './ui/debug';
 
 // Physics runs at a fixed 60 Hz regardless of display refresh rate.
@@ -93,7 +94,15 @@ async function main(): Promise<void> {
   const worldMap = createWorldMap(city.layout, city.terrain, city.coarse);
   const minimap = new Minimap(worldMap, touch, () => fullMap.open());
   const hud = new Hud(input, touch, minimap.size + 8);
-  const fullMap = new FullMap(worldMap, input, (open) => hud.hideClickToPlay(open));
+  // Directions: click the full map to set a destination; the route along the roads (A*,
+  // game/route.ts) is drawn on both maps and kept up to date as you move.
+  const navigator = new Navigator(city.layout.streets.net, () => hud.toast('You have arrived', 2.5));
+  const fullMap = new FullMap(
+    worldMap,
+    input,
+    (open) => hud.hideClickToPlay(open),
+    (point) => (point ? navigator.setWaypoint(point.x, point.z) : navigator.clear()),
+  );
   const debug = new DebugOverlay(renderer, input);
 
   const player = new PlayerStateMachine(input);
@@ -447,7 +456,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { RAPIER, navigator, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -502,7 +511,15 @@ async function main(): Promise<void> {
     smoke.update(frameTime);
     dialogue?.update(frameTime, mode.focus());
     picker?.update(frameTime); // after the player's camera: it takes over the view while open
+    // Directions: roads when driving or walking, a straight line in the air or on the water.
+    const here = mode.focus();
+    navigator.update(frameTime, here.x, here.z, mode === onFoot ? 'walk' : mode.name === 'Driving' ? 'drive' : 'direct');
+    const route = navigator.route ? { pts: navigator.route.pts, offroad: navigator.route.offroad } : null;
+    minimap.route = fullMap.route = route;
+    fullMap.waypoint = navigator.waypoint;
+    hud.setRoute(navigator.remaining);
     const markers = mapMarkers();
+    if (navigator.waypoint) markers.push({ kind: 'waypoint', position: new THREE.Vector3(navigator.waypoint.x, 0, navigator.waypoint.z) });
     minimap.update(mode.focus(), camera.getWorldDirection(viewDir), markers, dayNight.clock);
     fullMap.update(mode.focus(), viewDir, markers);
     renderer.render(scene, camera);

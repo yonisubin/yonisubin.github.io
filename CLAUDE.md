@@ -67,6 +67,7 @@ src/
   npc/             # traffic (IDM car following, per-driver habits, lane changes, country overtakes, brake lights)
                    # and pedestrians, pooled around the player
   game/            # player stats (health/money/weapons), combat, cash pickups, gun stores, missions,
+                   # route.ts (A* directions on the street network: click the full map to set a destination),
                    # places.ts (hospitals = respawn points, extra stores)
   sim/             # SimEntity interface, body interpolation, exit-spot helper, smoke, sinking vehicles
   camera/          # follow camera (on foot), chase camera (vehicles)
@@ -109,7 +110,7 @@ Gameplay beyond the milestones: health (regenerates; falls and crashes hurt; dea
 
 The suburbs follow American sprawl (arterials on a rough half-mile grid, curving subdivisions with loops and cul-de-sacs, strip malls / gas stations / big-box on arterial corners, schools / parks / churches on arterial frontage); country roads wind with the land.
 
-Status: all five milestones are done (day/night: `world/dayNight.ts`, 12-minute day, hold T to fast-forward; minimap: `ui/minimap.ts`; full map: `ui/fullMap.ts`, M or tap/click the minimap). The world has since grown to ~4 km with streaming, terrain, water, hospitals and more stores (see `DEVELOPER_GUIDE.md`).
+Status: all five milestones are done (day/night: `world/dayNight.ts`, 12-minute day, hold T to fast-forward; minimap: `ui/minimap.ts`; full map: `ui/fullMap.ts`, M or tap/click the minimap; click the full map for directions, `game/route.ts`). The world has since grown to ~4 km with streaming, terrain, water, hospitals and more stores (see `DEVELOPER_GUIDE.md`).
 
 ## Working style
 

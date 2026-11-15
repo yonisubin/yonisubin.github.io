@@ -98,9 +98,15 @@ export class Terrain {
     const cbx = Math.min(CELLS - 1, Math.max(0, bx));
     const cbz = Math.min(CELLS - 1, Math.max(0, bz));
     const cells = this.townCells[cbz * CELLS + cbx];
-    if (cells > 5) return 1000;
+    // This must be continuous: the hills blend on it out to 600 m, and a jump here is a cliff
+    // in the terrain (and a step under any road crossing it). Nine or more cells out the
+    // nearest town is over 600 m away (8 · 78 = 624), where every blend has finished, so
+    // returning "far" there changes nothing. Closer in, search far enough to find the truly
+    // nearest town cell: one k cells away (Chebyshev) can be nearer than one at k − 1 along
+    // a diagonal, so look √2 · k + 1 rings out.
+    if (cells > 8) return 1000;
     let best = 1000;
-    const r = Math.min(5, cells + 1);
+    const r = Math.min(13, Math.ceil(cells * Math.SQRT2) + 1);
     for (let z0 = bz - r; z0 <= bz + r; z0++) {
       for (let x0 = bx - r; x0 <= bx + r; x0++) {
         if (x0 < 0 || z0 < 0 || x0 >= CELLS || z0 >= CELLS) continue;

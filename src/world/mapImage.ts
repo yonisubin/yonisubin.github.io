@@ -195,7 +195,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, layout: CityLayout, x: number
   }
 }
 
-export type MarkerKind = 'car' | 'heli' | 'boat' | 'traffic' | 'shop' | 'giver' | 'objective' | 'hospital';
+export type MarkerKind = 'car' | 'heli' | 'boat' | 'traffic' | 'shop' | 'giver' | 'objective' | 'hospital' | 'waypoint';
 
 /**
  * A map symbol at (x, z) in world units; `px` is the size of one screen pixel in world units,
@@ -245,6 +245,24 @@ export function drawMarker(ctx: CanvasRenderingContext2D, kind: MarkerKind, x: n
       ctx.fillStyle = '#3d8cff';
       ctx.fillRect(x - 3.5 * px, z - 3.5 * px, 7 * px, 7 * px);
       return;
+    case 'waypoint': {
+      // A flag pin: a pole from the spot with a magenta pennant.
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2 * px;
+      ctx.beginPath();
+      ctx.moveTo(x, z);
+      ctx.lineTo(x, z - 16 * px);
+      ctx.stroke();
+      ctx.fillStyle = ROUTE_COLOR;
+      ctx.beginPath();
+      ctx.moveTo(x, z - 16 * px);
+      ctx.lineTo(x + 11 * px, z - 12 * px);
+      ctx.lineTo(x, z - 8 * px);
+      ctx.closePath();
+      ctx.fill();
+      disc(2.5, '#fff');
+      return;
+    }
     case 'boat':
       disc(5.5, '#2ec4c4');
       letter('B', 8);
@@ -254,4 +272,41 @@ export function drawMarker(ctx: CanvasRenderingContext2D, kind: MarkerKind, x: n
       letter('H', 9);
       return;
   }
+}
+
+export const ROUTE_COLOR = '#e83cf0';
+
+/**
+ * A route (x, z pairs, world units) as a bright line with a dark outline; the off-road part
+ * from point `offroad` on is dashed. `px` is one screen pixel in world units.
+ */
+export function drawRoute(ctx: CanvasRenderingContext2D, pts: number[], offroad: number, px: number, width = 4): void {
+  if (pts.length < 4) return;
+  const path = (from: number, to: number) => {
+    ctx.beginPath();
+    ctx.moveTo(pts[from * 2], pts[from * 2 + 1]);
+    for (let i = from + 1; i <= to; i++) ctx.lineTo(pts[i * 2], pts[i * 2 + 1]);
+  };
+  const n = pts.length / 2;
+  const roadEnd = Math.min(n - 1, Math.max(0, offroad - 1));
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  if (roadEnd > 0) {
+    path(0, roadEnd);
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = (width + 2.5) * px;
+    ctx.stroke();
+    ctx.strokeStyle = ROUTE_COLOR;
+    ctx.lineWidth = width * px;
+    ctx.stroke();
+  }
+  if (roadEnd < n - 1) {
+    path(roadEnd, n - 1);
+    ctx.setLineDash([6 * px, 5 * px]);
+    ctx.strokeStyle = ROUTE_COLOR;
+    ctx.lineWidth = width * 0.7 * px;
+    ctx.stroke();
+  }
+  ctx.restore();
 }

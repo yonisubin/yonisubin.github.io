@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 import type { Input } from '../input/actions';
-import { MAP_COLORS, drawMarker, type MarkerKind, type WorldMap } from '../world/mapImage';
+import { MAP_COLORS, ROUTE_COLOR, drawMarker, drawRoute, type MarkerKind, type WorldMap } from '../world/mapImage';
 import { WORLD_HALF } from '../world/layout';
 
 // The full-screen map: the whole world picture, which you can drag to pan and zoom with the
@@ -29,12 +29,20 @@ export class FullMap {
   private readonly pointers = new Map<number, { x: number; y: number }>();
   private pinchDist = 0;
   private needsCentre = true;
+  /** The route to draw, or null; and the waypoint (set by clicking the map). */
+  route: { pts: number[]; offroad: number } | null = null;
+  waypoint: { x: number; z: number } | null = null;
+  /** Where a press started (screen px), to tell a click from a drag. */
+  private pressAt: { x: number; y: number; moved: boolean } | null = null;
+  private readonly clearButton: HTMLButtonElement;
 
   constructor(
     private readonly map: WorldMap,
     private readonly input: Input,
     /** Called when the map opens/closes (e.g. hide "Click to play"). */
     private readonly onToggle: (open: boolean) => void,
+    /** A click on the map: set the waypoint there, or (null) clear it. */
+    private readonly onWaypoint: (point: { x: number; z: number } | null) => void,
   ) {
     this.root = document.createElement('div');
     this.root.style.cssText = [
@@ -62,11 +70,21 @@ export class FullMap {
         onClick();
       });
       this.root.appendChild(b);
+      return b;
     };
     button('✕', 'top:max(12px, env(safe-area-inset-top));right:max(12px, env(safe-area-inset-right))', () => this.close());
     button('◎ Me', 'top:max(12px, env(safe-area-inset-top));right:calc(max(12px, env(safe-area-inset-right)) + 60px)', () => {
       this.needsCentre = true;
     });
+    this.clearButton = button('✕ Clear route', 'top:max(12px, env(safe-area-inset-top));right:calc(max(12px, env(safe-area-inset-right)) + 150px)', () => {
+      this.onWaypoint(null);
+    });
+    this.clearButton.style.display = 'none';
+    const tip = document.createElement('div');
+    tip.style.cssText =
+      'position:absolute;left:50%;transform:translateX(-50%);top:max(14px, env(safe-area-inset-top));padding:6px 12px;border-radius:10px;background:rgba(0,0,0,0.55);color:#fff;font:600 14px system-ui,sans-serif;pointer-events:none';
+    tip.textContent = 'Click / tap the map to set a destination';
+    this.root.appendChild(tip);
     const legend = document.createElement('div');
     legend.style.cssText =
       'position:absolute;left:max(12px, env(safe-area-inset-left));bottom:max(12px, env(safe-area-inset-bottom));padding:8px 12px;border-radius:10px;background:rgba(0,0,0,0.6);color:#fff;font:13px/1.7 system-ui,sans-serif;pointer-events:none';
@@ -78,6 +96,8 @@ export class FullMap {
       ['#3d8cff', '■', 'Your cars'],
       ['#ffcc33', 'H', 'Helicopter'],
       ['#ff3b5c', '●', 'Objective'],
+      ['#2ec4c4', 'B', 'Boats'],
+      [ROUTE_COLOR, '⚑', 'Destination'],
     ]
       .map(([c, s, t]) => `<span style="color:${c};display:inline-block;width:18px;text-align:center;font-weight:700">${s}</span> ${t}`)
       .join('<br>');
@@ -88,12 +108,14 @@ export class FullMap {
     this.canvas.addEventListener('pointerdown', (e) => {
       this.canvas.setPointerCapture(e.pointerId);
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      this.pressAt = this.pointers.size === 1 ? { x: e.clientX, y: e.clientY, moved: false } : null;
       this.canvas.style.cursor = 'grabbing';
       if (this.pointers.size === 2) this.pinchDist = this.pinchDistance();
     });
     this.canvas.addEventListener('pointermove', (e) => {
       const prev = this.pointers.get(e.pointerId);
       if (!prev) return;
+      if (this.pressAt && Math.hypot(e.clientX - this.pressAt.x, e.clientY - this.pressAt.y) > 6) this.pressAt.moved = true;
       if (this.pointers.size === 1) {
         this.cx -= (e.clientX - prev.x) / this.scale;
         this.cz -= (e.clientY - prev.y) / this.scale;
@@ -109,6 +131,10 @@ export class FullMap {
       }
     });
     const up = (e: PointerEvent) => {
+      // A click (not a drag, not a pinch): set the destination there, or clear it if you
+      // clicked the one you already have.
+      if (e.type === 'pointerup' && this.pressAt && !this.pressAt.moved && this.pointers.size === 1) this.pick(e.clientX, e.clientY);
+      this.pressAt = null;
       this.pointers.delete(e.pointerId);
       this.pinchDist = 0;
       if (this.pointers.size === 0) this.canvas.style.cursor = 'grab';
@@ -131,6 +157,15 @@ export class FullMap {
         this.close();
       }
     });
+  }
+
+  /** A click at screen (sx, sy): the world point under it becomes the waypoint. */
+  private pick(sx: number, sy: number): void {
+    const x = this.cx + (sx - window.innerWidth / 2) / this.scale;
+    const z = this.cz + (sy - window.innerHeight / 2) / this.scale;
+    const w = this.waypoint;
+    if (w && Math.hypot(w.x - x, w.z - z) * this.scale < 18) this.onWaypoint(null);
+    else this.onWaypoint({ x, z });
   }
 
   get isOpen(): boolean {
@@ -225,6 +260,8 @@ export class FullMap {
     }
 
     const px = 1 / this.scale; // one CSS pixel in world units
+    if (this.route) drawRoute(ctx, this.route.pts, this.route.offroad, px, 4);
+    this.clearButton.style.display = this.waypoint ? '' : 'none';
     for (const m of markers) {
       if (m.kind === 'traffic') continue; // too busy at this scale
       drawMarker(ctx, m.kind, m.position.x, m.position.z, px * 1.3);

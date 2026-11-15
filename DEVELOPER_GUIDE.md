@@ -268,6 +268,19 @@ The world is cut into **13 × 13 chunks of 4 × 4 cells (312 m)**, built in two 
 - **Buildings stay upright:** the base sits at the lowest point of the footprint and the walls grow by the drop to the highest point, so nothing floats and the uphill side is set into the slope. Rooftop clutter goes on the adjusted roof (each roof prop remembers its building).
 - Intersections are draped like the road strips, so there's no step where slopes meet.
 
+**No invisible steps (draping).** Every paved surface is draped point by point over `terrain.smoothHeight`, and its trimesh collider uses exactly the visible vertices. The terrain heightfield dips 0.6 m under roads (`heightAt`), so it always stays below.
+- **The bug this fixed:** cars hit invisible steps of up to 0.86 m and took crash damage. There were four causes:
+  - ribbons were level across their width at the centre line's height, so on a cross-slope the hillside poked up through the uphill edge (the road material's `polygonOffset` hid it);
+  - junction discs and cul-de-sac circles were flat, leaving a lip on the downhill side;
+  - cul-de-sac sidewalk rings ran across the street mouth;
+  - driveways had no curb cut.
+- **The fixes:**
+  - ribbon corners, discs (a fan to r/2 plus a ring) and rings take the height at their own position;
+  - cul-de-sac sidewalk and verge rings skip the street mouth (`ring(..., skip)`);
+  - driveway and lot heights ramp from road level to sidewalk height over the first 1.5 m from the kerb.
+- **Also in `terrain.ts`:** `townDistanceGrid` gave up beyond 5 cells and returned "far", which made `smoothHeight` jump ~2 m at some cell boundaries. It now searches up to 8 cells.
+- **Measured** with a downward ray scan of the static colliders along every road: the worst step went from 0.86 m to 0.15 m (that's a real downtown block curb), and the terrain sits above the road surface 0 times (was 256).
+
 **Per chunk meshes** are six: the **terrain**, the **road surface** (with parking lots), the **paint** (with ponds and field lines), the **pavement** (sidewalks, curbs, driveways, block slabs), the **verges** and the **lawns**.
 - Terrain: a grid every 6 m, with vertex colours from `colorAt` times a neutral grain texture.
 - Road surface: quads draped over the smooth layer, with world-space UVs so the asphalt never stretches.
@@ -542,6 +555,21 @@ Sinking or sunken vehicles can't be entered.
 - Opens with **M** or from the minimap; closes with M, Esc or ✕. Game input is paused while it's open.
 - North is up. Drag to pan; zoom with the wheel or a pinch, around the cursor.
 - Markers, a legend, a scale bar and a "◎ Me" button that re-centres on you.
+
+### 6.4 Directions (`game/route.ts`)
+
+**Set a destination:** click or tap the full map (a drag doesn't count). Click the flag again, or "✕ Clear route", to clear it. The route is drawn in magenta on both maps, the remaining distance shows under the minimap ("⚑ 1.4 km"), and "You have arrived" appears within 15 m.
+
+**`Router.find(x0, z0, x1, z1, mode)`:** A* on `layout.streets.net`.
+- **Edge cost:** travel time when driving (length ÷ the class speed in `ROAD_SPECS`, so arterials win) and distance on foot.
+- **Heuristic:** straight-line distance (÷ the top road speed when driving). It never overestimates, so the route is optimal. A test against plain Dijkstra on 30 random pairs found no longer routes; A* expands ~150 of ~850 junctions, and a 2.4 km route takes ~5 ms.
+- **Start and end:** both points snap to the nearest road (`net.nearest`). The route starts along your edge toward whichever end is better, ends along the destination's edge, and handles both on the same edge.
+- **Off-road destinations:** more than 8 m from a road, the final straight leg is drawn dashed (`Route.offroad` is the index where it starts).
+- **Helicopter and boats:** a straight line (`'direct'`).
+
+**`Navigator`** (owned by `main.ts`):
+- The part behind you is trimmed twice a second.
+- It re-routes when you're more than 25 m off the line (at most every 2 s) or switch between walking and driving.
 
 ## 7. Gameplay systems (`src/game/`, `src/ui/`)
 
@@ -867,6 +895,8 @@ When adding a feature, the quickest check is the browser console in `npm run dev
 | Add a kind of commercial or civic place | `world/suburbs.ts` (`placeParcel` and where it's called), then its details in `world/chunks.ts` |
 | Change road widths, lanes, sidewalks or speeds | `world/streets.ts` (`ROAD_SPECS`) |
 | Change junction rules (lights, stop signs) | `world/streets.ts` (`compact`: which junctions get lights), `world/roadGraph.ts` (`mustStop`, `lightPhase`) |
+| Change route preferences, re-route distance or arrival radius | `game/route.ts` (`Router.cost`; the 15 m arrival and 25 m off-route distances in `Navigator.update`) |
+| Change the route's look | `world/mapImage.ts` (`ROUTE_COLOR`, `drawRoute`) |
 | Change skin/hair/outfit palettes | `player/characterLibrary.ts` |
 | Change which clip plays for an action | `player/character.ts` (`ONE_SHOTS`, aims) |
 | Add or replace characters | `scripts/build-quaternius.mjs` (`CHARACTERS`, `OVERRIDES`), then `npm run build:quaternius` |

@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import { drawMarker, type MarkerKind, type WorldMap } from '../world/mapImage';
+import { drawMarker, drawRoute, type MarkerKind, type WorldMap } from '../world/mapImage';
 
 // Round minimap in the top-right corner. Each frame the pre-drawn world picture
 // (world/mapImage.ts) is drawn rotated and moved so the player is in the middle and the
@@ -17,6 +17,8 @@ export interface Marker {
 
 export class Minimap {
   readonly size: number; // CSS px
+  /** The route to draw (x, z pairs and where its off-road leg starts), or null. */
+  route: { pts: number[]; offroad: number } | null = null;
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly dpr: number;
@@ -87,6 +89,7 @@ export class Minimap {
 
     // Markers, kept a constant size on screen.
     const px = 1 / k;
+    if (this.route) drawRoute(ctx, this.route.pts, this.route.offroad, px, 3 * this.dpr);
     for (const m of markers) {
       let { x, z } = m.position;
       if (m.kind === 'objective') {
