@@ -22,6 +22,8 @@ export class FullMap {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private open_ = false;
+  /** Set by main.ts: wipe the save and restart. */
+  onNewGame: (() => void) | null = null;
   // View: the world point at the screen centre and the zoom (CSS px per metre).
   private cx = 0;
   private cz = 0;
@@ -80,6 +82,10 @@ export class FullMap {
       this.onWaypoint(null);
     });
     this.clearButton.style.display = 'none';
+    // Progress is saved automatically (game/save.ts); this starts over.
+    button('⟲ New game', 'bottom:max(12px, env(safe-area-inset-bottom));right:max(12px, env(safe-area-inset-right));font-size:14px;padding:6px 12px', () => {
+      if (window.confirm('Start a new game? Your money, weapons and progress will be lost.')) this.onNewGame?.();
+    });
     const tip = document.createElement('div');
     tip.style.cssText =
       'position:absolute;left:50%;transform:translateX(-50%);top:max(14px, env(safe-area-inset-top));padding:6px 12px;border-radius:10px;background:rgba(0,0,0,0.55);color:#fff;font:600 14px system-ui,sans-serif;pointer-events:none';

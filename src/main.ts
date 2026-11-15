@@ -35,6 +35,7 @@ import { Rng } from './world/rng';
 import { Smoke } from './sim/smoke';
 import { Missions } from './game/missions';
 import { Navigator } from './game/route';
+import { Autosave, clearSave, loadSave, writeSave } from './game/save';
 import { DebugOverlay } from './ui/debug';
 
 // Physics runs at a fixed 60 Hz regardless of display refresh rate.
@@ -438,6 +439,44 @@ async function main(): Promise<void> {
     : null;
   if (picker && !hasSavedLook()) picker.open();
 
+  // Saved progress (game/save.ts): restore it now, then keep saving as you play.
+  const saved = loadSave();
+  if (saved) {
+    stats.load(saved.stats);
+    missions.record = saved.missions;
+    dayNight.hours = ((saved.hours % 24) + 24) % 24;
+    const { x, z, heading } = saved.player;
+    const spot = new THREE.Vector3(x, city.terrain.surfaceAt(x, z) + 1.0, z);
+    city.streamer.loadAround(spot, 450);
+    onFoot.placeAt(spot, heading, heading);
+    if (saved.waypoint) navigator.setWaypoint(saved.waypoint.x, saved.waypoint.z);
+  }
+  const autosave = new Autosave(() => {
+    if (stats.dead) return; // mid-respawn: wait for the hospital
+    const mode = player.mode ?? onFoot;
+    const at = mode.focus();
+    let { x, z } = at;
+    if (mode !== onFoot) {
+      // In a vehicle (maybe flying or on the water): wake up on the nearest road instead.
+      const road = city.layout.streets.net.nearest(x, z, 400);
+      if (road) ({ x, z } = road);
+    }
+    writeSave({
+      stats: stats.toJSON(),
+      missions: missions.record,
+      jobs: {},
+      player: { x, z, heading: onFoot.facingYaw },
+      hours: dayNight.hours,
+      waypoint: navigator.waypoint ? { x: navigator.waypoint.x, z: navigator.waypoint.z } : null,
+    });
+  });
+  fullMap.onNewGame = () => {
+    autosave.stop();
+    clearSave();
+    window.location.reload();
+  };
+  let lastMoney = stats.money;
+
   // One fixed physics step for everything: player controls, entities, the world.
   // Parked vehicles sleep while the ground under them isn't loaded (they'd fall through).
   const parkVehicles = () => {
@@ -462,7 +501,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { RAPIER, navigator, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { RAPIER, navigator, autosave, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -512,6 +551,12 @@ async function main(): Promise<void> {
     hud.setBreath(mode === onFoot ? onFoot.breathFraction : null);
     touchControls?.update();
     hud.update(mode, stats, frameTime);
+    // Money moves on every purchase, reward, payout, death or fine: save shortly after.
+    if (stats.money !== lastMoney) {
+      lastMoney = stats.money;
+      autosave.changed();
+    }
+    autosave.update(frameTime);
     shop.render(frameTime);
     onFoot.combat?.render(frameTime);
     smoke.update(frameTime);

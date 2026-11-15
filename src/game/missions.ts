@@ -119,6 +119,8 @@ export class Missions implements SimEntity {
   readonly givers: Giver[] = [];
   readonly interactables: Interactable[] = [];
   private mission: Mission | null = null;
+  /** Missions completed per giver and the most time left you've finished with (saved). */
+  record: Record<string, { done: number; best: number }> = {};
   private offer: { giver: Giver; kind: MissionKind } | null = null;
   private readonly panel: HTMLDivElement;
   private readonly hudLine: HTMLDivElement;
@@ -662,6 +664,9 @@ export class Missions implements SimEntity {
       const bonus = Number.isFinite(m.timeLeft) ? Math.round(m.timeLeft * m.bonusPerSecond) : 0;
       const total = m.baseReward + bonus;
       this.stats.money += total;
+      const rec = (this.record[m.giver.name] ??= { done: 0, best: 0 });
+      rec.done++;
+      if (Number.isFinite(m.timeLeft)) rec.best = Math.max(rec.best, Math.round(m.timeLeft));
       this.notify(`Mission complete! +$${total}${bonus ? ` (incl. $${bonus} time bonus)` : ''}`, 3.5);
     } else {
       this.notify(`Mission failed — ${reason}`, 3);

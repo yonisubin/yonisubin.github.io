@@ -686,6 +686,17 @@ All UI is plain DOM elements styled inline. A UI framework would be a dependency
 
 ---
 
+### 7.9 Saved progress (`game/save.ts`)
+
+- **Where:** one JSON object in `localStorage['opencity.save.v1']`.
+- **What:** money, health, weapons, ammo, add-ons, the weapon in hand, missions completed per giver (`Missions.record`), where you are, the time of day and the map destination. The wanted level is never saved.
+  - In a vehicle, the saved spot is the nearest road, so you never wake up in the air or at sea.
+- **Loading:** at startup, `PlayerStats.load()` restores the stats, ignoring unknown weapons and add-ons. It wakes you with at least 20 health. The world around the saved spot is loaded before you're placed there.
+  - A version mismatch, a missing field or JSON that doesn't parse all mean a new game.
+- **When it saves (`Autosave`):** every 30 s, about 1 s after your money changes (a purchase, reward, payout, death or fine), and on `pagehide` / `visibilitychange`.
+- **New game:** the "⟲ New game" button on the full map asks to confirm, stops autosave (so the reload's `pagehide` can't write the old game back), clears the key and reloads.
+- **To add something to the save:** add a field to `SaveData`, write it in main.ts's `Autosave` callback, read it after `loadSave()`, and give it a default (`??=`) in `loadSave` so older saves still load.
+
 ## 8. People: characters, animation, recolouring
 
 This was the most recent and most involved piece of work.

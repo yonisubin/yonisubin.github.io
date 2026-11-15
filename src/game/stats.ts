@@ -199,6 +199,45 @@ export class PlayerStats implements SimEntity {
     this.current = owned[(owned.indexOf(this.current) + 1) % owned.length];
   }
 
+  /** What gets saved (game/save.ts). */
+  toJSON(): {
+    health: number;
+    money: number;
+    owned: string[];
+    ammo: Record<string, number>;
+    apAmmo: Record<string, number>;
+    addons: string[];
+    current: string;
+  } {
+    return {
+      health: this.health,
+      money: this.money,
+      owned: [...this.owned],
+      ammo: { ...this.ammo },
+      apAmmo: { ...this.apAmmo },
+      addons: [...this.addons],
+      current: this.current,
+    };
+  }
+
+  /** Restore saved stats, ignoring anything that isn't a known weapon or add-on. */
+  load(data: ReturnType<PlayerStats['toJSON']>): void {
+    const isWeapon = (id: string): id is WeaponId => id in WEAPONS;
+    const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0);
+    this.money = num(data.money);
+    this.health = Math.max(20, Math.min(MAX_HEALTH, num(data.health))); // never wake up nearly dead
+    for (const id of data.owned ?? []) if (isWeapon(id)) this.owned.add(id);
+    for (const id of WEAPON_ORDER) {
+      this.ammo[id] = num(data.ammo?.[id]);
+      this.apAmmo[id] = num(data.apAmmo?.[id]);
+    }
+    for (const key of data.addons ?? []) {
+      const [w, a] = key.split(':');
+      if (isWeapon(w) && a in ADDONS) this.addons.add(key);
+    }
+    if (isWeapon(data.current) && this.owned.has(data.current)) this.current = data.current;
+  }
+
   /** Health regenerates once you've avoided damage for a few seconds. */
   fixedUpdate(dt: number): void {
     this.sinceDamage += dt;
