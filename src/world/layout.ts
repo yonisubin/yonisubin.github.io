@@ -65,7 +65,9 @@ export interface Building {
   z: number;
   y: number; // base height (top of the block slab in town; the ground in the countryside)
   width: number; // along X
-  depth: number; // along Z
+  depth: number; // along Z (before `yaw`)
+  /** Turn about Y (rad): width runs along (cos yaw, −sin yaw). Grid-aligned buildings omit it. */
+  yaw?: number;
   height: number; // walls, excluding any pitched roof
   style: number;
   color: [number, number, number]; // linear RGB wall colour
