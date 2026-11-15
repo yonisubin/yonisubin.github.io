@@ -10,6 +10,7 @@ import { Car, DrivingMode } from './player/car';
 import { FlyingMode, Helicopter } from './player/heli';
 import { createCity } from './world/city';
 import { createWorldMap } from './world/mapImage';
+import { FullMap } from './ui/fullMap';
 import { Water } from './world/water';
 import { createPlaces } from './game/places';
 import { CURB_HEIGHT, helipadPosition, parkingSpots } from './world/layout';
@@ -85,8 +86,10 @@ async function main(): Promise<void> {
   const input = new Input(renderer.domElement);
   const touch = isTouchDevice();
   const touchControls = touch ? new TouchControls(input) : null;
-  const minimap = new Minimap(createWorldMap(city.layout, city.terrain, city.coarse), input, touch);
+  const worldMap = createWorldMap(city.layout, city.terrain, city.coarse);
+  const minimap = new Minimap(worldMap, touch, () => fullMap.open());
   const hud = new Hud(input, touch, minimap.size + 8);
+  const fullMap = new FullMap(worldMap, input, (open) => hud.hideClickToPlay(open));
   const debug = new DebugOverlay(renderer, input);
 
   const player = new PlayerStateMachine(input);
@@ -420,7 +423,9 @@ async function main(): Promise<void> {
     smoke.update(frameTime);
     dialogue?.update(frameTime, mode.focus());
     picker?.update(frameTime); // after the player's camera: it takes over the view while open
-    minimap.update(mode.focus(), camera.getWorldDirection(viewDir), mapMarkers(), dayNight.clock);
+    const markers = mapMarkers();
+    minimap.update(mode.focus(), camera.getWorldDirection(viewDir), markers, dayNight.clock);
+    fullMap.update(mode.focus(), viewDir, markers);
     renderer.render(scene, camera);
     debug.update(frameTime);
   });

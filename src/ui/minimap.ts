@@ -1,16 +1,15 @@
 import type * as THREE from 'three';
-import type { Input } from '../input/actions';
-import type { WorldMap } from '../world/mapImage';
+import { drawMarker, type MarkerKind, type WorldMap } from '../world/mapImage';
 
 // Round minimap in the top-right corner. Each frame the pre-drawn world picture
 // (world/mapImage.ts) is drawn rotated and moved so the player is in the middle and the
 // camera's view direction points up, with sharp vector roads and buildings for the area in
 // view on top. Markers (vehicles, traffic) are drawn over that. Zooms out as the player gets
-// higher (helicopter). M toggles it.
+// higher (helicopter). Clicking or tapping it opens the full map (ui/fullMap.ts).
 
 const VIEW_RADIUS = 110; // m from the centre to the edge of the minimap, at ground level
 
-export type MarkerKind = 'car' | 'heli' | 'traffic' | 'shop' | 'giver' | 'objective' | 'hospital';
+export type { MarkerKind };
 export interface Marker {
   kind: MarkerKind;
   position: THREE.Vector3;
@@ -21,12 +20,12 @@ export class Minimap {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly dpr: number;
-  private visible = true;
 
   constructor(
     private readonly map: WorldMap,
-    private readonly input: Input,
     touch: boolean,
+    /** Tapped/clicked: open the full map. */
+    onOpen: () => void,
   ) {
     this.size = touch ? 120 : 160;
     this.dpr = Math.min(window.devicePixelRatio, 2);
@@ -41,10 +40,16 @@ export class Minimap {
       'z-index:20',
       'border-radius:50%',
       'box-shadow:0 2px 10px rgba(0,0,0,0.35)',
-      'pointer-events:none',
+      'cursor:pointer',
     ].join(';');
     document.body.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d')!;
+    // Don't let the tap reach the game (touch look / click-to-play) underneath.
+    for (const type of ['pointerdown', 'mousedown', 'touchstart']) this.canvas.addEventListener(type, (e) => e.stopPropagation());
+    this.canvas.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onOpen();
+    });
   }
 
   /**
@@ -52,11 +57,6 @@ export class Minimap {
    * @param forward camera view direction (only x/z used); it points up on the map
    */
   update(centre: THREE.Vector3, forward: THREE.Vector3, markers: Marker[], clock: string): void {
-    if (this.input.consumePressed('toggleMap')) {
-      this.visible = !this.visible;
-      this.canvas.style.display = this.visible ? '' : 'none';
-    }
-    if (!this.visible) return;
 
     const ctx = this.ctx;
     const s = this.size * this.dpr;
@@ -99,65 +99,8 @@ export class Minimap {
           x = centre.x + (dx / d) * max;
           z = centre.z + (dz / d) * max;
         }
-        ctx.fillStyle = '#ff3b5c';
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1.5 * px;
-        ctx.beginPath();
-        ctx.arc(x, z, 5.5 * px, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        continue;
       }
-      if (m.kind === 'giver') {
-        ctx.fillStyle = '#ffd60a';
-        ctx.beginPath();
-        ctx.arc(x, z, 6 * px, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#222';
-        ctx.font = `bold ${10 * px}px system-ui,sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('!', x, z + 0.5 * px);
-        continue;
-      }
-      if (m.kind === 'hospital') {
-        // White disc with a red cross.
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(x, z, 6.5 * px, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#d32f2f';
-        ctx.fillRect(x - 4 * px, z - 1.4 * px, 8 * px, 2.8 * px);
-        ctx.fillRect(x - 1.4 * px, z - 4 * px, 2.8 * px, 8 * px);
-        continue;
-      }
-      if (m.kind === 'traffic') {
-        ctx.fillStyle = '#d9d9d2';
-        ctx.fillRect(x - 2.2 * px, z - 2.2 * px, 4.4 * px, 4.4 * px);
-      } else if (m.kind === 'shop') {
-        ctx.fillStyle = '#f2c94c';
-        ctx.beginPath();
-        ctx.arc(x, z, 6 * px, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#222';
-        ctx.font = `bold ${9 * px}px system-ui,sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('$', x, z + 0.5 * px);
-      } else if (m.kind === 'car') {
-        ctx.fillStyle = '#3d8cff';
-        ctx.fillRect(x - 3.5 * px, z - 3.5 * px, 7 * px, 7 * px);
-      } else {
-        ctx.fillStyle = '#ffcc33';
-        ctx.beginPath();
-        ctx.arc(x, z, 6 * px, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#222';
-        ctx.font = `bold ${9 * px}px system-ui,sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('H', x, z + 0.5 * px);
-      }
+      drawMarker(ctx, m.kind, x, z, px);
     }
     ctx.restore();
 

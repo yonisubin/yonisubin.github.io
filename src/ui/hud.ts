@@ -263,7 +263,7 @@ function createClickToPlay(input: Input, hidden: () => boolean): HTMLDivElement 
     <div style="font-size:28px;font-weight:600">Click to play</div>
     <div style="opacity:0.85">
       WASD — move &nbsp;·&nbsp; Shift — run &nbsp;·&nbsp; Space — jump &nbsp;·&nbsp; Mouse — look<br />
-      E — get in / out of cars and the helicopter &nbsp;·&nbsp; P — change your look &nbsp;·&nbsp; Esc — release mouse
+      E — get in / out of cars and the helicopter &nbsp;·&nbsp; M — map &nbsp;·&nbsp; P — change your look &nbsp;·&nbsp; Esc — release mouse<br />C — dive when swimming
     </div>`;
   overlay.addEventListener('click', () => input.requestPointerLock());
   document.body.appendChild(overlay);

@@ -137,3 +137,60 @@ function drawBlocks(ctx: CanvasRenderingContext2D, layout: CityLayout, x: number
     }
   }
 }
+
+export type MarkerKind = 'car' | 'heli' | 'traffic' | 'shop' | 'giver' | 'objective' | 'hospital';
+
+/**
+ * A map symbol at (x, z) in world units; `px` is the size of one screen pixel in world units,
+ * so symbols stay the same size on screen at any zoom.
+ */
+export function drawMarker(ctx: CanvasRenderingContext2D, kind: MarkerKind, x: number, z: number, px: number): void {
+  const disc = (r: number, fill: string) => {
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.arc(x, z, r * px, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  const letter = (text: string, size: number) => {
+    ctx.fillStyle = '#222';
+    ctx.font = `bold ${size * px}px system-ui,sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, z + 0.5 * px);
+  };
+  switch (kind) {
+    case 'objective':
+      disc(5.5, '#ff3b5c');
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5 * px;
+      ctx.stroke();
+      return;
+    case 'giver':
+      disc(6, '#ffd60a');
+      letter('!', 10);
+      return;
+    case 'hospital':
+      // White disc with a red cross.
+      disc(6.5, '#fff');
+      ctx.fillStyle = '#d32f2f';
+      ctx.fillRect(x - 4 * px, z - 1.4 * px, 8 * px, 2.8 * px);
+      ctx.fillRect(x - 1.4 * px, z - 4 * px, 2.8 * px, 8 * px);
+      return;
+    case 'traffic':
+      ctx.fillStyle = '#d9d9d2';
+      ctx.fillRect(x - 2.2 * px, z - 2.2 * px, 4.4 * px, 4.4 * px);
+      return;
+    case 'shop':
+      disc(6, '#f2c94c');
+      letter('$', 9);
+      return;
+    case 'car':
+      ctx.fillStyle = '#3d8cff';
+      ctx.fillRect(x - 3.5 * px, z - 3.5 * px, 7 * px, 7 * px);
+      return;
+    case 'heli':
+      disc(6, '#ffcc33');
+      letter('H', 9);
+      return;
+  }
+}
