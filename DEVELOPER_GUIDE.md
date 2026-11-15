@@ -6,10 +6,10 @@ This document explains the whole codebase: what each part does, which libraries 
 
 ## 1. The big picture
 
-A single-player open-world city game that runs entirely in the browser. You walk, drive cars and fly a helicopter through a procedurally generated city with traffic, pedestrians, a day/night cycle, a gun store, combat and missions. No server: it's a folder of static files hosted on GitHub Pages at the root of `https://yonisubin.github.io/`.
+A single-player open-world game that runs entirely in the browser. You walk, swim, drive cars and fly a helicopter through a procedurally generated ~4 × 4 km world (a downtown, suburbs, villages, farmland, forested hills with a lake, a beach and the sea), streamed in around you. There's traffic, pedestrians, a day/night cycle, gun stores, hospitals, combat and missions. No server: it's a folder of static files hosted on GitHub Pages at the root of `https://yonisubin.github.io/`.
 
 **Everything procedural except people.**
-- Buildings, roads, sidewalks, trees, cars, the helicopter and all textures are generated in code at startup. This keeps the download small and avoids licensing issues.
+- Buildings, roads, terrain, water, trees, cars, the helicopter and all textures are generated in code. This keeps the download small and avoids licensing issues.
 - The only downloaded art is the people: 15 CC0 characters, about 3 MB in total.
 
 ### How the work was done (history)
@@ -22,7 +22,7 @@ The project followed the milestones in `CLAUDE.md`, one commit each, then gamepl
 | `2c9e533` | Removed the old personal website; the repo is now only the game |
 | `66938e6` | Touch controls for phones (floating joystick, drag-to-look, buttons) |
 | `2beb065` | Milestone 2: procedural city, animated character, realistic lighting |
-| `853f4c6`, `cd61d5c` | Lighting fixes, including the phone "black surfaces" bug (see §6.4) |
+| `853f4c6`, `cd61d5c` | Lighting fixes, including the phone "black surfaces" bug (see §4.7) |
 | `4dcf874` | Milestone 3: drivable cars (ray-cast vehicle physics) |
 | `1f9cc09` | Milestone 4: helicopter (collective / cyclic / tail rotor) |
 | `e396186` | Milestone 5a: NPC traffic with traffic lights; pedestrians |
@@ -36,6 +36,10 @@ The project followed the milestones in `CLAUDE.md`, one commit each, then gamepl
 | `2d1ffe0` | Optional Mixamo character pipeline (guide + FBX→GLB converter) |
 | `d4cd158`, `db24f61` | 15 CC0 Quaternius characters, recolouring, character picker; Soldier model removed |
 | `334082c` | Natural walking (gait fixes) and knock-outs that lie flat |
+| `f469ea8` | The 4 km world: zones, terrain, country roads, streaming chunks, instance pools, distant terrain; sea, lake, waves and swimming |
+| `543da38` | Vehicles that drive or land in deep water eject you, wreck and sink |
+| `a258943` | Hospitals (respawn at the nearest one) and five more gun stores |
+| `2497a27` | Full-screen world map (M or tap the minimap) |
 
 ---
 
@@ -106,7 +110,8 @@ Getting into a car is `player.setMode(car.mode)`. Nothing else in the game asks 
 Controllers never read raw keys. They ask about **actions**:
 - **Movement and combat:** `moveForward/Back/Left/Right`, `run`, `jump`, `interact`, `handbrake`, `ascend`, `descend`, `attack`, `aim`, `aimToggle`, `nextWeapon`.
 - **Dialogue choices:** `choice1–3`.
-- **Menus and toggles:** `characterMenu`, `timeSkip`, `toggleMap`, `toggleDebug`.
+- **Swimming:** `dive` (C / Ctrl; the DIVE button on touch). Space (`jump`) swims up.
+- **Menus and toggles:** `characterMenu` (P), `timeSkip` (T), `toggleMap` (M: the full map), `toggleDebug`.
 
 All key bindings live in one table in `actions.ts`. It uses `KeyboardEvent.code` (physical key position), so WASD stays put on Hebrew or AZERTY layouts. One key can mean different things per mode (Space = jump / handbrake / climb); each mode only reads the actions it cares about.
 
@@ -127,63 +132,164 @@ Other `Input` features:
 - **SI units:** metres, kilograms, seconds, radians. **Y is up.**
 - People face **−Z** at yaw 0.
 - Vehicles use body space **+X forward, +Y up, +Z right**, because Rapier's vehicle controller expects that.
-- **Determinism:** the city comes from a seeded PRNG (`CITY_SEED = 1337`), so it is the same every time.
+- **Determinism:** the world comes from a seeded PRNG and noise (`CITY_SEED = 1337`), so it is the same every time.
 
 ---
 
-## 4. The city (`src/world/`)
+## 4. The world (`src/world/`)
 
-### 4.1 Layout as plain data (`layout.ts`, `rng.ts`)
+The world grew from a 640 m city (8 × 8 blocks) to a **~4 × 4 km world** with towns, countryside, a lake and a beach. The 640 m city could be built all at once at startup. A world 40× larger can't, so it's split in two:
 
-`generateCity(seed)` returns plain data with no three.js and no physics: blocks, buildings, trees, lamps, roof props, parking spots, the helipad and the spawn point.
+- **World data** (`layout.ts`, `terrain.ts`): generated for everything at startup. It's cheap: plain numbers and lists, with no meshes and no physics.
+- **Meshes and colliders** (`chunks.ts`): built only for the chunks around the player, and removed again when they're far away (streaming).
 
-- **Grid:** 8 × 8 blocks.
-- **Each block:** 64 m square, made of a 56 m lot plus 4 m sidewalks.
-- **Roads:** 14 m wide (4 lanes × 3.5 m).
-- **Curbs:** blocks sit on a 15 cm raised slab, low enough for the walking controller to step up automatically.
-- **Building styles:** three, matching the facade shader: glass tower, brick, concrete.
+### 4.1 Layout: cells, zones, roads, blocks (`layout.ts`, `rng.ts`)
 
-**Determinism.** `rng.ts` uses **mulberry32**, a tiny, good-quality 32-bit PRNG. `hashSeed(seed, x, z)` gives every block its own independent random stream. A block's content therefore doesn't depend on the order blocks are generated, which is what makes chunk streaming possible later.
+The world is a grid of **52 × 52 cells**, each 78 m (`PITCH`). Grid lines (road centre lines) sit at multiples of 78 m; line 26 runs through the origin. North is −Z.
 
-### 4.2 Meshes and colliders (`city.ts`)
+**Each cell has a zone:**
 
-Turns the layout into geometry. **Every repeated thing is one `InstancedMesh`** (all buildings, all trees, all lamps…), so the whole city is about a dozen draw calls. Each building also gets a Rapier box collider. The ground is split into 100 m collider tiles. One huge collider caused the character to sink into it, because of floating-point precision far from the collider's centre.
+| Zone | Where | What's in it |
+|---|---|---|
+| `downtown` | the centre, ±400 m | today's towers: a block of sidewalk + lot with glass/brick/concrete buildings |
+| `suburb` | a ring out to ~1 km (stretched south) | houses with pitched roofs, front gardens, lawns |
+| `beachtown` | the row just north of the coastal road, centre | low pastel shops and flats, houses |
+| `village` | 3 spots on country-road crossings (Eastfield, Westbrook, Pinecrest) | a few house blocks |
+| `farm` | east, west and south countryside | open fields; now and then a red barn + farmhouse |
+| `forest` | north of ~−700 m | hills covered in low-poly trees |
+| `lake` | an ellipse in the northern hills | water |
+| `beach` | south of the coastal road (line 46) | sand, then the sea |
 
-### 4.3 Procedural facades (`facadeMaterial.ts`)
+**Town zones** are blocks exactly like the original city:
+- each block is 64 m: a 56 m lot plus 4 m sidewalks, on a 15 cm curb slab;
+- roads are 14 m wide.
 
-All buildings share one unit box, stretched per instance. A stretched texture would look smeared, so a custom **fragment shader** draws the windows mathematically, from the pixel's position *in metres* on the facade. It works out the column and floor and decides: window, shopfront, sign, wall or roof.
+**Roads** (`RoadNet`): a segment between two neighbouring grid intersections exists if:
+- either cell beside it is a town (so towns are fully gridded and ringed by roads); or
+- it's on every 4th grid line in the countryside (lines 2, 6, … 50), giving country roads ~312 m apart;
+- and in either case it doesn't cross the lake or the sea.
 
-Per-instance data:
-- the wall colour;
-- the style;
-- a seed that varies curtains, which windows are lit at night, and sign colours.
+The coastal road falls on one of those lines (46). Each segment also knows if it's rural (no town either side: faster traffic, no lights). An intersection gets **traffic lights** only if it's in town and 3+ roads meet.
 
-Glass is shiny and slightly metallic, so it reflects the sky. That reflection is most of what makes the buildings look real. It's injected into three.js's standard material with `onBeforeCompile`, so lighting and shadows still work.
+**Blocks** are generated per zone (`generateBlock`):
+- downtown towers, as before;
+- suburban and village houses: 1–2 floors, a pitched roof, set back from the street, a garden tree;
+- seaside shops.
 
-### 4.4 Textures (`textures.ts`)
+Countryside features (forest trees, farmsteads, hedgerow trees) are generated **per cell when its chunk is built** (`ruralFeatures`). That keeps startup fast, since there are tens of thousands of forest trees.
 
-Asphalt, sidewalk, grass, the helipad and glow sprites are painted onto a `<canvas>` at startup and tiled seamlessly. There are no image downloads.
+**Determinism.** `rng.ts` uses **mulberry32** (a tiny 32-bit PRNG) and `hashSeed(seed, x, z)` to give every cell its own random stream. A cell's content never depends on the order cells are generated, which is what lets chunks stream in any order.
 
-### 4.5 Sky, sun and lighting (`sky.ts`, `dayNight.ts`)
+### 4.2 Terrain: the height function (`terrain.ts`)
 
-- **Sky:** three.js `Sky` (physically based Rayleigh/Mie scattering).
+`Terrain.heightAt(x, z)` gives the ground height anywhere, from **hand-written value noise** (random values at grid points, smoothly blended; `fbm` stacks several octaves). It's built in layers:
+
+1. **Smooth hills** (`smoothHeight`): wavelength ~750 m.
+   - About 6 m on farmland and up to ~50 m in the northern forest, plus a rim of high hills at the world's edge.
+   - Faded to **zero in and near towns, by the coast and around the lake**.
+   - **Roads follow this layer**, so they climb gently over the hills.
+2. **Detail bumps**: ~110 m wavelength, faded out near roads and towns so those stay smooth.
+3. **Lake**: a bowl carved below the water level.
+4. **Beach**: south of the coastal road, sand slopes into the sea. The waterline wanders with a couple of sine waves.
+5. **No stray ponds**: away from the lake and sea, the ground is clamped above the water level. The water surface spans the whole map, so any dip below it would show water.
+
+**Decision: roads ride the smooth layer.** Making roads follow the terrain (instead of flattening valleys for them) gives rolling country roads. I measured every road: the steepest stretch is ~22 % (short, climbing out of a town), and only 0.3 % of road length is steeper than 15 %. Early versions hit 56 % near the lake, until the shore flattening was widened.
+
+`colorAt()` picks the ground colour from height, slope and zone:
+- grass (lush ↔ dry) and darker forest floor;
+- a **patchwork of fields** on farmland (wheat, young crops, ploughed earth, pasture, with faint crop rows);
+- rock on steep slopes;
+- sand on the beach and lake shore (darker where wet);
+- sea bed darkening with depth.
+
+Helpers used everywhere: `roadDistance`, `townDistance` (a precomputed per-cell distance grid makes this fast), `zoneAt`, `isClear` (where trees and farms may go).
+
+### 4.3 Streaming chunks (`chunks.ts`, `instancePool.ts`)
+
+The world is cut into **13 × 13 chunks of 4 × 4 cells (312 m)**, built in two tiers by distance from the player:
+
+| Tier | Loads within | Unloads beyond | Contents |
+|---|---|---|---|
+| **far** | 850 m | 1000 m | terrain mesh + **Rapier heightfield collider**, road surface and paint, block slabs, lawns, buildings, pitched roofs (+ colliders) |
+| **near** | 400 m | 520 m | street, park and forest trees, lamps (+ light pools), rooftop AC units and tanks (+ colliders) |
+
+- **Hysteresis:** the unload distance is larger than the load distance, so walking back and forth over a boundary doesn't rebuild chunks.
+- **Per-frame budget:** jobs are queued nearest first and built for up to ~4 ms per frame, so streaming never causes a long hitch.
+- **Startup:** only the chunks within 450 m of the spawn are built before the game starts. Startup stays ~1.2 s; the rest streams in while you play.
+- **Teleports:** respawning at a hospital calls `loadAround()` first.
+
+**Per chunk meshes** are only three: the **terrain**, the **road surface** and the **road paint**.
+- Terrain: a grid every 6 m, with vertex colours from `colorAt` times a neutral grain texture.
+- Road surface: quads draped over the smooth layer, with world-space UVs so the asphalt never stretches.
+- Road paint: centre lines, dashes, edge lines on country roads, stop lines at lights, zebras at town junctions.
+
+The heightfield collider uses the same 6 m samples as the terrain mesh.
+
+**Instance pools.** Everything repeated goes into a shared `InstancePool`: a fixed-capacity `InstancedMesh` that chunks borrow slots from and give back. That keeps buildings, roofs, trees and so on at **one draw call each, whatever is loaded**.
+- The pool always hands out the **lowest free slot** and only draws up to the highest slot in use.
+- The first version drew every slot (hidden ones at zero scale): 5 M triangles. Drawing only up to the top slot halved that, and lower-poly tree canopies brought it to ~1.7 M (including the shadow pass).
+
+**Vehicles outside loaded chunks** would fall through missing ground, so `main.ts` disables parked cars' and the helicopter's bodies while their chunk isn't loaded.
+
+### 4.4 Distant terrain and the edge of the world (`city.ts`)
+
+- **Distant terrain:** a **coarse whole-world terrain** (heights every 32 m, out past the world's edge) is one extra mesh, so hills and the coast show on the horizon and from the helicopter.
+  - Its fragment shader **discards pixels inside loaded chunks**. It reads the streamer's loaded-chunk mask from a tiny 13 × 13 texture, so the coarse and detailed terrain never overlap.
+  - The same coarse grid feeds the map picture.
+- **Fog** runs from 180 to 1100 m; the camera's far plane is 2500 m.
+- **World edge:** invisible walls just inside the rim hills (and out at sea).
+
+### 4.5 Procedural facades (`facadeMaterial.ts`)
+
+All buildings share one unit box, stretched per instance. A stretched texture would look smeared, so a custom **fragment shader** draws the windows mathematically from the pixel's position *in metres* on the facade. It works out the column and floor and decides: window, shopfront, sign, wall or roof.
+
+**Styles:** glass tower, brick, concrete, and **house** (residential windows on every floor, a front door; also used for barns and farmhouses).
+
+**Per-instance data:** the wall colour, the style, and a seed that varies curtains, lit windows at night and sign colours.
+
+Glass is shiny and slightly metallic so it reflects the sky. It's injected into three.js's standard material with `onBeforeCompile`, so lighting and shadows still work.
+
+**Pitched roofs** are a separate unit prism, stretched and rotated so the ridge runs along the longer side.
+
+### 4.6 Textures (`textures.ts`)
+
+Asphalt, sidewalk, grass, the helipad, glow sprites and the terrain grain are painted onto a `<canvas>` at startup and tiled seamlessly. There are no image downloads.
+
+### 4.7 Sky, sun and lighting (`sky.ts`, `dayNight.ts`)
+
+- **Sky:** three.js `Sky` (physically based scattering). The dome follows the camera.
 - **Sun:** one directional light that is the sun by day and the moon by night, with shadows (2048² map). The shadow box follows the player.
-- **Ambient light:** a hemisphere fill light plus an **environment map**, which supplies reflections and soft sky light.
+- **Ambient light:** a hemisphere fill light plus an **environment map** for reflections and soft sky light.
 - **Tone mapping:** ACES filmic, exposure 1.2.
-- **Day/night** (`dayNight.ts`):
-  - A 12-minute day, starting at 10:00. Hold **T** to fast-forward ×40.
-  - Time advances with the *physics* clock, so it's deterministic and testable.
-  - Every frame it drives the sun/moon, sky, lit windows, street lamps and vehicle headlights.
+- **Day/night** (`dayNight.ts`): a 12-minute day starting at 10:00 (hold **T** to fast-forward ×40). It advances with the physics clock and drives the sun/moon, sky, lit windows, street lamps and vehicle lights.
 
-**Decision: the environment map is a baked gradient, not the `Sky`.** Baking the physical sky into an environment map produced extremely bright values. On many phones these overflowed the half-float render target, which made surfaces render black (the bug you reported from your phone). A hand-made gradient environment, at intensity 3.0, looks almost the same and is safe everywhere.
+**Decision: the environment map is a baked gradient, not the `Sky`.** Baking the physical sky produced values so bright that many phones overflowed their half-float render target and drew black surfaces. A hand-made gradient environment at intensity 3.0 looks almost the same and is safe everywhere.
 
-### 4.6 Road graph and traffic lights (`roadGraph.ts`)
+### 4.8 Road graph and traffic lights (`roadGraph.ts`)
 
-Intersections are nodes. Each road segment has one inner driving lane per direction (traffic keeps right; the outer lanes are parking). A car's route is a chain of pieces:
-- **lane:** straight along the road;
-- **turn:** a quadratic Bézier curve through the intersection (left, right or straight).
+Intersections are nodes. A car's route is a chain of pieces:
+- **lane:** straight along a road segment, in the inner lane on the right;
+- **turn:** a quadratic Bézier through the intersection (left, right or straight);
+- **U-turn:** only at dead ends, for example where a country road stops at the lake.
 
-`lightState(i, j, dir, time)` gives each intersection a 24 s cycle in which north–south and east–west alternate.
+The graph reads the `RoadNet` from the layout, so missing segments simply aren't there.
+
+`lightState(i, j, dir, time)` gives lit intersections a 24 s cycle in which north–south and east–west alternate.
+
+### 4.9 Water: the sea and the lake (`water.ts`)
+
+**One water surface** at `WATER_Y = −0.5 m` covers both the sea and the lake. It's a 2 km grid every 10 m that follows the player, moving in whole grid cells so its vertices don't swim.
+
+- **Waves:** three long sine waves travelling toward the shore, summed in **world space** in the vertex shader. The normal comes from their analytic slope, and per-pixel ripples are added (faded with distance to avoid shimmer).
+  - Sea waves are ~0.35 m; they calm down in the last metre of depth so they meet the sand gently.
+  - Lake waves are ~6 cm.
+- **Depth:** the shader computes the depth itself, with no texture.
+  - For the sea, it uses the same beach formula as `terrain.ts`.
+  - For the lake, it uses the ellipse.
+- **Colour:** turquoise and see-through in the shallows, dark blue deeper, and a **foam line** where waves wash onto the sand.
+- **Decision: tint the sky reflection blue.** The game's sky lighting is a near-white gradient, and mirrored off water at low angles it made the sea look white. The shader tints the reflected sky toward summer blue and reduces reflection strength.
+- `surfaceAt(x, z)` evaluates the **same wave formula in TypeScript**, so swimmers float on the waves you see.
+- When the camera goes under, `render()` switches the fog to murky blue-green 0.5–28 m, and the HUD adds a tint.
 
 ---
 
@@ -257,11 +363,45 @@ On top sits an **arcade flight assist**. It only *chooses* the forces; physics s
 
 ---
 
+### 5.6 Swimming (`player/onFoot.ts`)
+
+Swimming is part of `OnFootMode`, because it uses the same capsule and camera. Swimming starts when the water is more than 1.25 m above your feet; shallower water is still walking (wading).
+
+**Moving:**
+- Swim at 1.6 m/s, or 2.6 m/s with run held. Acceleration is sluggish, like water.
+- **Buoyancy** eases the body back to floating height (head above the waves) when there's no vertical input.
+- **C / Ctrl** (DIVE) swims down and **Space** swims up. You can't leap out of the water.
+- No attacks or interacting while swimming, and the weapon is hidden.
+
+**Breath:**
+- **12 s** of breath while your head is under the surface, shown as a blue bar under health. It turns red when you're nearly out.
+- After that you lose **10 health per second**, applied in one-second chunks so there's one hurt flash per second, not one per physics step.
+- Breath refills 4× as fast at the surface.
+
+**Animation:** there's no swimming clip in the Quaternius set.
+- Moving: `CharacterModel.setSwimming()` tilts the whole body ~75° forward and plays the walk cycle as a kick.
+- Treading water: nearly upright, in the idle pose.
+- The tilt pivots about the middle of the body so the swimmer stays centred on the capsule.
+
+### 5.7 Vehicles in deep water (`sim/sinking.ts`)
+
+Shared by `Car` and `Helicopter`. A vehicle sinks when its floor (a car) or skids (the helicopter) go under in water deeper than 1 m.
+
+1. **Wreck:** every material is swapped for a dark, waterlogged one, and the engine or rotor stops.
+2. **Eject:** `main.ts`'s `onSink` puts the driver or pilot in the water beside the driver's door (swimming), with a splash and a "sinking!" message.
+3. **Sink:** while sinking, the vehicle's own forces are replaced by water forces: heavy drag plus a push of 70 % of its weight. That leaves 30 % of gravity against strong drag, so it settles at ~1 m/s instead of dropping like a stone.
+4. **Clear up:** after 25 s, parked cars return to their spot and the helicopter to its helipad; jacked cars are gone for good.
+
+Sinking or sunken vehicles can't be entered.
+
+---
+
 ## 6. Life in the city (`src/npc/`)
 
 ### 6.1 Traffic (`traffic.ts`)
 
-- **Pool:** 24 cars kept around the player. They spawn 60–220 m away and are recycled beyond 260 m.
+- **Pool:** 24 cars kept around the player. They spawn on lanes within a few blocks (60–220 m away) and are recycled beyond 260 m.
+- **On the hills:** each car's height and pitch come from the smooth terrain layer ahead of and behind it. Country roads have a higher cruise speed (16 m/s).
 - **Not physics-driven.** Each car chooses its speed along its route, and a *kinematic* body is moved to match, so your car bumps into them as solid objects. This is far cheaper and more predictable than simulating 24 cars.
 - **Driving rules:**
   - Cruise at 11 m/s, slow to 6 m/s in turns.
@@ -286,14 +426,22 @@ On top sits an **arcade flight assist**. It only *chooses* the forces; physics s
   - beyond 90 m they're hidden;
   - each person is one draw call (see §8).
 
-### 6.3 Minimap (`ui/minimap.ts`)
+### 6.3 Minimap and full map (`ui/minimap.ts`, `ui/fullMap.ts`, `world/mapImage.ts`)
 
-- The city is drawn once to an off-screen canvas at 1 px per metre.
-- Each frame that picture is rotated so your view direction points up.
-- Markers: cars, the helicopter, traffic, the shop, mission givers, objectives.
-- It zooms out as you gain altitude. **M** toggles it.
+**Map picture** (`mapImage.ts`): the whole world is drawn once at 0.5 px/m (~2200 px square).
+- Land colours and water come from the coarse height grid; roads, blocks and buildings are drawn on top.
+- Drawing 4 km at 1 px/m would need ~70 MB of canvas memory, too much for phones. So when zoomed in, the maps also draw **sharp vector detail** for the area on screen (`drawDetail`).
+- Map symbols come from one shared function (`drawMarker`).
 
----
+**Minimap:**
+- Round, top right. It turns so your view direction points up and zooms out with altitude.
+- Hospitals, gun stores, mission givers, cars, the helicopter and objectives are shown; objectives off the edge are pinned to the rim.
+- **Click or tap it** to open the full map.
+
+**Full map:**
+- Opens with **M** or from the minimap; closes with M, Esc or ✕. Game input is paused while it's open.
+- North is up. Drag to pan; zoom with the wheel or a pinch, around the cursor.
+- Markers, a legend, a scale bar and a "◎ Me" button that re-centres on you.
 
 ## 7. Gameplay systems (`src/game/`, `src/ui/`)
 
@@ -302,7 +450,7 @@ On top sits an **arcade flight assist**. It only *chooses* the forces; physics s
 - **Health:** 100. Regen starts 6 s after the last damage, at 5 health per second.
 - **Death:**
   1. Fade to "You were knocked out" (`main.ts`).
-  2. Respawn at the spawn point after 2.5 s, minus 20% of your cash. You keep your weapons.
+  2. After 2.5 s, wake up at the nearest hospital, minus 20% of your cash. You keep your weapons.
 - **Money:** you start with $200.
 
 | Weapon | Price | Damage | Range | Notes |
@@ -332,11 +480,25 @@ On top sits an **arcade flight assist**. It only *chooses* the forces; physics s
 
 ### 7.3 Cash pickups (`game/pickups.ts`)
 
-Glowing, spinning bundles placed with the city's seeded RNG. Walk over one to collect it; it comes back after 2 minutes. Knocked-out pedestrians drop one-off cash. All bundles render as one `InstancedMesh`.
+Glowing, spinning bundles on town sidewalks, placed with the world's seeded RNG. Walk over one to collect it; it comes back after 2 minutes. Knocked-out pedestrians drop one-off cash. All bundles render as one `InstancedMesh`, and only the ones within 180 m are drawn (there are hundreds).
 
-### 7.4 Gun store (`game/shop.ts`)
+### 7.4 Gun stores (`game/shop.ts`)
 
-A shopfront with a lit sign on the building nearest the spawn. **E** at the door opens the buy menu (weapons, ammo, add-ons). Input is blocked while the menu is open.
+There are six stores:
+- one on the building nearest the spawn;
+- five more placed by `game/places.ts`: Seaside, Northside, Eastside, Westside and Eastfield. These are small brick shops along a southern sidewalk.
+
+Each has a lit sign, a door and a pulsing marker. **E** at any door opens the same buy menu (weapons, ammo, add-ons). Input is blocked while the menu is open.
+
+### 7.4b Hospitals and respawning (`game/places.ts`)
+
+`createPlaces()` picks town blocks deterministically: the nearest suitable block to a target point in the right zone, avoiding the spawn, helipad and mission-giver blocks. It replaces their buildings **before any chunk is built**, so the streamed meshes and colliders include the new places.
+
+- **8 hospitals:** City General (downtown), Northside, Eastside, Westside, Seaside, and a clinic in each village.
+  - Each is a white building with a red-cross **HOSPITAL** sign over the entrance and a forecourt.
+  - Each has **two parked cars** in the street outside, which respawn like the others.
+- **When you're knocked out**, you wake up at the hospital **nearest to where you fell**, with a toast naming it. The chunks there are loaded first.
+- Hospitals are marked on both maps.
 
 ### 7.5 Chatting (`ui/dialogue.ts`)
 
@@ -494,15 +656,22 @@ Each one-shot is retimed so it lasts as long as the gameplay action.
 
 ## 9. Performance decisions
 
-- **InstancedMesh everywhere** for repeated things (buildings, trees, lamps, traffic parts, cash). The city costs about a dozen draw calls.
+- **Streaming:**
+  - Meshes and colliders exist only for chunks near the player, in two tiers (§4.3).
+  - World data for everything is generated at startup, which stays ~1.2 s.
+  - Chunk building is budgeted to ~4 ms per frame.
+- **Instance pools:** one draw call per object type, drawing only up to the highest slot in use.
+- **Per-chunk meshes** are just terrain, road surface and road paint (3 draw calls per loaded far chunk).
+- **Typical load:** ~200 draw calls and ~1.7 M triangles counting the shadow pass, downtown with ~36 far and ~10 near chunks loaded.
+- **Cheaper objects:**
+  - Street-tree canopies are 140 triangles (one rounder blob plus three simpler ones).
+  - Forest trees are ~40 triangles and cast no shadows.
 - **One draw call per person** (merged meshes + vertex colours + one shared material).
-- **Typical busy street:** ~150 draw calls and ~830k triangles.
-- **Character distance limits:** pedestrian animation freezes beyond 70 m, and pedestrians are hidden beyond 90 m.
-- **Rendering settings:** pixel ratio capped at 2; shadows only from the sun, with a box that follows the player.
-- **Lights:** a fixed set of lights (the shared vehicle light), because changing the number of lights recompiles shaders.
-- **No downloaded textures:** canvas textures and shader-drawn facades.
-- **Dispose** geometries/materials/textures when removing objects (rule in `CLAUDE.md`).
-- **City layout generated per block** from `(seed, x, z)`, ready for chunk streaming if the city grows.
+- **Pedestrians:** animation freezes beyond 70 m; they're hidden beyond 90 m.
+- **Water:** a 40 k-vertex grid with per-pixel ripples; the depth is computed in the shader without textures.
+- **Maps:** one 0.5 px/m picture plus vector detail drawn only for what's on screen.
+- **Fixed lights:** a fixed set of lights (the shared vehicle light), because changing the number of lights recompiles shaders.
+- **Dispose** chunk geometries when unloading, and release their pool slots and colliders.
 
 ---
 
@@ -556,7 +725,13 @@ When adding a feature, the quickest check is the browser console in `npm run dev
 | Tune the helicopter | `player/heli.ts` constants |
 | Rebind keys | `input/actions.ts` (the key table) |
 | Change touch controls | `input/touch.ts` |
-| Change the city size or road widths | `world/layout.ts` (`BLOCKS`, `ROAD_WIDTH`…) |
+| Change the world size, zones or road spacing | `world/layout.ts` (`CELLS`, `zoneOf`, `RURAL_EVERY`, `VILLAGES`, `LAKE`) |
+| Change hills, the beach or ground colours | `world/terrain.ts` (`smoothHeight`, `heightAt`, `colorAt`) |
+| Change streaming distances or chunk size | `world/chunks.ts` (`FAR_LOAD`, `NEAR_LOAD`…, `CHUNK_CELLS`) |
+| Change waves or water colour | `world/water.ts` (`WAVES`, amplitudes, shader colours) |
+| Change swimming, breath or drowning | `player/onFoot.ts` (`SWIM_*`, `BREATH`, `DROWN_DAMAGE`) |
+| Change how vehicles sink | `sim/sinking.ts` |
+| Move or add hospitals and stores | `game/places.ts` (`HOSPITAL_TARGETS`, `STORE_TARGETS`) |
 | Change building looks | `world/facadeMaterial.ts` (shader) and `layout.ts` (styles) |
 | Change day length or start time | `world/dayNight.ts` |
 | Change weapon prices or damage | `game/stats.ts` (`WEAPONS`, `ADDONS`, `AP_AMMO`) |
@@ -576,5 +751,8 @@ When adding a feature, the quickest check is the browser console in `npm run dev
 - Sprinting shows slight foot slip (the accepted trade-off for natural-looking strides).
 - The punk outfits share one material for hair and clothes, so their hair follows the outfit colour. The formal-dress woman's shoes match her hair.
 - No jump animation (the stride nearly freezes in the air).
-- The city is generated all at once; it's structured for chunk streaming but doesn't stream yet.
+- Forest trees and other near-tier details only exist within ~400 m, so distant hills look bare from the helicopter (the distant terrain darkens forests to suggest a canopy).
+- There are no bridges: country roads that would cross the lake stop at it (traffic makes a U-turn).
+- There's no swimming clip: swimming is the walk cycle on a tilted body.
+- The map's countryside colours come from a 32 m grid, so they're soft when zoomed in (roads and buildings stay sharp).
 - Audio doesn't exist yet.

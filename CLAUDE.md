@@ -2,7 +2,7 @@
 
 ## Project
 
-A small open-world city game that runs entirely in the browser. The player can walk, drive cars, and fly a helicopter through a procedurally generated city. Single-player, no backend. Deployed as static files to GitHub Pages.
+A small open-world game that runs entirely in the browser. The player can walk, swim, drive cars, and fly a helicopter through a procedurally generated ~4 × 4 km world: a downtown, suburbs, villages, farmland, northern hills and forest with a lake, and a beach with the sea. The world is streamed in chunks around the player. Single-player, no backend. Deployed as static files to GitHub Pages.
 
 ## Stack
 
@@ -11,7 +11,7 @@ A small open-world city game that runs entirely in the browser. The player can w
 - **Rapier** via `@dimforge/rapier3d-compat` for physics (the compat build embeds the WASM, which avoids Vite/WASM loading issues)
 - Assets: Kenney.nl CC0 low-poly kits (city, cars, characters) as `.glb` (kenney.nl is blocked from the cloud dev environment; download kits locally if needed)
   - People (player, pedestrians, mission givers): 15 CC0 characters from Quaternius' *Ultimate Modular Men/Women* packs, all on one shared skeleton with 24 shared animation clips. `npm run build:quaternius` (`scripts/build-quaternius.mjs`) fetches the sources into `art/quaternius/` (git-ignored) and writes one GLB per character (all parts merged into one mesh/draw call; part colours in vertex colours + a `_PART` index), a shared `animations.glb` and `manifest.json` to `public/assets/characters/`. `player/characterLibrary.ts` loads them and recolours skin / hair / outfit per person; `player/character.ts` blends locomotion and plays one-shots (punch, bat, shoot, hit, wave, talk, knock-out); `ui/characterPicker.ts` is the in-game picker (P / LOOK button), saved in localStorage
-  - Buildings, roads, sidewalks and ground are procedural (facade shader in `world/facadeMaterial.ts`, canvas textures in `world/textures.ts`), not models
+  - Buildings, roads, sidewalks, terrain and water are procedural (facade shader in `world/facadeMaterial.ts`, canvas textures in `world/textures.ts`, height function in `world/terrain.ts`, water shader in `world/water.ts`), not models
   - Cars and the helicopter are procedural too (`vehicles/carModel.ts`, `vehicles/heliModel.ts`)
   - Optional, not wired in yet: Mixamo people (different `mixamorig` skeleton and animation set). Follow `docs/characters.md`, drop FBX files in `art/mixamo/`, then `npm run build:characters` writes GLBs + `manifest.json` to `public/assets/characters/mixamo/`. The build tools (`fbx2gltf`, `@gltf-transform/*`) are dev-only dependencies
 
@@ -38,7 +38,16 @@ For automated checks, `window.game` exposes the world, player, vehicles and NPCs
 ```
 src/
   main.ts          # renderer setup, game loop, fixed physics step
-  world/           # city generation (layout, city meshes, sky), road graph + traffic lights
+  world/
+    layout.ts      # world data: 52×52 cells of 78 m, a zone per cell, road network, town blocks, countryside features
+    terrain.ts     # height function (hills, lake, beach) + ground colours; WATER_Y
+    chunks.ts      # streaming: 13×13 chunks of 312 m, far tier (terrain, roads, buildings) + near tier (trees, lamps)
+    instancePool.ts# shared InstancedMesh slots borrowed by chunks (one draw call per object type)
+    city.ts        # materials, pools, distant terrain, world walls; creates the streamer
+    water.ts       # sea + lake surface (waves, depth colour, foam), waterSurface() for swimmers
+    mapImage.ts    # world picture + vector detail + map symbols (minimap and full map)
+    roadGraph.ts   # traffic lanes/turns on the road network, traffic-light timing
+    sky.ts, dayNight.ts, facadeMaterial.ts, textures.ts, rng.ts
   player/
     state.ts       # player state machine: OnFoot | Driving | Flying
     onFoot.ts      # Rapier kinematic character controller
@@ -47,11 +56,12 @@ src/
     heli.ts        # custom helicopter forces + FlyingMode
   vehicles/        # procedural car / helicopter models
   npc/             # traffic and pedestrians (pooled around the player)
-  game/            # player stats (health/money/weapons), combat, cash pickups, gun store, missions
-  sim/             # SimEntity interface, body interpolation, exit-spot helper
+  game/            # player stats (health/money/weapons), combat, cash pickups, gun stores, missions,
+                   # places.ts (hospitals = respawn points, extra stores)
+  sim/             # SimEntity interface, body interpolation, exit-spot helper, smoke, sinking vehicles
   camera/          # follow camera (on foot), chase camera (vehicles)
   input/           # keyboard/touch → abstract actions
-  ui/              # HUD, minimap, chat bubbles, debug overlay
+  ui/              # HUD, minimap, full map (M), character picker, chat bubbles, debug overlay
 public/
   assets/          # .glb models and textures
 ```
@@ -63,8 +73,8 @@ public/
 - **Input is abstract.** Controllers read actions (`moveForward`, `throttle`, `interact`), never raw keys. Key bindings live only in `input/`.
 - **Units.** SI throughout: meters, kilograms, seconds, radians. Y is up.
 - **Physics owns transforms.** Physics bodies are the source of truth; meshes copy from them each frame. Don't move a mesh that has a physics body directly.
-- **Performance.** Use `InstancedMesh` for repeated buildings and props. Merge static geometry where possible. Generate the city in chunks so it can be streamed in later. Dispose of geometries, materials, and textures when removing objects.
-- **Determinism.** City generation uses a seeded PRNG so the same seed always produces the same city.
+- **Performance.** Repeated buildings and props go into the shared `InstancePool`s (`world/instancePool.ts`), never one mesh each. World meshes and colliders are only built for chunks near the player (`world/chunks.ts`); world *data* (`world/layout.ts`) is generated for everything at startup and must stay cheap. Anything placed in the world (vehicles, pickups) must cope with its chunk not being loaded (no ground collider there). Dispose of geometries, materials, and textures when removing objects.
+- **Determinism.** World generation uses a seeded PRNG and hand-written noise, so the same seed always produces the same world; each cell/chunk has its own random stream (`hashSeed`) so chunks can be built in any order.
 
 ## Deployment (GitHub Pages)
 
@@ -83,9 +93,9 @@ Work on one milestone at a time. Don't start the next until the current one feel
 4. **Flying.** Helicopter with custom forces: collective (lift), cyclic (pitch/roll), tail rotor (yaw). Should hover stably with no input. Enter/exit like the car.
 5. **Life.** NPC traffic on the road graph, pedestrians, day/night cycle, minimap.
 
-Gameplay beyond the milestones: health (regenerates; falls and crashes hurt; death respawns at the spawn point minus 20% cash), cash pickups, a gun store (bat, pistol, rifle, ammo, plus per-weapon add-ons once you own the weapon: 4× scope, light grip for run speed, armour-piercing rounds), melee and gun combat, shootable traffic cars (smoke, wreck, driver drops cash), pedestrians you can chat with / who flee, fight back or get knocked out (no gore), carjacking traffic when armed, and missions from three fixed, invulnerable givers with a "!" marker (`game/missions.ts`: Marco — delivery / package run, Vera — wreck a marked car, Captain Reyes — helicopter ring course; cash reward plus time bonus, fail on timeout or death).
+Gameplay beyond the milestones: health (regenerates; falls and crashes hurt; death respawns at the nearest hospital minus 20% cash — 8 hospitals, `game/places.ts`), swimming (sea and lake; C/Ctrl or DIVE to dive, 12 s of breath, then drowning damage), vehicles that drive or land in deep water eject you, wreck and sink (`sim/sinking.ts`), cash pickups, six gun stores (bat, pistol, rifle, ammo, plus per-weapon add-ons once you own the weapon: 4× scope, light grip for run speed, armour-piercing rounds), melee and gun combat, shootable traffic cars (smoke, wreck, driver drops cash), pedestrians you can chat with / who flee, fight back or get knocked out (no gore), carjacking traffic when armed, and missions from three fixed, invulnerable givers with a "!" marker (`game/missions.ts`: Marco — delivery / package run, Vera — wreck a marked car, Captain Reyes — helicopter ring course; cash reward plus time bonus, fail on timeout or death).
 
-Status: all five milestones are done (day/night: `world/dayNight.ts`, 12-minute day, hold T to fast-forward; minimap: `ui/minimap.ts`, M toggles it).
+Status: all five milestones are done (day/night: `world/dayNight.ts`, 12-minute day, hold T to fast-forward; minimap: `ui/minimap.ts`; full map: `ui/fullMap.ts`, M or tap/click the minimap). The world has since grown to ~4 km with streaming, terrain, water, hospitals and more stores (see `DEVELOPER_GUIDE.md`).
 
 ## Working style
 
