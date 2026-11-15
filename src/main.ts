@@ -11,6 +11,7 @@ import { FlyingMode, Helicopter } from './player/heli';
 import { createCity } from './world/city';
 import { createWorldMap } from './world/mapImage';
 import { Water } from './world/water';
+import { createPlaces } from './game/places';
 import { CURB_HEIGHT, helipadPosition, parkingSpots } from './world/layout';
 import { createSky } from './world/sky';
 import { PAINT_COLORS } from './vehicles/carModel';
@@ -74,6 +75,8 @@ async function main(): Promise<void> {
   world.timestep = PHYSICS_STEP;
 
   const city = createCity(scene, world, CITY_SEED);
+  // Hospitals and extra gun stores take over a few town blocks: before any chunk is built.
+  const places = createPlaces(city.layout, scene);
   // Build the chunks around the spawn now; the rest of the world streams in while you play.
   city.streamer.loadAround(city.spawn, 450);
   // The sea and the lake (waves advance with the physics clock).
@@ -156,6 +159,21 @@ async function main(): Promise<void> {
     );
   }
 
+  // Two cars outside every hospital, so there's something to drive after waking up.
+  for (const h of places.hospitals) {
+    for (const spot of h.parking) {
+      addPlayerCar(
+        new Car(world, scene, {
+          type: spot.type,
+          color: PAINT_COLORS[spot.colorIndex],
+          position: new THREE.Vector3(spot.x, 0, spot.z),
+          yaw: spot.yaw,
+          respawn: true,
+        }),
+      );
+    }
+  }
+
   // The helicopter, waiting on its helipad, nose toward −Z.
   const pad = helipadPosition(city.layout);
   const heli = new Helicopter(world, scene, new THREE.Vector3(pad.x, CURB_HEIGHT, pad.z), Math.PI / 2);
@@ -182,27 +200,32 @@ async function main(): Promise<void> {
   );
   cash.onCollect((amount) => hud.toast(`+$${amount}`));
   entities.push(cash);
-  const shop = new Shop(scene, city.layout, city.spawn, stats, input);
-  onFoot.interactables.push(shop.interactable);
+  const shop = new Shop(scene, city.layout, city.spawn, stats, input, places.stores);
+  onFoot.interactables.push(...shop.interactables);
 
-  // Damage feedback and death: fade out, wake up at the spawn point with full health,
+  // Damage feedback and death: fade out, wake up at the nearest hospital with full health,
   // minus some cash (weapons are kept).
   stats.onDamage((amount) => {
     hud.hurt(amount);
     if (player.mode === onFoot) onFoot.hurt();
   });
   stats.onDeath(() => {
+    const where = (player.mode ?? onFoot).focus();
+    const hospital = places.nearestHospital(where.x, where.z);
     onFoot.knockDown();
     input.setBlocked(true);
     hud.setFade(true, 'You were knocked out');
     window.setTimeout(() => {
       stats.respawn();
       onFoot.standUp();
-      onFoot.placeAt(city.spawn, 0, 0);
+      onFoot.breath = 12;
+      // Load the ground around the hospital before putting the player there.
+      city.streamer.loadAround(hospital.spawn, 450);
+      onFoot.placeAt(hospital.spawn, hospital.heading, hospital.heading);
       player.setMode(onFoot); // leaves any vehicle where it is
       input.setBlocked(false);
       hud.setFade(false);
-      hud.toast(`Lost some cash — $${stats.money} left`, 3);
+      hud.toast(`You woke up at ${hospital.name} — $${stats.money} left`, 3.5);
     }, 2500);
   });
 
@@ -343,7 +366,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { world, camera, sky, water, player, onFoot, picker, library, cars, heli, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -356,7 +379,8 @@ async function main(): Promise<void> {
     ...traffic.positions().map((position) => ({ kind: 'traffic' as const, position })),
     ...cars.map((c) => ({ kind: 'car' as const, position: c.interp.currPos })),
     { kind: 'heli', position: heli.interp.currPos },
-    { kind: 'shop', position: shop.door },
+    ...shop.doors.map((position) => ({ kind: 'shop' as const, position })),
+    ...places.hospitals.map((h) => ({ kind: 'hospital' as const, position: h.door })),
     ...missions.givers.filter((g) => g.marker.visible).map((g) => ({ kind: 'giver' as const, position: g.position })),
     ...missions.objectives().map((position) => ({ kind: 'objective' as const, position })),
   ];
@@ -370,7 +394,8 @@ async function main(): Promise<void> {
   let accumulator = 0;
   let last = performance.now();
   renderer.setAnimationLoop((now: number) => {
-    const frameTime = Math.min((now - last) / 1000, MAX_FRAME_TIME);
+    // Clamped at 0 too: the first frame's timestamp can be slightly earlier than `last`.
+    const frameTime = Math.min(Math.max(0, (now - last) / 1000), MAX_FRAME_TIME);
     last = now;
     accumulator += frameTime;
 

@@ -10,7 +10,7 @@ import type { WorldMap } from '../world/mapImage';
 
 const VIEW_RADIUS = 110; // m from the centre to the edge of the minimap, at ground level
 
-export type MarkerKind = 'car' | 'heli' | 'traffic' | 'shop' | 'giver' | 'objective';
+export type MarkerKind = 'car' | 'heli' | 'traffic' | 'shop' | 'giver' | 'objective' | 'hospital';
 export interface Marker {
   kind: MarkerKind;
   position: THREE.Vector3;
@@ -118,6 +118,17 @@ export class Minimap {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('!', x, z + 0.5 * px);
+        continue;
+      }
+      if (m.kind === 'hospital') {
+        // White disc with a red cross.
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(x, z, 6.5 * px, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#d32f2f';
+        ctx.fillRect(x - 4 * px, z - 1.4 * px, 8 * px, 2.8 * px);
+        ctx.fillRect(x - 1.4 * px, z - 4 * px, 2.8 * px, 8 * px);
         continue;
       }
       if (m.kind === 'traffic') {

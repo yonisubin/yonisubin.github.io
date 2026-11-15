@@ -2,10 +2,12 @@ import * as THREE from 'three';
 import type { Input } from '../input/actions';
 import type { Interactable } from '../player/onFoot';
 import { CURB_HEIGHT, type CityLayout } from '../world/layout';
+import type { StoreSite } from './places';
 import { ADDONS, AP_AMMO, AP_DAMAGE, WEAPONS, type AddonId, type PlayerStats, type WeaponId } from './stats';
 
-// The gun store: a shopfront on the building nearest the spawn point, with a lit sign and a
-// glowing marker at the door. E at the door opens a buy menu (weapons and ammo).
+// Gun stores: a shopfront on the building nearest the spawn point plus the other stores placed
+// around the world (game/places.ts), each with a lit sign and a glowing marker at the door.
+// E at any door opens the same buy menu (weapons, ammo, add-ons).
 
 const SHOP_ITEMS: WeaponId[] = ['bat', 'pistol', 'rifle'];
 
@@ -52,9 +54,12 @@ function signTexture(): THREE.CanvasTexture {
 }
 
 export class Shop {
+  /** The first store's door (by the spawn). */
   readonly door: THREE.Vector3;
-  readonly interactable: Interactable;
-  private readonly marker: THREE.Mesh;
+  /** Every store's door, for the maps. */
+  readonly doors: THREE.Vector3[] = [];
+  readonly interactables: Interactable[] = [];
+  private readonly markers: THREE.Mesh[] = [];
   private panel: HTMLDivElement | null = null;
   private time = 0;
 
@@ -64,45 +69,50 @@ export class Shop {
     near: THREE.Vector3,
     private readonly stats: PlayerStats,
     private readonly input: Input,
+    sites: StoreSite[] = [],
   ) {
-    const spot = storeSpot(layout, near);
-    // Stand-in-front point, a little out from the wall.
-    this.door = spot.door.clone().addScaledVector(spot.normal, 1.2);
-    const yaw = Math.atan2(spot.normal.x, spot.normal.z); // plane faces +Z by default
-
     const signTex = signTexture();
-    const sign = new THREE.Mesh(
-      new THREE.PlaneGeometry(4.2, 1.05),
-      new THREE.MeshStandardMaterial({ map: signTex, emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: 0.5 }),
-    );
-    sign.position.copy(spot.door).addScaledVector(spot.normal, 0.08);
-    sign.position.y = CURB_HEIGHT + 4.1;
-    sign.rotation.y = yaw;
-    scene.add(sign);
+    const signMaterial = new THREE.MeshStandardMaterial({ map: signTex, emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: 0.5 });
+    const doorMaterial = new THREE.MeshStandardMaterial({ color: 0x3b2a1e, roughness: 0.6 });
+    const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xf2c94c, transparent: true, opacity: 0.8, depthWrite: false });
+    const first = storeSpot(layout, near);
+    for (const spot of [first, ...sites]) {
+      // Stand-in-front point, a little out from the wall.
+      const door = spot.door.clone().addScaledVector(spot.normal, 1.2);
+      const yaw = Math.atan2(spot.normal.x, spot.normal.z); // plane faces +Z by default
 
-    const doorPanel = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.6, 2.4),
-      new THREE.MeshStandardMaterial({ color: 0x3b2a1e, roughness: 0.6 }),
-    );
-    doorPanel.position.copy(spot.door).addScaledVector(spot.normal, 0.05);
-    doorPanel.position.y = CURB_HEIGHT + 1.2;
-    doorPanel.rotation.y = yaw;
-    scene.add(doorPanel);
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.05), signMaterial);
+      sign.position.copy(spot.door).addScaledVector(spot.normal, 0.08);
+      sign.position.y = CURB_HEIGHT + 4.1;
+      sign.rotation.y = yaw;
+      scene.add(sign);
 
-    this.marker = new THREE.Mesh(
-      new THREE.RingGeometry(0.6, 0.85, 32).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0xf2c94c, transparent: true, opacity: 0.8, depthWrite: false }),
-    );
-    this.marker.position.copy(this.door);
-    this.marker.position.y = CURB_HEIGHT + 0.03;
-    scene.add(this.marker);
+      const doorPanel = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 2.4), doorMaterial);
+      doorPanel.position.copy(spot.door).addScaledVector(spot.normal, 0.05);
+      doorPanel.position.y = CURB_HEIGHT + 1.2;
+      doorPanel.rotation.y = yaw;
+      scene.add(doorPanel);
 
-    this.interactable = {
-      label: () => 'shop',
-      position: () => this.door,
-      radius: 2.2,
-      activate: () => this.open(),
-    };
+      const marker = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.85, 32).rotateX(-Math.PI / 2), markerMaterial);
+      marker.position.copy(door);
+      marker.position.y = CURB_HEIGHT + 0.03;
+      scene.add(marker);
+      this.markers.push(marker);
+
+      this.doors.push(door);
+      this.interactables.push({
+        label: () => 'shop',
+        position: () => door,
+        radius: 2.2,
+        activate: () => this.open(),
+      });
+    }
+    this.door = this.doors[0];
+  }
+
+  /** The first store (kept for older call sites and tests). */
+  get interactable(): Interactable {
+    return this.interactables[0];
   }
 
   get isOpen(): boolean {
@@ -112,7 +122,8 @@ export class Shop {
   /** Pulse the door marker. Call each frame. */
   render(frameDt: number): void {
     this.time += frameDt;
-    (this.marker.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.35 * Math.sin(this.time * 3);
+    // All markers share one material, so one pulse animates them all.
+    (this.markers[0].material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.35 * Math.sin(this.time * 3);
   }
 
   open(): void {
