@@ -4,6 +4,7 @@ import type { Input } from '../input/actions';
 import type { PlayerMode, TouchButton } from './state';
 import { BodyInterpolator, type SimEntity } from '../sim/entity';
 import { findFreeSpot } from '../sim/exit';
+import { Sinking } from '../sim/sinking';
 import { ChaseCamera } from '../camera/chaseCamera';
 import type { VehicleLight } from '../sim/vehicleLight';
 import type { PlayerStats } from '../game/stats';
@@ -60,6 +61,8 @@ export interface CarOptions {
   color: number;
   position: THREE.Vector3; // ground-level position
   yaw: number; // rad; 0 = facing +X
+  /** Put it back here after it's lost (sunk); otherwise it's gone for good (jacked cars). */
+  respawn?: boolean;
 }
 
 export class Car implements SimEntity {
@@ -70,6 +73,13 @@ export class Car implements SimEntity {
   readonly interp: BodyInterpolator;
   /** Set by the game once the player exists (see main.ts). */
   mode: DrivingMode | null = null;
+  /** Drove into deep water: sinking (see sim/sinking.ts). */
+  readonly sinking = new Sinking();
+  /** Called once when the car goes under (the game ejects the driver). */
+  onSink: ((car: Car) => void) | null = null;
+  /** Sunk and not coming back (a jacked car): hidden, no physics. */
+  gone = false;
+  private readonly origin: { position: THREE.Vector3; yaw: number } | null;
 
   // Driver inputs, set each step by DrivingMode (all zero when parked).
   driven = false;
@@ -94,6 +104,7 @@ export class Car implements SimEntity {
     const d = CAR_DIMENSIONS[options.type];
     this.type = options.type;
     this.mass = d.mass;
+    this.origin = options.respawn ? { position: options.position.clone(), yaw: options.yaw } : null;
 
     // Start slightly above the ground so the suspension settles into place.
     const spawn = options.position.clone().add(new THREE.Vector3(0, 0.15, 0));
@@ -176,6 +187,13 @@ export class Car implements SimEntity {
   }
 
   fixedUpdate(dt: number): void {
+    if (this.gone) return;
+    if (this.sinking.active) {
+      // In the water: no engine, no suspension, just sinking.
+      this.sinking.apply(this.body, dt);
+      if (this.sinking.done) this.clearWreck();
+      return;
+    }
     // A parked car at rest sleeps; skip it entirely until something bumps it awake.
     if (!this.driven && this.body.isSleeping()) return;
     const v0 = this.body.linvel();
@@ -233,6 +251,31 @@ export class Car implements SimEntity {
 
     this.controller.updateVehicle(dt);
     this.recoverIfFlipped(dt, absSpeed);
+
+    // Driven into deep water: the car floor is under the surface.
+    if (this.sinking.check(this.body.translation(), 0.4)) {
+      this.sinking.wreck(this.object);
+      this.driven = false;
+      this.onSink?.(this);
+    }
+  }
+
+  /** The sunken wreck is cleared: back to its parking spot, or gone for good. */
+  private clearWreck(): void {
+    if (!this.origin) {
+      this.gone = true;
+      this.object.visible = false;
+      this.body.setEnabled(false);
+      return;
+    }
+    const { position, yaw } = this.origin;
+    this.sinking.restore(this.body, 0.05, 0.4);
+    this.body.setTranslation({ x: position.x, y: position.y + 0.15, z: position.z }, true);
+    this.body.setRotation(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), true);
+    this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    this.body.resetForces(true);
+    this.interp.snap();
   }
 
   /** If the car ends up on its roof or side and isn't moving, put it back on its wheels. */

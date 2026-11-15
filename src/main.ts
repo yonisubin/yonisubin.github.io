@@ -108,15 +108,37 @@ async function main(): Promise<void> {
     player.setMode(onFoot);
   };
 
+  // Vehicles in deep water sink. If you're in one, you're thrown out into the water beside it.
+  const deepWater = (x: number, z: number) => (water.depthAt(x, z) > 1.0 ? water.surfaceAt(x, z) : null);
+  const onSink = (vehicle: Car | Helicopter) => {
+    const p = vehicle.interp.currPos;
+    const surface = water.surfaceAt(p.x, p.z) ?? p.y;
+    for (let k = 0; k < 6; k++) {
+      smoke.emit(new THREE.Vector3(p.x + (Math.random() - 0.5) * 3, surface + 0.3, p.z + (Math.random() - 0.5) * 3), 0, 1.4);
+    }
+    if (player.mode !== vehicle.mode) return;
+    const fwd = vehicle.forward(new THREE.Vector3());
+    const heading = Math.atan2(-fwd.x, -fwd.z);
+    // Beside the driver's door (the vehicle's left, −Z in its own frame), floating at the surface.
+    const left = new THREE.Vector3(fwd.z, 0, -fwd.x).normalize();
+    const spot = new THREE.Vector3(p.x, surface - 0.25, p.z).addScaledVector(left, vehicle instanceof Helicopter ? 3.5 : 2.4);
+    onFoot.placeAt(spot, heading, heading);
+    player.setMode(onFoot);
+    hud.toast(vehicle instanceof Helicopter ? 'The helicopter is sinking!' : 'Your car is sinking!', 2.5);
+  };
+
   // Cars the player can drive: the parked ones near the spawn (and later, jacked ones).
   const cars: Car[] = [];
   const addPlayerCar = (car: Car) => {
     const mode = new DrivingMode(car, input, camera, world, getOut, vehicleLight, stats);
     car.mode = mode;
+    car.sinking.water = deepWater;
+    car.onSink = onSink;
     onFoot.interactables.push({
       label: () => 'drive',
       position: () => car.interp.currPos,
       radius: 3.2,
+      available: () => !car.sinking.active && !car.gone,
       activate: () => player.setMode(mode),
     });
     entities.push(car);
@@ -129,6 +151,7 @@ async function main(): Promise<void> {
         color: PAINT_COLORS[spot.colorIndex],
         position: new THREE.Vector3(spot.x, 0, spot.z),
         yaw: spot.yaw,
+        respawn: true,
       }),
     );
   }
@@ -138,10 +161,13 @@ async function main(): Promise<void> {
   const heli = new Helicopter(world, scene, new THREE.Vector3(pad.x, CURB_HEIGHT, pad.z), Math.PI / 2);
   const flying = new FlyingMode(heli, input, camera, world, getOut, vehicleLight, stats);
   heli.mode = flying;
+  heli.sinking.water = deepWater;
+  heli.onSink = onSink;
   onFoot.interactables.push({
     label: () => 'fly',
     position: () => heli.interp.currPos,
     radius: 4.5,
+    available: () => !heli.sinking.active,
     activate: () => player.setMode(flying),
   });
   entities.push(heli);
@@ -297,7 +323,7 @@ async function main(): Promise<void> {
   // Parked vehicles sleep while the ground under them isn't loaded (they'd fall through).
   const parkVehicles = () => {
     for (const v of [...cars, heli]) {
-      if (player.mode === v.mode) continue;
+      if (player.mode === v.mode || (v instanceof Car && v.gone)) continue;
       const p = v.body.translation();
       const loaded = city.isLoaded(p.x, p.z);
       if (v.body.isEnabled() !== loaded) v.body.setEnabled(loaded);

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { Input } from '../input/actions';
 import type { PlayerMode, TouchButton } from './state';
+import { Sinking } from '../sim/sinking';
 import { BodyInterpolator, type SimEntity } from '../sim/entity';
 import { findFreeSpot } from '../sim/exit';
 import { ChaseCamera } from '../camera/chaseCamera';
@@ -66,6 +67,12 @@ export class Helicopter implements SimEntity {
   /** Height of the skids above whatever is below, m. */
   altitude = 0;
 
+  /** Came down in deep water: sinking (see sim/sinking.ts). */
+  readonly sinking = new Sinking();
+  /** Called once when it goes under (the game ejects the pilot). */
+  onSink: ((heli: Helicopter) => void) | null = null;
+  private readonly origin: { position: THREE.Vector3; yaw: number };
+
   private rotorAngle = 0;
   private tailAngle = 0;
   private readonly velBefore = new THREE.Vector3();
@@ -77,6 +84,7 @@ export class Helicopter implements SimEntity {
     position: THREE.Vector3,
     yaw: number,
   ) {
+    this.origin = { position: position.clone(), yaw };
     const rot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
     this.body = world.createRigidBody(
       RAPIER.RigidBodyDesc.dynamic()
@@ -121,6 +129,12 @@ export class Helicopter implements SimEntity {
   }
 
   fixedUpdate(dt: number): void {
+    if (this.sinking.active) {
+      this.rotor = 0;
+      this.sinking.apply(this.body, dt);
+      if (this.sinking.done) this.backToHelipad();
+      return;
+    }
     // Rotor spins up while someone is flying, winds down otherwise.
     this.rotor = THREE.MathUtils.clamp(this.rotor + (this.piloted ? dt / SPINUP_TIME : -dt / SPINDOWN_TIME), 0, 1);
     if (this.rotor === 0 && !this.piloted && this.body.isSleeping()) return;
@@ -194,6 +208,25 @@ export class Helicopter implements SimEntity {
     const k = (MASS * G * Math.tan(MAX_TILT)) / (TOP_SPEED * TOP_SPEED);
     this.body.addForce({ x: -k * speed * v.x, y: -k * speed * v.y, z: -k * speed * v.z }, false);
     if (lift > 0) this.body.wakeUp();
+
+    // Skids in deep water: it's going down.
+    if (this.sinking.check(this.body.translation(), 0.3)) {
+      this.sinking.wreck(this.model.root);
+      this.piloted = false;
+      this.onSink?.(this);
+    }
+  }
+
+  /** The sunken wreck is cleared and a new helicopter waits on the helipad. */
+  private backToHelipad(): void {
+    const { position, yaw } = this.origin;
+    this.sinking.restore(this.body, 0.05, 1.5);
+    this.body.setTranslation({ x: position.x, y: position.y + 0.05, z: position.z }, true);
+    this.body.setRotation(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), true);
+    this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    this.body.resetForces(true);
+    this.interp.snap();
   }
 
   /** Distance from the skids to the first thing below (ground, roof), excluding ourselves. */
