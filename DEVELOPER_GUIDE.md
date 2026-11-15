@@ -494,6 +494,7 @@ Sinking or sunken vehicles can't be entered.
   - `flee`: 9 s of running away after violence;
   - `angry`: chase you and punch, 7 damage every 1.1 s, giving up beyond 30 m;
   - `down`: knocked out, lie flat, then sink away after 12 s and respawn.
+- **Run over:** a player car moving faster than 3 m/s (~11 km/h) knocks down anyone inside its footprint, throwing them up to 4 m along its path. Their cash ($10–60) goes straight to the player, since you can't pick cash up from a car, and people nearby flee. Slower than that, a car only nudges past (`checkVehicles` in `pedestrians.ts`, the `vehicles` and `runOver` hooks in `main.ts`).
 - **Hit test for bullets:** a cylinder of radius 0.4 m and height 1.75 m. That's cheaper and more forgiving than per-bone hit boxes.
 - **Performance:**
   - beyond 70 m their animation is frozen;

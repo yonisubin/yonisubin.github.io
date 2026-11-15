@@ -15,7 +15,7 @@ import { Water } from './world/water';
 import { createPlaces } from './game/places';
 import { helipadPosition, parkingSpots } from './world/layout';
 import { createSky } from './world/sky';
-import { PAINT_COLORS } from './vehicles/carModel';
+import { CAR_DIMENSIONS, PAINT_COLORS } from './vehicles/carModel';
 import type { SimEntity } from './sim/entity';
 import { Traffic } from './npc/traffic';
 import { Pedestrians } from './npc/pedestrians';
@@ -251,6 +251,22 @@ async function main(): Promise<void> {
         hitPlayer: (damage) => stats.damage(damage),
         knockedOut: (position) => cash.drop(position, 5 * dropRng.int(1, 8)),
         surface,
+        // Moving player cars run people over; the cash they carried goes straight to you.
+        vehicles: () =>
+          cars
+            .filter((c) => !c.gone && Math.abs(c.speed) > 2)
+            .map((c) => ({
+              position: c.interp.currPos,
+              forward: c.forward(new THREE.Vector3()).setY(0).normalize(),
+              speed: c.speed,
+              halfLength: CAR_DIMENSIONS[c.type].length / 2,
+              halfWidth: CAR_DIMENSIONS[c.type].width / 2,
+            })),
+        runOver: () => {
+          const amount = 5 * dropRng.int(2, 12); // $10–60
+          stats.money += amount;
+          hud.toast(`Ran someone over: +$${amount}`, 2);
+        },
       })
     : null;
   if (pedestrians) entities.push(pedestrians);

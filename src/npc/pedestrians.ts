@@ -18,6 +18,9 @@ import { ROAD_SPECS } from '../world/streets';
 //   angry — leave the loop, chase the player and punch;
 //   down  — knocked out at zero health: fall over, lie still, then sink away and respawn.
 //
+// Vehicles: anyone hit by a moving car (the player's cars) goes down at once, thrown a little
+// along the car's direction, and the player gets the cash they were carrying.
+//
 // A fixed pool is kept around the player; anyone too far away reappears on a block nearer by.
 
 const SPAWN_MIN = 35; // m from the player
@@ -78,7 +81,14 @@ export interface PedestrianHooks {
   knockedOut(position: THREE.Vector3): void;
   /** Height you'd stand at, at (x, z): sidewalks follow the hills (Terrain.surfaceAt). */
   surface(x: number, z: number): number;
+  /** Cars that can run people over: position, unit forward, speed (m/s), half length/width. */
+  vehicles(): { position: THREE.Vector3; forward: THREE.Vector3; speed: number; halfLength: number; halfWidth: number }[];
+  /** A car ran someone over at `position` (the player takes their cash). */
+  runOver(position: THREE.Vector3): void;
 }
+
+/** Slower than this (m/s) a car only nudges people; faster, it knocks them down. */
+const RUN_OVER_SPEED = 3;
 
 export class Pedestrians implements SimEntity {
   private readonly peds: Pedestrian[] = [];
@@ -337,7 +347,7 @@ export class Pedestrians implements SimEntity {
   }
 
   /** Hurt a pedestrian. Melee hits may make them fight back; gunshots make them run. */
-  damage(ped: Pedestrian, amount: number, kind: 'melee' | 'gun'): void {
+  damage(ped: Pedestrian, amount: number, kind: 'melee' | 'gun' | 'vehicle'): void {
     if (!ped.active || ped.state === 'down') return;
     ped.health -= amount;
     if (ped.health <= 0) {
@@ -345,7 +355,10 @@ export class Pedestrians implements SimEntity {
       this.setState(ped, 'down');
       ped.moving = 0;
       ped.model?.knockDown();
-      this.hooks.knockedOut(ped.currPos);
+      // Run over: the player gets their cash straight away (you can't pick cash up from a
+      // car); otherwise it's dropped where they fell.
+      if (kind === 'vehicle') this.hooks.runOver(ped.currPos);
+      else this.hooks.knockedOut(ped.currPos);
       return;
     }
     ped.stagger = 0.35;
@@ -366,8 +379,38 @@ export class Pedestrians implements SimEntity {
 
   // ---------------------------------------------------------------- simulation
 
+  /** Anyone a fast-moving car is driving into goes down, thrown along the car's path. */
+  private checkVehicles(): void {
+    const vehicles = this.hooks.vehicles();
+    for (const v of vehicles) {
+      if (Math.abs(v.speed) < RUN_OVER_SPEED) continue;
+      for (const ped of this.peds) {
+        if (!ped.active || ped.state === 'down') continue;
+        const dx = ped.currPos.x - v.position.x;
+        const dz = ped.currPos.z - v.position.z;
+        if (dx * dx + dz * dz > 49) continue;
+        if (Math.abs(ped.currPos.y - v.position.y) > 2.2) continue;
+        // In the car's frame: along its forward axis and across it.
+        const along = dx * v.forward.x + dz * v.forward.z;
+        const across = Math.abs(dx * -v.forward.z + dz * v.forward.x);
+        if (Math.abs(along) > v.halfLength + HIT_RADIUS || across > v.halfWidth + HIT_RADIUS) continue;
+        // Thrown a little in the direction the car is going (faster → further).
+        const sign = Math.sign(v.speed);
+        const push = Math.min(4, Math.abs(v.speed) * 0.25);
+        const x = ped.currPos.x + v.forward.x * push * sign;
+        const z = ped.currPos.z + v.forward.z * push * sign;
+        ped.currPos.set(x, this.hooks.surface(x, z), z);
+        ped.prevPos.copy(ped.currPos);
+        ped.facing = Math.atan2(v.forward.x * sign, v.forward.z * sign); // falls away from the car
+        this.damage(ped, MAX_HEALTH * 10, 'vehicle');
+        this.alarm(ped.currPos, 25);
+      }
+    }
+  }
+
   fixedUpdate(dt: number): void {
     const { position: player, onFoot } = this.hooks.player();
+    this.checkVehicles();
     for (const ped of this.peds) {
       if (!ped.model) continue; // still loading
       const far = Math.hypot(ped.currPos.x - player.x, ped.currPos.z - player.z) > DESPAWN;
