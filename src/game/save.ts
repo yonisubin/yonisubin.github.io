@@ -9,7 +9,9 @@
 // money changes (purchases, mission rewards, job pay, death, fines all move money) and when
 // the page is hidden or closed.
 
-const KEY = 'opencity.save.v1';
+// A copy of the game served from a sub-folder (the /preview/ build) keeps its own save, so
+// trying a preview never overwrites your progress in the live game on the same site.
+const KEY = `opencity.save.v1${import.meta.env.BASE_URL === '/' ? '' : import.meta.env.BASE_URL}`;
 const VERSION = 1;
 
 export interface SaveData {
