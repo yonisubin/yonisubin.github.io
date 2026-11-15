@@ -62,13 +62,20 @@ const STORE_TARGETS: { name: string; x: number; z: number; zones: Zone[] }[] = [
 ];
 
 export interface Places {
+  /** Blocks taken by hospitals, stores, the spawn, the helipad and the downtown givers. */
+  usedBlocks: Set<Block>;
   hospitals: Hospital[];
   stores: StoreSite[];
   /** The hospital nearest to (x, z). */
   nearestHospital(x: number, z: number): Hospital;
 }
 
-export function createPlaces(layout: CityLayout, scene: THREE.Scene): Places {
+export function createPlaces(
+  layout: CityLayout,
+  scene: THREE.Scene,
+  /** Height you'd stand at, at (x, z) (Terrain.surfaceAt): towns are hilly. */
+  surface: (x: number, z: number) => number,
+): Places {
   // Blocks the spawn, the helipad and the mission givers use stay as they are.
   const reserved = new Set<Block>();
   for (const [bx, bz] of [
@@ -117,11 +124,11 @@ export function createPlaces(layout: CityLayout, scene: THREE.Scene): Places {
     ];
     b.roofProps = [];
     b.trees = b.trees.filter((tr) => Math.abs(tr.z - b.cz) > LOT / 2); // keep street trees only
-    const door = new THREE.Vector3(b.cx, CURB_HEIGHT, z + depth / 2);
+    const door = new THREE.Vector3(b.cx, surface(b.cx, z + depth / 2 + 1), z + depth / 2);
 
     // Sign over the entrance.
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.8), signMaterial);
-    sign.position.set(door.x, CURB_HEIGHT + metrics.groundFloor + 0.6, door.z + 0.08);
+    sign.position.set(door.x, door.y + metrics.groundFloor + 0.45, door.z + 0.08);
     scene.add(sign);
 
     // Two cars in the parking lane of the street to the south (its northern lane, by the
@@ -135,7 +142,7 @@ export function createPlaces(layout: CityLayout, scene: THREE.Scene): Places {
 
     hospitals.push({
       name: t.name,
-      spawn: new THREE.Vector3(door.x, CURB_HEIGHT + 1.0, door.z + 5),
+      spawn: new THREE.Vector3(door.x, surface(door.x, door.z + 5) + 1.0, door.z + 5),
       heading: Math.PI, // facing out to the street (+Z); camera yaw π looks toward +Z
       door,
       parking,
@@ -166,10 +173,11 @@ export function createPlaces(layout: CityLayout, scene: THREE.Scene): Places {
     });
     b.roofProps = b.roofProps.filter((p) => p.z < z - depth / 2 - 2);
     b.trees = b.trees.filter((tr) => !(Math.abs(tr.x - b.cx) < width / 2 + 2 && Math.abs(tr.z - z) < depth / 2 + 2));
-    stores.push({ name: t.name, door: new THREE.Vector3(b.cx, CURB_HEIGHT, z + depth / 2), normal: new THREE.Vector3(0, 0, 1) });
+    stores.push({ name: t.name, door: new THREE.Vector3(b.cx, surface(b.cx, z + depth / 2 + 1), z + depth / 2), normal: new THREE.Vector3(0, 0, 1) });
   }
 
   return {
+    usedBlocks: reserved,
     hospitals,
     stores,
     nearestHospital(x, z) {

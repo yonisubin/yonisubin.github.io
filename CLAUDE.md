@@ -2,7 +2,7 @@
 
 ## Project
 
-A small open-world game that runs entirely in the browser. The player can walk, swim, drive cars, and fly a helicopter through a procedurally generated ~4 × 4 km world: a downtown, suburbs, villages, farmland, northern hills and forest with a lake, and a beach with the sea. The world is streamed in chunks around the player. Single-player, no backend. Deployed as static files to GitHub Pages.
+A small open-world game that runs entirely in the browser. The player can walk, swim, drive cars, and fly a helicopter through a procedurally generated ~4 × 4 km world: a hilly downtown and suburbs, villages, farmland, northern hills and forest with a lake, and a beach with the sea. The world is streamed in chunks around the player. Single-player, no backend. Deployed as static files to GitHub Pages.
 
 ## Stack
 
@@ -40,7 +40,8 @@ src/
   main.ts          # renderer setup, game loop, fixed physics step
   world/
     layout.ts      # world data: 52×52 cells of 78 m, a zone per cell, road network, town blocks, countryside features
-    terrain.ts     # height function (hills, lake, beach) + ground colours; WATER_Y
+    terrain.ts     # height function (town + country hills, lake, beach), ground colours, WATER_Y;
+                   # surfaceAt(x, z): where you'd stand (sidewalk top in a block, else ground/road)
     chunks.ts      # streaming: 13×13 chunks of 312 m, far tier (terrain, roads, buildings) + near tier (trees, lamps)
     instancePool.ts# shared InstancedMesh slots borrowed by chunks (one draw call per object type)
     city.ts        # materials, pools, distant terrain, world walls; creates the streamer
@@ -74,6 +75,7 @@ public/
 - **Units.** SI throughout: meters, kilograms, seconds, radians. Y is up.
 - **Physics owns transforms.** Physics bodies are the source of truth; meshes copy from them each frame. Don't move a mesh that has a physics body directly.
 - **Performance.** Repeated buildings and props go into the shared `InstancePool`s (`world/instancePool.ts`), never one mesh each. World meshes and colliders are only built for chunks near the player (`world/chunks.ts`); world *data* (`world/layout.ts`) is generated for everything at startup and must stay cheap. Anything placed in the world (vehicles, pickups) must cope with its chunk not being loaded (no ground collider there). Dispose of geometries, materials, and textures when removing objects.
+- **Heights.** Nothing is flat: towns are hilly. Anything placed on the ground must take its height from `terrain.surfaceAt(x, z)` (sidewalks, doors, people, pickups) or `terrain.smoothHeight(x, z)` (road level, parked cars) — never a fixed `CURB_HEIGHT`.
 - **Determinism.** World generation uses a seeded PRNG and hand-written noise, so the same seed always produces the same world; each cell/chunk has its own random stream (`hashSeed`) so chunks can be built in any order.
 
 ## Deployment (GitHub Pages)
@@ -93,7 +95,7 @@ Work on one milestone at a time. Don't start the next until the current one feel
 4. **Flying.** Helicopter with custom forces: collective (lift), cyclic (pitch/roll), tail rotor (yaw). Should hover stably with no input. Enter/exit like the car.
 5. **Life.** NPC traffic on the road graph, pedestrians, day/night cycle, minimap.
 
-Gameplay beyond the milestones: health (regenerates; falls and crashes hurt; death respawns at the nearest hospital minus 20% cash — 8 hospitals, `game/places.ts`), swimming (sea and lake; C/Ctrl or DIVE to dive, 12 s of breath, then drowning damage), vehicles that drive or land in deep water eject you, wreck and sink (`sim/sinking.ts`), cash pickups, six gun stores (bat, pistol, rifle, ammo, plus per-weapon add-ons once you own the weapon: 4× scope, light grip for run speed, armour-piercing rounds), melee and gun combat, shootable traffic cars (smoke, wreck, driver drops cash), pedestrians you can chat with / who flee, fight back or get knocked out (no gore), carjacking traffic when armed, and missions from three fixed, invulnerable givers with a "!" marker (`game/missions.ts`: Marco — delivery / package run, Vera — wreck a marked car, Captain Reyes — helicopter ring course; cash reward plus time bonus, fail on timeout or death).
+Gameplay beyond the milestones: health (regenerates; falls and crashes hurt; death respawns at the nearest hospital minus 20% cash — 8 hospitals, `game/places.ts`), swimming (sea and lake; C/Ctrl or DIVE to dive, 12 s of breath, then drowning damage), vehicles that drive or land in deep water eject you, wreck and sink (`sim/sinking.ts`), cash pickups, six gun stores (bat, pistol, rifle, ammo, plus per-weapon add-ons once you own the weapon: 4× scope, light grip for run speed, armour-piercing rounds), melee and gun combat, shootable traffic cars (smoke, wreck, driver drops cash), pedestrians you can chat with / who flee, fight back or get knocked out (no gore), carjacking traffic when armed, and missions from eight fixed, invulnerable givers with a "!" marker (`game/missions.ts`): downtown Marco (delivery / package run), Vera (wreck a marked car) and Captain Reyes (helicopter ring course); Lena at Seaside (buoy swim), Farmer Joe at Eastfield (country race through gates, driving), Ranger Kim at Pinecrest (summit hike to hilltop flags, on foot), Dusty at Westbrook (long-haul delivery, wreck) and Sam in Northside (packages, wreck). Cash reward plus time bonus; fail on timeout or death.
 
 Status: all five milestones are done (day/night: `world/dayNight.ts`, 12-minute day, hold T to fast-forward; minimap: `ui/minimap.ts`; full map: `ui/fullMap.ts`, M or tap/click the minimap). The world has since grown to ~4 km with streaming, terrain, water, hospitals and more stores (see `DEVELOPER_GUIDE.md`).
 

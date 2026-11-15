@@ -12,7 +12,11 @@ import { ADDONS, AP_AMMO, AP_DAMAGE, WEAPONS, type AddonId, type PlayerStats, ty
 const SHOP_ITEMS: WeaponId[] = ['bat', 'pistol', 'rifle'];
 
 /** The door: on the face of the building nearest `near` that faces it. */
-function storeSpot(layout: CityLayout, near: THREE.Vector3): { door: THREE.Vector3; normal: THREE.Vector3 } {
+function storeSpot(
+  layout: CityLayout,
+  near: THREE.Vector3,
+  surface: (x: number, z: number) => number,
+): { door: THREE.Vector3; normal: THREE.Vector3 } {
   let best: { door: THREE.Vector3; normal: THREE.Vector3; dist: number } | null = null;
   for (const block of layout.blocks) {
     for (const b of block.buildings) {
@@ -25,11 +29,13 @@ function storeSpot(layout: CityLayout, near: THREE.Vector3): { door: THREE.Vecto
       for (const [fx, fz, nx, nz] of faces) {
         const dist = Math.hypot(fx - near.x, fz - near.z);
         if (!best || dist < best.dist) {
-          best = { door: new THREE.Vector3(fx, CURB_HEIGHT, fz), normal: new THREE.Vector3(nx, 0, nz), dist };
+          best = { door: new THREE.Vector3(fx, 0, fz), normal: new THREE.Vector3(nx, 0, nz), dist };
         }
       }
     }
   }
+  // Door height: the sidewalk just outside it.
+  best!.door.y = surface(best!.door.x + best!.normal.x, best!.door.z + best!.normal.z);
   return best!;
 }
 
@@ -70,12 +76,13 @@ export class Shop {
     private readonly stats: PlayerStats,
     private readonly input: Input,
     sites: StoreSite[] = [],
+    surface: (x: number, z: number) => number = () => CURB_HEIGHT,
   ) {
     const signTex = signTexture();
     const signMaterial = new THREE.MeshStandardMaterial({ map: signTex, emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: 0.5 });
     const doorMaterial = new THREE.MeshStandardMaterial({ color: 0x3b2a1e, roughness: 0.6 });
     const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xf2c94c, transparent: true, opacity: 0.8, depthWrite: false });
-    const first = storeSpot(layout, near);
+    const first = storeSpot(layout, near, surface);
     for (const spot of [first, ...sites]) {
       // Stand-in-front point, a little out from the wall.
       const door = spot.door.clone().addScaledVector(spot.normal, 1.2);
@@ -83,19 +90,19 @@ export class Shop {
 
       const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.05), signMaterial);
       sign.position.copy(spot.door).addScaledVector(spot.normal, 0.08);
-      sign.position.y = CURB_HEIGHT + 4.1;
+      sign.position.y = spot.door.y + 3.95;
       sign.rotation.y = yaw;
       scene.add(sign);
 
       const doorPanel = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 2.4), doorMaterial);
       doorPanel.position.copy(spot.door).addScaledVector(spot.normal, 0.05);
-      doorPanel.position.y = CURB_HEIGHT + 1.2;
+      doorPanel.position.y = spot.door.y + 1.05;
       doorPanel.rotation.y = yaw;
       scene.add(doorPanel);
 
       const marker = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.85, 32).rotateX(-Math.PI / 2), markerMaterial);
       marker.position.copy(door);
-      marker.position.y = CURB_HEIGHT + 0.03;
+      marker.position.y = door.y + 0.03;
       scene.add(marker);
       this.markers.push(marker);
 

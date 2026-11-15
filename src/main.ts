@@ -13,7 +13,7 @@ import { createWorldMap } from './world/mapImage';
 import { FullMap } from './ui/fullMap';
 import { Water } from './world/water';
 import { createPlaces } from './game/places';
-import { CURB_HEIGHT, helipadPosition, parkingSpots } from './world/layout';
+import { helipadPosition, parkingSpots } from './world/layout';
 import { createSky } from './world/sky';
 import { PAINT_COLORS } from './vehicles/carModel';
 import type { SimEntity } from './sim/entity';
@@ -77,7 +77,8 @@ async function main(): Promise<void> {
 
   const city = createCity(scene, world, CITY_SEED);
   // Hospitals and extra gun stores take over a few town blocks: before any chunk is built.
-  const places = createPlaces(city.layout, scene);
+  const surface = (x: number, z: number) => city.terrain.surfaceAt(x, z);
+  const places = createPlaces(city.layout, scene, surface);
   // Build the chunks around the spawn now; the rest of the world streams in while you play.
   city.streamer.loadAround(city.spawn, 450);
   // The sea and the lake (waves advance with the physics clock).
@@ -155,7 +156,7 @@ async function main(): Promise<void> {
       new Car(world, scene, {
         type: spot.type,
         color: PAINT_COLORS[spot.colorIndex],
-        position: new THREE.Vector3(spot.x, 0, spot.z),
+        position: new THREE.Vector3(spot.x, city.terrain.smoothHeight(spot.x, spot.z), spot.z),
         yaw: spot.yaw,
         respawn: true,
       }),
@@ -169,7 +170,7 @@ async function main(): Promise<void> {
         new Car(world, scene, {
           type: spot.type,
           color: PAINT_COLORS[spot.colorIndex],
-          position: new THREE.Vector3(spot.x, 0, spot.z),
+          position: new THREE.Vector3(spot.x, city.terrain.smoothHeight(spot.x, spot.z), spot.z),
           yaw: spot.yaw,
           respawn: true,
         }),
@@ -179,7 +180,8 @@ async function main(): Promise<void> {
 
   // The helicopter, waiting on its helipad, nose toward −Z.
   const pad = helipadPosition(city.layout);
-  const heli = new Helicopter(world, scene, new THREE.Vector3(pad.x, CURB_HEIGHT, pad.z), Math.PI / 2);
+  const heliStart = new THREE.Vector3(pad.x, city.terrain.surfaceAt(pad.x, pad.z), pad.z);
+  const heli = new Helicopter(world, scene, heliStart, Math.PI / 2);
   const flying = new FlyingMode(heli, input, camera, world, getOut, vehicleLight, stats);
   heli.mode = flying;
   heli.sinking.water = deepWater;
@@ -200,10 +202,11 @@ async function main(): Promise<void> {
     stats,
     () => (player.mode === onFoot ? onFoot.focus() : null),
     () => player.mode?.focus() ?? city.spawn,
+    surface,
   );
   cash.onCollect((amount) => hud.toast(`+$${amount}`));
   entities.push(cash);
-  const shop = new Shop(scene, city.layout, city.spawn, stats, input, places.stores);
+  const shop = new Shop(scene, city.layout, city.spawn, stats, input, places.stores, surface);
   onFoot.interactables.push(...shop.interactables);
 
   // Damage feedback and death: fade out, wake up at the nearest hospital with full health,
@@ -247,6 +250,7 @@ async function main(): Promise<void> {
         player: () => ({ position: playerPosition(), onFoot: player.mode === onFoot }),
         hitPlayer: (damage) => stats.damage(damage),
         knockedOut: (position) => cash.drop(position, 5 * dropRng.int(1, 8)),
+        surface,
       })
     : null;
   if (pedestrians) entities.push(pedestrians);
@@ -300,9 +304,17 @@ async function main(): Promise<void> {
     input,
     playerPosition,
     () => player.mode?.name === 'Flying',
-    new THREE.Vector3(pad.x, CURB_HEIGHT, pad.z),
+    heliStart,
     (text, seconds) => hud.toast(text, seconds),
     touch,
+    surface,
+    {
+      isDriving: () => player.mode?.name === 'Driving',
+      isSwimming: () => player.mode === onFoot && onFoot.swimming,
+      isOnFoot: () => player.mode === onFoot,
+      ground: (x, z) => city.terrain.heightAt(x, z),
+      usedBlocks: places.usedBlocks,
+    },
   );
   entities.push(missions);
   onFoot.interactables.push(...missions.interactables);

@@ -3,7 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import type { SimEntity } from '../sim/entity';
 import type { Smoke } from '../sim/smoke';
 import { Rng } from '../world/rng';
-import { CURB_HEIGHT, ROAD_WIDTH, cellOf, type CityLayout } from '../world/layout';
+import { ROAD_WIDTH, cellOf, type CityLayout } from '../world/layout';
 import type { Terrain } from '../world/terrain';
 import {
   DIRS,
@@ -119,7 +119,7 @@ export class Traffic implements SimEntity {
     private readonly obstacles: ObstacleSource,
   ) {
     this.graph = new RoadGraph(layout);
-    this.lights = new TrafficLights(scene, world, this.graph);
+    this.lights = new TrafficLights(scene, world, this.graph, terrain);
 
     // Instanced meshes per car type and part.
     const counts = new Map<CarType, number>();
@@ -516,7 +516,7 @@ class TrafficLights {
   private readonly lamps: Record<Light, THREE.InstancedMesh>;
   private readonly state: Light[] = [];
 
-  constructor(scene: THREE.Scene, world: RAPIER.World, graph: RoadGraph) {
+  constructor(scene: THREE.Scene, world: RAPIER.World, graph: RoadGraph, terrain: Terrain) {
     const half = ROAD_WIDTH / 2;
     for (let i = 0; i < graph.size; i++) {
       for (let j = 0; j < graph.size; j++) {
@@ -552,7 +552,7 @@ class TrafficLights {
         .node(i, j)
         .addScaledVector(fwd, -(half + 0.8))
         .addScaledVector(right, half + 0.9);
-      base.y = CURB_HEIGHT;
+      base.y = terrain.surfaceAt(base.x, base.z) - 0.05;
       // Face the head toward the oncoming traffic (−fwd). Circles face +Z by default.
       q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fwd.clone().negate());
       m.compose(base, q, s);

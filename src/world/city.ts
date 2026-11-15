@@ -2,9 +2,6 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
-  BLOCK_SIZE,
-  CURB_HEIGHT,
-  LOT,
   WORLD_HALF,
   generateCity,
   helipadPosition,
@@ -78,19 +75,16 @@ export function createCity(scene: THREE.Scene, world: RAPIER.World, seed: number
     return p;
   };
 
-  const pavement = sidewalkTexture();
-  pavement.repeat.set(BLOCK_SIZE / 8, BLOCK_SIZE / 8); // 2 m paving slabs
-  const slabs = pool(
-    new THREE.BoxGeometry(BLOCK_SIZE, CURB_HEIGHT, BLOCK_SIZE).translate(0, CURB_HEIGHT / 2, 0),
-    new THREE.MeshStandardMaterial({ map: pavement, roughness: 0.9 }),
-    700,
-  );
-  slabs.mesh.receiveShadow = true;
-
-  const lawnTex = grassTexture();
-  lawnTex.repeat.set(LOT / 6, LOT / 6);
-  const lawns = pool(new THREE.PlaneGeometry(LOT, LOT).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: lawnTex, roughness: 1 }), 600);
-  lawns.mesh.receiveShadow = true;
+  // Sidewalk slabs and lawns are draped over the hills per chunk (world UVs: one sidewalk
+  // texture tile = 8 m = 4 × 4 paving slabs; one grass tile = 6 m).
+  const pavementMaterial = new THREE.MeshStandardMaterial({ map: sidewalkTexture(), roughness: 0.9 });
+  const lawnMaterial = new THREE.MeshStandardMaterial({
+    map: grassTexture(),
+    roughness: 1,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
 
   // Buildings: one unit box stretched per instance, facades drawn by the shader.
   const buildingGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
@@ -166,11 +160,13 @@ export function createCity(scene: THREE.Scene, world: RAPIER.World, seed: number
   const lightPools = pool(new THREE.PlaneGeometry(10, 10).rotateX(-Math.PI / 2), poolMaterial, 2000);
   lightPools.mesh.visible = false;
 
-  const pools: WorldPools = { buildings, roofs, slabs, lawns, acs, tanks, trunks, canopies, forest, lamps, lampHeads, lightPools };
+  const pools: WorldPools = { buildings, roofs, acs, tanks, trunks, canopies, forest, lamps, lampHeads, lightPools };
   const streamer = new WorldStreamer(scene, world, layout, terrain, pools, {
     terrain: terrainMaterial,
     road: roadMaterial,
     paint: paintMaterial,
+    pavement: pavementMaterial,
+    lawn: lawnMaterial,
   });
 
   // --- Distant terrain: the whole world at low resolution, hidden wherever a chunk is loaded.
@@ -190,7 +186,10 @@ export function createCity(scene: THREE.Scene, world: RAPIER.World, seed: number
       polygonOffsetUnits: -4,
     }),
   );
-  padMesh.position.set(pad.x, CURB_HEIGHT + 0.02, pad.z);
+  const padBlock = terrain.blockUnder(pad.x, pad.z)!;
+  const padPlane = terrain.blockSurface(padBlock);
+  padMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-padPlane.gx, 1, -padPlane.gz).normalize());
+  padMesh.position.set(pad.x, terrain.surfaceAt(pad.x, pad.z) + 0.05, pad.z);
   padMesh.receiveShadow = true;
   scene.add(padMesh);
 
@@ -211,7 +210,7 @@ export function createCity(scene: THREE.Scene, world: RAPIER.World, seed: number
     terrain,
     streamer,
     coarse,
-    spawn: new THREE.Vector3(sp.x, CURB_HEIGHT + 1.0, sp.z),
+    spawn: new THREE.Vector3(sp.x, terrain.surfaceAt(sp.x, sp.z) + 1.0, sp.z),
     setNight(night) {
       lampHeadMaterial.emissiveIntensity = night * 4;
       poolMaterial.opacity = night * 0.55;

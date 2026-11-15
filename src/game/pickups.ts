@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { SimEntity } from '../sim/entity';
 import type { PlayerStats } from './stats';
 import { Rng, hashSeed } from '../world/rng';
-import { BLOCK_SIZE, CURB_HEIGHT, LOT, type CityLayout } from '../world/layout';
+import { BLOCK_SIZE, LOT, type CityLayout } from '../world/layout';
 
 // Cash lying around: glowing, spinning bundles of notes. Walk over one to pick it up.
 // Placed with the city's seeded RNG (same seed, same spots); each comes back a few minutes
@@ -39,6 +39,8 @@ export class Cash implements SimEntity {
     private readonly collector: () => THREE.Vector3 | null,
     /** Where the player is, on foot or not: only cash near here is drawn. */
     private readonly focus: () => THREE.Vector3,
+    /** Height you'd stand at, at (x, z): sidewalk tops follow the hills (Terrain.surfaceAt). */
+    surface: (x: number, z: number) => number,
   ) {
     const rng = new Rng(hashSeed(layout.seed, 5150, 77));
     for (const block of layout.blocks) {
@@ -59,7 +61,7 @@ export class Cash implements SimEntity {
           z = side < 2 ? along : side === 2 ? edge : -edge;
         }
         this.pickups.push({
-          position: new THREE.Vector3(block.cx + x, CURB_HEIGHT, block.cz + z),
+          position: new THREE.Vector3(block.cx + x, surface(block.cx + x, block.cz + z), block.cz + z),
           amount: 5 * rng.int(2, 16), // $10–80
           away: 0,
           dropped: false,

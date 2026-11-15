@@ -7,7 +7,9 @@ import type { CharacterLibrary, Look } from '../player/characterLibrary';
 import type { Interactable } from '../player/onFoot';
 import type { Traffic, TrafficCar } from '../npc/traffic';
 import type { PlayerStats } from './stats';
-import { BLOCK_SIZE, CURB_HEIGHT, MID, WORLD_HALF, type Block, type CityLayout } from '../world/layout';
+import { BLOCK_SIZE, MID, PITCH, VILLAGES, WORLD_HALF, cellOf, lineCoord, type Block, type CityLayout, type Zone } from '../world/layout';
+import { RoadGraph, type Dir } from '../world/roadGraph';
+import { WATER_Y } from '../world/terrain';
 
 // Missions, handed out by three characters who stand at fixed spots with a "!" over their
 // heads. They don't walk about and can't be hurt: they aren't pedestrians at all, just a
@@ -17,11 +19,17 @@ import { BLOCK_SIZE, CURB_HEIGHT, MID, WORLD_HALF, type Block, type CityLayout }
 //                    (collect several packages around the city in time)
 //   Vera           — wreck a marked traffic car before it gets away
 //   Captain Reyes  — fly the helicopter through a course of rings in the sky
+// …and five more around the map:
+//   Lena (Seaside)        — swim out to a line of buoys off the beach, in order
+//   Farmer Joe (Eastfield)— drive a race through gates along the country roads
+//   Ranger Kim (Pinecrest)— hike to flags on the highest hilltops nearby, on foot
+//   Dusty (Westbrook)     — long-haul delivery to a far-off town, or wreck a car
+//   Sam (Northside)       — package runs and wrecking jobs in the suburbs
 //
 // One mission at a time. Success pays a base reward plus a bonus for time left; failing
 // costs nothing (talk to the giver again for a new job). Dying fails the mission.
 
-type MissionKind = 'delivery' | 'packages' | 'wreck' | 'rings';
+type MissionKind = 'delivery' | 'packages' | 'wreck' | 'rings' | 'swim' | 'race' | 'summit' | 'longhaul';
 
 interface Giver {
   name: string;
@@ -52,13 +60,36 @@ interface Mission {
 const DELIVERY_RADIUS = 6; // m
 const PACKAGE_RADIUS = 3; // m
 const RING_RADIUS = 7; // m, inner radius of a sky ring (fly through the middle)
+const BUOY_RADIUS = 4; // m: swim this close to a buoy to tag it
+const GATE_RADIUS = 9; // m: drive through a race gate within this distance of its centre
+const FLAG_RADIUS = 4; // m: walk up to a summit flag
 const GIVER_RADIUS = 2.6; // m, how close to stand to talk to a giver
-/** Fixed looks for the three givers (character id, skin, hair, outfit variant, height). */
+/** The givers further out: where (a point the nearest town block is chosen from), who, and what. */
+const OUTER_GIVERS: { name: string; x: number; z: number; zones: Zone[]; kinds: MissionKind[]; greeting: string; look: Look }[] = [
+  { name: 'Lena', x: -120, z: 1521, zones: ['beachtown'], kinds: ['swim'], greeting: 'Lifeguard trials today. Think you can keep up?', look: { id: 'w_casual', skin: 1, hair: 3, outfit: 3, height: 1.7 } },
+  { name: 'Farmer Joe', x: lineCoord(VILLAGES[0].i) - 60, z: lineCoord(VILLAGES[0].k) - 70, zones: ['village'], kinds: ['race'], greeting: "Fancy a spin round the farm roads? I'll time you.", look: { id: 'm_farmer', skin: 2, hair: 5, outfit: 1, height: 1.82 } },
+  { name: 'Ranger Kim', x: lineCoord(VILLAGES[2].i) - 60, z: lineCoord(VILLAGES[2].k) + 60, zones: ['village'], kinds: ['summit'], greeting: 'The view from up top is worth it. No cars on the trails.', look: { id: 'w_outdoors', skin: 4, hair: 0, outfit: 2, height: 1.68 } },
+  { name: 'Dusty', x: lineCoord(VILLAGES[1].i) + 70, z: lineCoord(VILLAGES[1].k) - 60, zones: ['village'], kinds: ['longhaul', 'wreck'], greeting: "Got a load that needs to go a long way. You drive?", look: { id: 'm_worker', skin: 3, hair: 1, outfit: 5, height: 1.86 } },
+  { name: 'Sam', x: 320, z: -640, zones: ['suburb'], kinds: ['packages', 'wreck'], greeting: 'Busy day in the neighbourhood. Want some work?', look: { id: 'm_casual', skin: 5, hair: 0, outfit: 2, height: 1.76 } },
+];
+
+/** Fixed looks for the three downtown givers (character id, skin, hair, outfit variant, height). */
 const GIVER_LOOKS: Look[] = [
   { id: 'm_hoodie', skin: 3, hair: 0, outfit: 4, height: 1.8 }, // Marco
   { id: 'w_suit', skin: 1, hair: 4, outfit: 0, height: 1.7 }, // Vera
   { id: 'm_outdoors', skin: 2, hair: 5, outfit: 0, height: 1.84 }, // Captain Reyes
 ];
+
+/** What the player is doing, for missions that need a particular way of getting about. */
+export interface MissionHooks {
+  isDriving(): boolean;
+  isSwimming(): boolean;
+  isOnFoot(): boolean;
+  /** Ground height (no sidewalks) at (x, z). */
+  ground(x: number, z: number): number;
+  /** Blocks taken by other places (hospitals, stores…); givers stand elsewhere. */
+  usedBlocks: Set<Block>;
+}
 
 /** "!" badge for the markers. */
 function badgeTexture(): THREE.CanvasTexture {
@@ -96,6 +127,7 @@ export class Missions implements SimEntity {
   private readonly packageMeshes: THREE.Mesh[] = [];
   private readonly rings: THREE.Mesh[] = [];
   private readonly targetArrow: THREE.Mesh;
+  private readonly graph: RoadGraph;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -113,6 +145,9 @@ export class Missions implements SimEntity {
     private readonly helipad: THREE.Vector3,
     private readonly notify: (text: string, seconds?: number) => void,
     private readonly touch: boolean,
+    /** Height you'd stand at, at (x, z): sidewalk tops follow the hills (Terrain.surfaceAt). */
+    private readonly surface: (x: number, z: number) => number,
+    private readonly hooks: MissionHooks,
   ) {
     // --- The three givers, on sidewalks around the spawn (fixed, not random).
     const mid = MID;
@@ -122,12 +157,28 @@ export class Missions implements SimEntity {
       ['Vera', ['wreck'], block(mid - 1, mid + 2), "There's a car out there I want off the road."],
       ['Captain Reyes', ['rings'], block(mid + 1, mid + 2), 'Fancy yourself a pilot? Prove it.'],
     ];
+    // …and the ones further out, each on the town block nearest their spot.
+    const looks = [...GIVER_LOOKS];
+    const taken = new Set<Block>([...hooks.usedBlocks, ...specs.map((s) => s[2])]);
+    for (const o of OUTER_GIVERS) {
+      let best: Block | null = null;
+      for (const b of layout.blocks) {
+        if (!o.zones.includes(b.zone) || taken.has(b) || b.helipad) continue;
+        if (!best || Math.hypot(b.cx - o.x, b.cz - o.z) < Math.hypot(best.cx - o.x, best.cz - o.z)) best = b;
+      }
+      if (!best) continue;
+      taken.add(best);
+      specs.push([o.name, o.kinds, best, o.greeting]);
+      looks.push(o.look);
+    }
+    this.graph = new RoadGraph(layout);
     const badge = badgeTexture();
     specs.forEach(([name, kinds, b, greeting], k) => {
       // On the sidewalk 6 m from the block's south-west corner, between the pedestrians'
       // path and the curb, facing out to the street.
       const half = BLOCK_SIZE / 2;
-      const position = new THREE.Vector3(b.cx - half + 1.2, CURB_HEIGHT, b.cz + half - 6);
+      const position = new THREE.Vector3(b.cx - half + 1.2, 0, b.cz + half - 6);
+      position.y = surface(position.x, position.z);
       const facing = Math.PI / 2; // face −X (the road)
       world.createCollider(RAPIER.ColliderDesc.capsule(0.55, 0.35).setTranslation(position.x, position.y + 0.9, position.z));
       const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: badge, depthTest: true }));
@@ -135,7 +186,7 @@ export class Missions implements SimEntity {
       scene.add(marker);
       const giver: Giver = { name, kinds, position, facing, model: null, marker, greeting, waveTimer: 4 + k * 3 };
       this.givers.push(giver);
-      void library?.create(GIVER_LOOKS[k]).then((model) => {
+      void library?.create(looks[k]).then((model) => {
         model.root.position.copy(position);
         model.root.rotation.y = facing;
         scene.add(model.root);
@@ -217,6 +268,10 @@ export class Missions implements SimEntity {
       packages: ['Package run', 'Four packages are lying around the neighbourhood. Collect them all in time.'],
       wreck: ['Wreck a car', 'A marked car is driving around. Wreck it before it gets away.'],
       rings: ['Ring course', 'Take the helicopter and fly through every ring. The clock starts at the first ring.'],
+      swim: ['Buoy swim', 'Swim out to the five buoys off the beach, in order, before the time runs out.'],
+      race: ['Country race', 'Grab a car and drive through every gate along the country roads. The clock starts at the first gate.'],
+      summit: ['Summit hike', 'Three flags on the highest hilltops around here. Walk up to all of them — on foot only.'],
+      longhaul: ['Long haul', 'A delivery to a town far across the map. Find a car and go — the further it is, the more it pays.'],
     };
     const [title, text] = job[kind];
     const reward = REWARDS[kind];
@@ -272,7 +327,7 @@ export class Missions implements SimEntity {
       const side = Math.floor(Math.random() * 4);
       const x = side < 2 ? (side === 0 ? edge : -edge) : along;
       const z = side < 2 ? along : side === 2 ? edge : -edge;
-      const p = new THREE.Vector3(b.cx + x, CURB_HEIGHT, b.cz + z);
+      const p = new THREE.Vector3(b.cx + x, this.surface(b.cx + x, b.cz + z), b.cz + z);
       const d = Math.hypot(p.x - from.x, p.z - from.z);
       if (d >= min && d <= max) return p;
     }
@@ -325,6 +380,41 @@ export class Missions implements SimEntity {
       m.target = car;
       m.timeLeft = 120;
       m.title = 'Wreck the marked car';
+    } else if (kind === 'longhaul') {
+      const dest = this.sidewalkSpot(from, 1200, 2200);
+      if (!dest) return false;
+      m.points = [dest];
+      const dist = from.distanceTo(dest);
+      m.baseReward = Math.round((150 + dist * 0.15) / 10) * 10;
+      m.timeLeft = Math.round(dist / 11 + 40);
+      m.title = 'Long haul — get to the marked town';
+    } else if (kind === 'swim') {
+      m.points = this.buoyLine(from);
+      if (m.points.length < 5) return false;
+      m.timeLeft = 150;
+      m.title = 'Buoy swim — swim to the buoys';
+      for (const p of m.points) this.addMarker(buoyMesh(), p);
+    } else if (kind === 'race') {
+      m.points = this.raceRoute(from);
+      if (m.points.length < 6) return false;
+      m.title = 'Country race — drive through the first gate';
+      for (let i = 0; i < m.points.length; i++) {
+        const next = m.points[i + 1] ?? m.points[i - 1];
+        const gate = new THREE.Mesh(
+          new THREE.TorusGeometry(GATE_RADIUS * 0.8, 0.35, 8, 36),
+          new THREE.MeshBasicMaterial({ color: 0x4cd964, transparent: true, opacity: 0.85 }),
+        );
+        gate.position.copy(m.points[i]).add(new THREE.Vector3(0, GATE_RADIUS * 0.8 - 0.5, 0));
+        gate.lookAt(next.x, gate.position.y, next.z);
+        this.scene.add(gate);
+        this.rings.push(gate);
+      }
+    } else if (kind === 'summit') {
+      m.points = this.summits(from);
+      if (m.points.length < 3) return false;
+      m.timeLeft = 300;
+      m.title = 'Summit hike — reach the flags on foot';
+      for (const p of m.points) this.addMarker(flagMesh(), p);
     } else {
       m.points = this.ringCourse();
       m.title = 'Ring course — fly through the first ring';
@@ -345,6 +435,103 @@ export class Missions implements SimEntity {
     giver.marker.visible = false;
     this.notify(`Mission: ${m.title.split(' — ')[0]}`, 2);
     return true;
+  }
+
+  /** A marker object at a point (buoys, flags), removed when the mission ends. */
+  private addMarker(object: THREE.Mesh, p: THREE.Vector3): void {
+    object.position.copy(p);
+    this.scene.add(object);
+    this.packageMeshes.push(object);
+  }
+
+  /** Five buoys in a zig-zag line out to sea from the nearest beach, in deep-enough water. */
+  private buoyLine(from: THREE.Vector3): THREE.Vector3[] {
+    // Walk south from the giver to the first water at least 1.5 m deep.
+    let z = from.z;
+    while (z < WORLD_HALF - 100 && this.hooks.ground(from.x, z) > WATER_Y - 1.5) z += 5;
+    const points: THREE.Vector3[] = [];
+    for (let i = 0; i < 5; i++) {
+      const x = from.x + (i % 2 === 0 ? -1 : 1) * (25 + Math.random() * 20);
+      const pz = z + 15 + i * 28;
+      if (this.hooks.ground(x, pz) > WATER_Y - 1.2) continue;
+      points.push(new THREE.Vector3(x, WATER_Y, pz));
+    }
+    return points;
+  }
+
+  /**
+   * A race along the road network: from the intersection nearest `from`, wander along the
+   * roads (mostly straight on, never back) and put a gate every few intersections.
+   */
+  private raceRoute(from: THREE.Vector3): THREE.Vector3[] {
+    let i = cellOf(from.x + PITCH / 2);
+    let j = cellOf(from.z + PITCH / 2);
+    // Snap to a node that has a road.
+    const dirs: Dir[] = [0, 1, 2, 3];
+    const hasAny = (a: number, b: number) => dirs.some((d) => this.graph.hasRoad(a, b, d));
+    for (let r = 0; r < 4 && !hasAny(i, j); r++) {
+      i += r % 2 ? 1 : -1;
+    }
+    if (!hasAny(i, j)) return [];
+    // Head off toward the middle of the map (away from the dead ends at the world's edge).
+    const DX = [1, 0, -1, 0];
+    const DZ = [0, 1, 0, -1];
+    const toCentre = (d: Dir) => -(DX[d] * lineCoord(i) + DZ[d] * lineCoord(j));
+    let dir: Dir = dirs.filter((d) => this.graph.hasRoad(i, j, d)).sort((a, b) => toCentre(b) - toCentre(a))[0];
+    const points: THREE.Vector3[] = [];
+    // Intersections already on the route: avoided where possible, so the race doesn't loop
+    // back over itself (and never gets two gates in one place).
+    const visited = new Set<string>([`${i},${j}`]);
+    for (let step = 0; step < 48 && points.length < 8; step++) {
+      const next = this.graph.neighbor(i, j, dir);
+      if (!next) break;
+      [i, j] = next;
+      const key = `${i},${j}`;
+      if (step % 4 === 3 && !visited.has(key)) {
+        const x = lineCoord(i);
+        const z = lineCoord(j);
+        points.push(new THREE.Vector3(x, this.hooks.ground(x, z), z));
+      }
+      visited.add(key);
+      // Choose the next direction: straight on mostly, turn sometimes, never back, and
+      // preferably toward intersections not visited yet.
+      const exits = this.graph.exits(i, j, dir).filter((d) => d !== (dir + 2) % 4);
+      if (!exits.length) {
+        dir = ((dir + 2) % 4) as Dir; // dead end: turn round
+        continue;
+      }
+      const fresh = exits.filter((d) => {
+        const n = this.graph.neighbor(i, j, d);
+        return n !== null && !visited.has(`${n[0]},${n[1]}`);
+      });
+      const options = fresh.length ? fresh : exits;
+      const straight = options.includes(dir) && Math.random() < 0.6;
+      dir = straight ? dir : options[Math.floor(Math.random() * options.length)];
+    }
+    return points;
+  }
+
+  /** Three flags on the highest hilltops 150–650 m away, at least 150 m apart, above the water. */
+  private summits(from: THREE.Vector3): THREE.Vector3[] {
+    const spots: THREE.Vector3[] = [];
+    for (let dz = -650; dz <= 650; dz += 25) {
+      for (let dx = -650; dx <= 650; dx += 25) {
+        const d = Math.hypot(dx, dz);
+        if (d < 150 || d > 650) continue;
+        const x = from.x + dx;
+        const z = from.z + dz;
+        if (Math.abs(x) > WORLD_HALF - 120 || Math.abs(z) > WORLD_HALF - 120) continue;
+        spots.push(new THREE.Vector3(x, this.hooks.ground(x, z), z));
+      }
+    }
+    spots.sort((a, b) => b.y - a.y);
+    const chosen: THREE.Vector3[] = [];
+    for (const s of spots) {
+      if (s.y < WATER_Y + 3) break;
+      if (chosen.every((c) => Math.hypot(c.x - s.x, c.z - s.z) > 150)) chosen.push(s);
+      if (chosen.length === 3) break;
+    }
+    return chosen;
   }
 
   /** Six rings at rising altitude, meandering away from the helipad, inside the city. */
@@ -378,10 +565,14 @@ export class Missions implements SimEntity {
       this.notify(`Mission failed — ${reason}`, 3);
     }
     if (m.target) m.target.pinned = false;
-    for (const mesh of [...this.packageMeshes, ...this.rings]) {
-      this.scene.remove(mesh);
-      mesh.geometry.dispose();
-      (mesh.material as THREE.Material).dispose();
+    for (const object of [...this.packageMeshes, ...this.rings]) {
+      this.scene.remove(object);
+      object.traverse((o) => {
+        if (o instanceof THREE.Mesh) {
+          o.geometry.dispose();
+          (o.material as THREE.Material).dispose();
+        }
+      });
     }
     this.packageMeshes.length = 0;
     this.rings.length = 0;
@@ -429,6 +620,47 @@ export class Missions implements SimEntity {
       const car = m.target!;
       if (car.wrecked >= 0) this.finish(true);
       else if (!car.active) this.finish(false, 'the car got away');
+    } else if (m.kind === 'longhaul') {
+      if (Math.hypot(p.x - m.points[0].x, p.z - m.points[0].z) < DELIVERY_RADIUS && Math.abs(p.y - m.points[0].y) < 4) {
+        this.finish(true);
+      }
+    } else if (m.kind === 'swim') {
+      // Buoys in order, swimming.
+      const buoy = m.points[m.done];
+      if (this.hooks.isSwimming() && buoy && Math.hypot(p.x - buoy.x, p.z - buoy.z) < BUOY_RADIUS) {
+        this.packageMeshes[m.done].visible = false;
+        m.done++;
+        if (m.done === m.points.length) this.finish(true);
+        else this.notify(`Buoy ${m.done}/${m.points.length}`, 1);
+      }
+    } else if (m.kind === 'race') {
+      // Gates in order, driving. The clock starts at the first gate.
+      const gate = m.points[m.done];
+      if (this.hooks.isDriving() && gate && Math.hypot(p.x - gate.x, p.z - gate.z) < GATE_RADIUS) {
+        this.rings[m.done].visible = false;
+        m.done++;
+        if (m.done === 1) {
+          // Time for the rest of the route at a brisk country-road pace.
+          let length = 0;
+          for (let k = 1; k < m.points.length; k++) length += m.points[k].distanceTo(m.points[k - 1]);
+          m.timeLeft = Math.round(length / 15 + 15);
+          m.title = 'Country race — drive through the gates';
+        }
+        if (m.done === m.points.length) this.finish(true);
+        else this.notify(`Gate ${m.done}/${m.points.length}`, 1);
+      }
+    } else if (m.kind === 'summit') {
+      // Flags in any order, on foot.
+      m.points.forEach((pt, k) => {
+        const flag = this.packageMeshes[k];
+        if (!flag.visible || !this.hooks.isOnFoot()) return;
+        if (Math.hypot(p.x - pt.x, p.z - pt.z) < FLAG_RADIUS && Math.abs(p.y - pt.y) < 4) {
+          flag.visible = false;
+          m.done++;
+          this.notify(`Summit ${m.done}/${m.points.length}`, 1.2);
+        }
+      });
+      if (m.done === m.points.length) this.finish(true);
     } else {
       // Rings: only count while flying the helicopter. The clock starts at the first ring.
       const ring = m.points[m.done];
@@ -477,9 +709,19 @@ export class Missions implements SimEntity {
       return;
     }
     // Markers.
-    if (m.kind === 'delivery') {
+    if (m.kind === 'delivery' || m.kind === 'longhaul') {
       this.beacon.visible = true;
       this.beacon.position.copy(m.points[0]);
+    } else if (m.kind === 'swim') {
+      // Buoys bob on the swell; the next one glows.
+      this.packageMeshes.forEach((b, i) => {
+        b.position.y = WATER_Y - 0.1 + Math.sin(this.time * 1.6 + i) * 0.15;
+        b.scale.setScalar(i === m.done ? 1.25 : 1);
+      });
+    } else if (m.kind === 'race') {
+      this.rings.forEach((r, i) => {
+        (r.material as THREE.MeshBasicMaterial).color.set(i === m.done ? 0x4cd964 : 0x3a6b44);
+      });
     } else if (m.kind === 'packages') {
       for (const box of this.packageMeshes) box.rotation.y += frameDt * 1.5;
     } else if (m.kind === 'wreck' && m.target) {
@@ -495,7 +737,7 @@ export class Missions implements SimEntity {
     const clock = Number.isFinite(m.timeLeft)
       ? ` · ${Math.floor(m.timeLeft / 60)}:${String(Math.floor(m.timeLeft % 60)).padStart(2, '0')}`
       : '';
-    const progress = m.kind === 'packages' || m.kind === 'rings' ? ` (${m.done}/${m.points.length})` : '';
+    const progress = ['packages', 'rings', 'swim', 'race', 'summit'].includes(m.kind) ? ` (${m.done}/${m.points.length})` : '';
     const text = `${m.title}${progress}${clock}`;
     if (this.hudLine.textContent !== text) this.hudLine.textContent = text;
     this.hudLine.style.display = '';
@@ -506,8 +748,8 @@ export class Missions implements SimEntity {
   objectives(): THREE.Vector3[] {
     const m = this.mission;
     if (!m) return [];
-    if (m.kind === 'delivery') return [m.points[0]];
-    if (m.kind === 'packages') return m.points.filter((_, i) => this.packageMeshes[i]?.visible);
+    if (m.kind === 'delivery' || m.kind === 'longhaul') return [m.points[0]];
+    if (m.kind === 'packages' || m.kind === 'summit') return m.points.filter((_, i) => this.packageMeshes[i]?.visible);
     if (m.kind === 'wreck') return m.target ? [m.target.currPos] : [];
     const ring = m.points[m.done];
     return ring ? [ring] : [];
@@ -520,4 +762,37 @@ const REWARDS: Record<MissionKind, { base: number; bonus: number }> = {
   packages: { base: 200, bonus: 1.5 },
   wreck: { base: 250, bonus: 2 },
   rings: { base: 300, bonus: 3 },
+  swim: { base: 220, bonus: 2 },
+  race: { base: 350, bonus: 4 },
+  summit: { base: 300, bonus: 1 },
+  longhaul: { base: 300, bonus: 1.5 }, // base is recomputed from the distance
 };
+
+/** A red-and-white marker buoy (origin at the waterline). */
+function buoyMesh(): THREE.Mesh {
+  const buoy = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.55, 0.7, 1.2, 14).translate(0, 0.3, 0),
+    new THREE.MeshStandardMaterial({ color: 0xe03a2f, roughness: 0.5, emissive: 0x401010 }),
+  );
+  const band = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.58, 0.58, 0.3, 14).translate(0, 0.55, 0),
+    new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5 }),
+  );
+  const light = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8).translate(0, 1.05, 0), new THREE.MeshBasicMaterial({ color: 0xffd60a }));
+  buoy.add(band, light);
+  return buoy;
+}
+
+/** A flag on a pole (origin at the foot of the pole). */
+function flagMesh(): THREE.Mesh {
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.06, 3.2, 8).translate(0, 1.6, 0),
+    new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.5, roughness: 0.4 }),
+  );
+  const cloth = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.2, 0.75).translate(0.6, 2.75, 0),
+    new THREE.MeshStandardMaterial({ color: 0xff3b5c, emissive: 0x501020, side: THREE.DoubleSide }),
+  );
+  pole.add(cloth);
+  return pole;
+}

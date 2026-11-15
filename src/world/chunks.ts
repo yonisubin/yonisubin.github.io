@@ -5,9 +5,11 @@ import {
   CELLS,
   CURB_HEIGHT,
   PITCH,
+  LOT,
   ROAD_WIDTH,
   lineCoord,
   ruralFeatures,
+  type Block,
   type Building,
   type CityLayout,
   type Tree,
@@ -46,8 +48,6 @@ const PAINT_Y = 0.05;
 export interface WorldPools {
   buildings: InstancePool;
   roofs: InstancePool;
-  slabs: InstancePool;
-  lawns: InstancePool;
   acs: InstancePool;
   tanks: InstancePool;
   trunks: InstancePool;
@@ -62,6 +62,8 @@ export interface ChunkMaterials {
   terrain: THREE.Material;
   road: THREE.Material;
   paint: THREE.Material;
+  pavement: THREE.Material;
+  lawn: THREE.Material;
 }
 
 /** Everything one tier of a chunk created, so it can all be removed again. */
@@ -83,6 +85,8 @@ interface Chunk {
 type Job = { chunk: Chunk; tier: 'far' | 'near' };
 
 const _color = new THREE.Color();
+/** Town block sidewalks are draped over the hills on a grid of BLOCK_GRID × BLOCK_GRID quads. */
+const BLOCK_GRID = 8;
 export const LAMP_HEAD_OUT = 1.8; // m from the pole to the luminaire
 
 export class WorldStreamer {
@@ -214,18 +218,22 @@ export class WorldStreamer {
     };
     const collider = (desc: RAPIER.ColliderDesc) => t.colliders.push(this.world.createCollider(desc));
 
-    // Town blocks: raised slab (sidewalk + lot), lawn, buildings.
+    // Town blocks: raised sidewalk + lot draped over the hills, lawn, buildings.
     const buildings: Building[] = [];
+    const pavement = new GeometryBuilder();
+    const lawn = new GeometryBuilder();
     for (let bz = c.cz * CHUNK_CELLS; bz < (c.cz + 1) * CHUNK_CELLS; bz++) {
       for (let bx = c.cx * CHUNK_CELLS; bx < (c.cx + 1) * CHUNK_CELLS; bx++) {
         const block = this.layout.blockAt(bx, bz);
         if (!block) continue;
-        this.pools.slabs.place(take(this.pools.slabs), block.cx, 0, block.cz);
-        collider(
-          RAPIER.ColliderDesc.cuboid(BLOCK_SIZE / 2, CURB_HEIGHT / 2, BLOCK_SIZE / 2).setTranslation(block.cx, CURB_HEIGHT / 2, block.cz),
-        );
-        if (block.lawn) this.pools.lawns.place(take(this.pools.lawns), block.cx, CURB_HEIGHT + 0.01, block.cz);
-        buildings.push(...block.buildings);
+        this.buildBlockSurface(block, pavement, lawn, collider);
+        // Buildings stand upright on the slope: base at the footprint's lowest corner, walls
+        // taller by the drop so the roof is level with where it would be on flat ground at
+        // the highest corner (the uphill side is set into the hill).
+        for (const bl of block.buildings) {
+          const f = this.footing(block, bl);
+          buildings.push({ ...bl, y: f.low + CURB_HEIGHT - 0.05, height: bl.height + (f.high - f.low) + 0.05 });
+        }
       }
     }
 
@@ -247,6 +255,16 @@ export class WorldStreamer {
     }
     c.rural = rural;
     buildings.push(...rural.buildings);
+    for (const [b, material, uvSize] of [
+      [pavement, this.materials.pavement, 8],
+      [lawn, this.materials.lawn, 6],
+    ] as const) {
+      if (b.empty) continue;
+      const mesh = new THREE.Mesh(b.build(uvSize), material);
+      mesh.receiveShadow = true;
+      this.scene.add(mesh);
+      t.meshes.push(mesh);
+    }
 
     for (const bl of buildings) {
       const slot = take(this.pools.buildings);
@@ -421,8 +439,7 @@ export class WorldStreamer {
         if (roads.hasH(i, k) || roads.hasH(i - 1, k) || roads.hasV(i, k) || roads.hasV(i, k - 1)) {
           const x = lineCoord(i);
           const z = lineCoord(k);
-          const y = h(x, z);
-          asphalt.quad(x - half, z + half, x + half, z + half, x + half, z - half, x - half, z - half, () => y, ROAD_Y, surface.color);
+          asphalt.quad(x - half, z + half, x + half, z + half, x + half, z - half, x - half, z - half, h, ROAD_Y, surface.color);
         }
       }
     }
@@ -436,6 +453,70 @@ export class WorldStreamer {
     };
     add(asphalt, this.materials.road);
     add(paint, this.materials.paint);
+  }
+
+  /** Lowest and highest ground height (road level) under a town building's footprint. */
+  private footing(block: Block, bl: Building): { low: number; high: number } {
+    let low = Infinity;
+    let high = -Infinity;
+    // Corners and edge midpoints: the hills are smooth, so this catches the extremes.
+    for (const [fx, fz] of [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0], [0, 0]]) {
+      const h = this.terrain.blockHeight(block, bl.x + (fx * bl.width) / 2, bl.z + (fz * bl.depth) / 2);
+      low = Math.min(low, h);
+      high = Math.max(high, h);
+    }
+    return { low, high };
+  }
+
+  /**
+   * A town block's raised slab, draped over the smooth hills so it sits exactly CURB_HEIGHT
+   * above the roads all round: a top grid every 8 m, curb faces down each side, the lawn
+   * over the lot, and a heightfield collider matching the top.
+   */
+  private buildBlockSurface(
+    block: Block,
+    pavement: GeometryBuilder,
+    lawn: GeometryBuilder,
+    collider: (desc: RAPIER.ColliderDesc) => void,
+  ): void {
+    const n = BLOCK_GRID;
+    const half = BLOCK_SIZE / 2;
+    const step = BLOCK_SIZE / n;
+    const top = (x: number, z: number) => this.terrain.blockHeight(block, x, z) + CURB_HEIGHT;
+    const white = [1, 1, 1] as const;
+    for (let iz = 0; iz < n; iz++) {
+      for (let ix = 0; ix < n; ix++) {
+        const x0 = block.cx - half + ix * step;
+        const z0 = block.cz - half + iz * step;
+        pavement.quad(x0, z0, x0 + step, z0, x0 + step, z0 + step, x0, z0 + step, top, 0, white);
+      }
+    }
+    // Curb faces: from the sidewalk top down below the road on all four sides.
+    for (let i = 0; i < n; i++) {
+      const a = -half + i * step;
+      const b = a + step;
+      pavement.wall(block.cx + a, block.cz - half, block.cx + b, block.cz - half, top, CURB_HEIGHT + 0.5, 0, -1, white);
+      pavement.wall(block.cx + a, block.cz + half, block.cx + b, block.cz + half, top, CURB_HEIGHT + 0.5, 0, 1, white);
+      pavement.wall(block.cx - half, block.cz + a, block.cx - half, block.cz + b, top, CURB_HEIGHT + 0.5, -1, 0, white);
+      pavement.wall(block.cx + half, block.cz + a, block.cx + half, block.cz + b, top, CURB_HEIGHT + 0.5, 1, 0, white);
+    }
+    if (block.lawn) {
+      const ln = 7;
+      const ls = LOT / ln;
+      for (let iz = 0; iz < ln; iz++) {
+        for (let ix = 0; ix < ln; ix++) {
+          const x0 = block.cx - LOT / 2 + ix * ls;
+          const z0 = block.cz - LOT / 2 + iz * ls;
+          lawn.quad(x0, z0, x0 + ls, z0, x0 + ls, z0 + ls, x0, z0 + ls, top, 0.02, white);
+        }
+      }
+    }
+    // Heightfield collider over the block: rows along Z, columns along X, column-major.
+    const hf = new Float32Array((n + 1) * (n + 1));
+    for (let ix = 0; ix <= n; ix++) {
+      for (let iz = 0; iz <= n; iz++) hf[ix * (n + 1) + iz] = top(block.cx - half + ix * step, block.cz - half + iz * step);
+    }
+    collider(RAPIER.ColliderDesc.heightfield(n, n, hf, { x: BLOCK_SIZE, y: 1, z: BLOCK_SIZE }).setTranslation(block.cx, 0, block.cz));
   }
 
   // ------------------------------------------------------------------ near tier
@@ -454,26 +535,31 @@ export class WorldStreamer {
       for (let bx = c.cx * CHUNK_CELLS; bx < (c.cx + 1) * CHUNK_CELLS; bx++) {
         const block = this.layout.blockAt(bx, bz);
         if (!block) continue;
+        const top = (x: number, z: number) => this.terrain.blockHeight(block, x, z) + CURB_HEIGHT;
         for (const prop of block.roofProps) {
+          // Roof height is set by the building's highest corner (see buildFar).
           const pool = prop.kind === 'ac' ? p.acs : p.tanks;
-          pool.place(take(pool), prop.x, CURB_HEIGHT + prop.y, prop.z, ...prop.size);
+          pool.place(take(pool), prop.x, this.footing(block, prop.building).high + CURB_HEIGHT + prop.y, prop.z, ...prop.size);
         }
         for (const tr of block.trees) {
           const yaw = tr.hue * Math.PI * 2;
-          p.trunks.place(take(p.trunks), tr.x, tr.y, tr.z, tr.scale, tr.scale, tr.scale, yaw);
+          const y = top(tr.x, tr.z) - 0.05;
+          p.trunks.place(take(p.trunks), tr.x, y, tr.z, tr.scale, tr.scale, tr.scale, yaw);
           const slot = take(p.canopies);
-          p.canopies.place(slot, tr.x, tr.y, tr.z, tr.scale, tr.scale, tr.scale, yaw);
+          p.canopies.place(slot, tr.x, y, tr.z, tr.scale, tr.scale, tr.scale, yaw);
           p.canopies.setColor(slot, _color.setHSL(0.22 + tr.hue * 0.09, 0.45, 0.16 + tr.hue * 0.08));
-          collider(RAPIER.ColliderDesc.cylinder(1.4 * tr.scale, 0.2 * tr.scale).setTranslation(tr.x, tr.y + 1.4 * tr.scale, tr.z));
+          collider(RAPIER.ColliderDesc.cylinder(1.4 * tr.scale, 0.2 * tr.scale).setTranslation(tr.x, y + 1.4 * tr.scale, tr.z));
         }
         for (const l of block.lamps) {
-          p.lamps.place(take(p.lamps), l.x, CURB_HEIGHT, l.z, 1, 1, 1, l.yaw);
-          p.lampHeads.place(take(p.lampHeads), l.x, CURB_HEIGHT, l.z, 1, 1, 1, l.yaw);
-          // Ground point under the luminaire: the arm's +X direction after yawing by l.yaw.
+          const y = top(l.x, l.z) - 0.05;
+          p.lamps.place(take(p.lamps), l.x, y, l.z, 1, 1, 1, l.yaw);
+          p.lampHeads.place(take(p.lampHeads), l.x, y, l.z, 1, 1, 1, l.yaw);
+          // Ground point under the luminaire (over the road): the arm's +X direction after
+          // yawing by l.yaw.
           const gx = l.x + Math.cos(l.yaw) * LAMP_HEAD_OUT;
           const gz = l.z - Math.sin(l.yaw) * LAMP_HEAD_OUT;
-          p.lightPools.place(take(p.lightPools), gx, CURB_HEIGHT + 0.02, gz);
-          collider(RAPIER.ColliderDesc.cylinder(3.5, 0.12).setTranslation(l.x, CURB_HEIGHT + 3.5, l.z));
+          p.lightPools.place(take(p.lightPools), gx, this.terrain.surfaceAt(gx, gz) + 0.06, gz);
+          collider(RAPIER.ColliderDesc.cylinder(3.5, 0.12).setTranslation(l.x, y + 3.5, l.z));
         }
       }
     }
@@ -529,13 +615,44 @@ class GeometryBuilder {
     else this.indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
   }
 
-  build(): THREE.BufferGeometry {
+  /**
+   * A vertical face from (x0, z0) to (x1, z1): top edge at `top(x, z)`, `drop` metres deep,
+   * facing outward along (nx, nz).
+   */
+  wall(
+    x0: number,
+    z0: number,
+    x1: number,
+    z1: number,
+    top: (x: number, z: number) => number,
+    drop: number,
+    nx: number,
+    nz: number,
+    color: readonly [number, number, number],
+  ): void {
+    const base = this.positions.length / 3;
+    const t0 = top(x0, z0);
+    const t1 = top(x1, z1);
+    this.positions.push(x0, t0, z0, x1, t1, z1, x1, t1 - drop, z1, x0, t0 - drop, z0);
+    for (let k = 0; k < 4; k++) this.colors.push(color[0], color[1], color[2]);
+    // Winding so the face points along (nx, nz): its normal is (p1 − p0) × (p3 − p0).
+    // With p1 − p0 = (dx, ·, dz) along the top and p3 − p0 = (0, −drop, 0) downward,
+    // that normal is (−dz·drop, 0, dx·drop)… flip the order if it points inward.
+    const dx = x1 - x0;
+    const dz = z1 - z0;
+    const outward = -dz * nx + dx * nz > 0;
+    if (outward) this.indices.push(base, base + 3, base + 2, base, base + 2, base + 1);
+    else this.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+
+  /** `uvSize`: metres per texture repeat (world-space UVs, so textures never stretch). */
+  build(uvSize = 10): THREE.BufferGeometry {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.positions, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.colors, 3));
-    // World-space UVs: the asphalt texture tiles every 10 m and never stretches.
     const uv: number[] = [];
-    for (let i = 0; i < this.positions.length; i += 3) uv.push(this.positions[i] / 10, this.positions[i + 2] / 10);
+    // Top faces map x/z; mixing y into v gives the vertical curb faces some texture too.
+    for (let i = 0; i < this.positions.length; i += 3) uv.push(this.positions[i] / uvSize, (this.positions[i + 2] - this.positions[i + 1]) / uvSize);
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     g.setIndex(this.indices);
     g.computeVertexNormals();

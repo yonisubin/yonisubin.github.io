@@ -1,6 +1,8 @@
 import {
+  BLOCK_SIZE,
   CELLS,
   COAST_LINE,
+  CURB_HEIGHT,
   PITCH,
   ROAD_WIDTH,
   cellCenter,
@@ -8,6 +10,7 @@ import {
   isTown,
   lakeRadius,
   lineCoord,
+  type Block,
   type CityLayout,
   type Zone,
 } from './layout';
@@ -17,9 +20,11 @@ import {
 // depth map and the maps all sample these functions.
 //
 // Height is built in layers (all in metres):
-//   smooth  — big rolling hills (hundreds of metres across). Zero in towns and by the coast,
-//             tall in the northern forest, gentle on farmland, a rim of high hills at the
-//             world's edge. Roads follow this layer, so they climb gently over the hills.
+//   smooth  — big rolling hills (hundreds of metres across): town hills (3–37 m, gentler
+//             downtown) blending into countryside hills (rolling farmland, tall in the
+//             northern forest, a rim of high hills at the world's edge); flat by the coast
+//             and the lake. Roads follow this layer, so streets climb and dip with the hills.
+//             Town blocks sit on a plane fitted to it (blockSurface()).
 //   detail  — smaller bumps, faded out near roads and towns so those stay smooth.
 //   lake    — a bowl carved below the water level in the northern hills.
 //   beach   — south of the coastal road: sand sloping into the sea.
@@ -73,6 +78,17 @@ function fbm(x: number, z: number, octaves: number, seed: number): number {
 }
 
 export type Rgb = [number, number, number];
+
+/** A block's slab plane: height at the centre and slope (m per m) along X and Z. */
+export interface BlockPlane {
+  h: number;
+  gx: number;
+  gz: number;
+}
+
+/** Height range (m) of the town hills, in the suburbs and villages and downtown. */
+const TOWN_HILLS = 34;
+const TOWN_HILLS_DOWNTOWN = 22;
 
 export class Terrain {
   /** Distance (in cells, Chebyshev) from every cell to the nearest town cell. */
@@ -176,17 +192,70 @@ export class Terrain {
     return smoothstep(-450, -950, z + 120 * Math.sin(x / 500));
   }
 
-  /** The big, smooth hills. Roads sit on this layer. */
+  /** The big, smooth hills. Roads and town blocks sit on this layer. */
   smoothHeight(x: number, z: number): number {
+    // Countryside: rolling farmland, tall hills in the northern forest, a rim at the edge.
     const forest = this.forestWeight(x, z);
-    let a = (6 + 45 * forest) * Math.max(0, fbm(x / 750, z / 750, 3, this.seed + 1) * 1.6 - 0.3);
-    // A rim of high hills around the world's edge (not on the sea side).
+    let rural = (14 + 37 * forest) * Math.max(0, fbm(x / 750, z / 750, 3, this.seed + 1) * 1.6 - 0.3);
     const edge = Math.max(Math.abs(x), -z);
-    a += smoothstep(1900, 2250, edge) * 70 * (0.6 + 0.4 * fbm(x / 300, z / 300, 2, this.seed + 3));
-    a *= smoothstep(40, 300, this.townDistance(x, z)); // towns are flat
-    a *= 1 - smoothstep(1250, 1480, z); // so is the coast
-    a *= smoothstep(1.0, 2.6, lakeRadius(x, z)); // and the lake shore
+    rural += smoothstep(1900, 2250, edge) * 70 * (0.6 + 0.4 * fbm(x / 300, z / 300, 2, this.seed + 3));
+    // Towns: rolling hills and valleys (~520 m across), never below 3 m so no valley
+    // floor reaches the water level. Gentler downtown so the tower blocks stay walkable.
+    const outer = smoothstep(250, 700, Math.hypot(x, z));
+    const town = 3 + (TOWN_HILLS_DOWNTOWN + (TOWN_HILLS - TOWN_HILLS_DOWNTOWN) * outer) * fbm(x / 520 + 3.1, z / 520 - 1.7, 3, this.seed + 5);
+    // Blend from town hills to countryside hills over a few hundred metres outside town.
+    let a = lerp(town, Math.max(rural, 3 * (1 - smoothstep(300, 600, this.townDistance(x, z)))), smoothstep(40, 300, this.townDistance(x, z)));
+    a *= 1 - smoothstep(1250, 1480, z); // the coast is flat
+    a *= smoothstep(1.0, 2.6, lakeRadius(x, z)); // and so is the lake shore
     return a;
+  }
+
+  /**
+   * The plane a town block's slab sits on: height at the block centre and its slope along
+   * X and Z, fitted through the smooth layer at the slab's four corners. Hills are hundreds
+   * of metres across, so over 64 m the ground is nearly a plane and the sidewalk meets the
+   * roads around it with roughly the usual curb.
+   */
+  blockSurface(b: Block): BlockPlane {
+    let p = this.planes.get(b);
+    if (!p) {
+      const r = BLOCK_SIZE / 2;
+      const h00 = this.smoothHeight(b.cx - r, b.cz - r);
+      const h10 = this.smoothHeight(b.cx + r, b.cz - r);
+      const h01 = this.smoothHeight(b.cx - r, b.cz + r);
+      const h11 = this.smoothHeight(b.cx + r, b.cz + r);
+      // Least-squares plane through four corners of a square: mean height, average slopes.
+      p = {
+        h: (h00 + h10 + h01 + h11) / 4,
+        gx: (h10 + h11 - h00 - h01) / (4 * r),
+        gz: (h01 + h11 - h00 - h10) / (4 * r),
+      };
+      this.planes.set(b, p);
+    }
+    return p;
+  }
+  private readonly planes = new Map<Block, BlockPlane>();
+
+  /**
+   * Road-level height under a block at (x, z); the sidewalk top is CURB_HEIGHT above. Blocks
+   * are draped over the same smooth layer as the roads, so the curb is the same height all
+   * the way round however the hill curves.
+   */
+  blockHeight(_b: Block, x: number, z: number): number {
+    return this.smoothHeight(x, z);
+  }
+
+  /** The block whose slab covers (x, z), if any. */
+  blockUnder(x: number, z: number): Block | null {
+    const b = this.layout.blockAt(cellOf(x), cellOf(z));
+    if (!b || Math.abs(x - b.cx) > BLOCK_SIZE / 2 || Math.abs(z - b.cz) > BLOCK_SIZE / 2) return null;
+    return b;
+  }
+
+  /** Where you'd stand at (x, z): a block's sidewalk top, or else the ground / road. */
+  surfaceAt(x: number, z: number): number {
+    const b = this.blockUnder(x, z);
+    return b ? this.blockHeight(b, x, z) + CURB_HEIGHT : this.heightAt(x, z);
   }
 
   /** Height of the ground at (x, z), in metres. */
@@ -197,7 +266,7 @@ export class Terrain {
     const forest = this.forestWeight(x, z);
     const detailMask =
       smoothstep(9, 32, this.roadDistance(x, z)) * smoothstep(15, 60, this.townDistance(x, z)) * (1 - smoothstep(1300, 1450, z));
-    if (detailMask > 0) h += (fbm(x / 110, z / 110, 3, this.seed + 2) - 0.5) * 2 * (1.2 + 6 * forest) * detailMask;
+    if (detailMask > 0) h += (fbm(x / 110, z / 110, 3, this.seed + 2) - 0.5) * 2 * (2.5 + 5 * forest) * detailMask;
 
     // The lake: a bowl below the water level.
     const lr = lakeRadius(x, z);

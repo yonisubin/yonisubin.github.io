@@ -40,6 +40,7 @@ The project followed the milestones in `CLAUDE.md`, one commit each, then gamepl
 | `543da38` | Vehicles that drive or land in deep water eject you, wreck and sink |
 | `a258943` | Hospitals (respawn at the nearest one) and five more gun stores |
 | `2497a27` | Full-screen world map (M or tap the minimap) |
+| *(next)* | Hilly towns (sidewalks draped over the hills), more relief in the country, five new mission givers around the map |
 
 ---
 
@@ -151,7 +152,7 @@ The world is a grid of **52 × 52 cells**, each 78 m (`PITCH`). Grid lines (road
 
 | Zone | Where | What's in it |
 |---|---|---|
-| `downtown` | the centre, ±400 m | today's towers: a block of sidewalk + lot with glass/brick/concrete buildings |
+| `downtown` | the centre, ±400 m | towers: a block of sidewalk + lot with glass/brick/concrete buildings, in a gentle valley |
 | `suburb` | a ring out to ~1 km (stretched south) | houses with pitched roofs, front gardens, lawns |
 | `beachtown` | the row just north of the coastal road, centre | low pastel shops and flats, houses |
 | `village` | 3 spots on country-road crossings (Eastfield, Westbrook, Pinecrest) | a few house blocks |
@@ -184,16 +185,21 @@ Countryside features (forest trees, farmsteads, hedgerow trees) are generated **
 
 `Terrain.heightAt(x, z)` gives the ground height anywhere, from **hand-written value noise** (random values at grid points, smoothly blended; `fbm` stacks several octaves). It's built in layers:
 
-1. **Smooth hills** (`smoothHeight`): wavelength ~750 m.
-   - About 6 m on farmland and up to ~50 m in the northern forest, plus a rim of high hills at the world's edge.
-   - Faded to **zero in and near towns, by the coast and around the lake**.
-   - **Roads follow this layer**, so they climb gently over the hills.
+1. **Smooth hills** (`smoothHeight`):
+   - **In towns:** rolling hills and valleys ~520 m across, 3–37 m in the suburbs and villages, gentler downtown (3–25 m).
+   - **In the country:** ~14 m rolling farmland and up to ~50 m in the northern forest (~750 m across), plus a rim of high hills at the world's edge.
+   - Towns blend into the countryside over a few hundred metres; everything flattens toward the coast and the lake shore.
+   - **Roads follow this layer**, so streets climb and dip with the hills, and so do **town blocks** (§4.3).
 2. **Detail bumps**: ~110 m wavelength, faded out near roads and towns so those stay smooth.
 3. **Lake**: a bowl carved below the water level.
 4. **Beach**: south of the coastal road, sand slopes into the sea. The waterline wanders with a couple of sine waves.
 5. **No stray ponds**: away from the lake and sea, the ground is clamped above the water level. The water surface spans the whole map, so any dip below it would show water.
 
-**Decision: roads ride the smooth layer.** Making roads follow the terrain (instead of flattening valleys for them) gives rolling country roads. I measured every road: the steepest stretch is ~22 % (short, climbing out of a town), and only 0.3 % of road length is steeper than 15 %. Early versions hit 56 % near the lake, until the shore flattening was widened.
+**Decision: roads ride the smooth layer.** Making roads follow the terrain (instead of flattening valleys for them) gives rolling streets and country roads. Measured over every road:
+- **town streets** peak at ~15 %, with under 1 % of their length over 10 % (like a hilly real city);
+- **country roads** have under 1 % of their length over 15 %, and a couple of short spots near the edge hills are steeper.
+
+Early versions hit 56 % near the lake, until the shore flattening was widened. The first version of the town hills was too subtle to see; the final one is about 50 % bigger and tighter.
 
 `colorAt()` picks the ground colour from height, slope and zone:
 - grass (lush ↔ dry) and darker forest floor;
@@ -202,7 +208,9 @@ Countryside features (forest trees, farmsteads, hedgerow trees) are generated **
 - sand on the beach and lake shore (darker where wet);
 - sea bed darkening with depth.
 
-Helpers used everywhere: `roadDistance`, `townDistance` (a precomputed per-cell distance grid makes this fast), `zoneAt`, `isClear` (where trees and farms may go).
+Helpers used everywhere:
+- `roadDistance`, `townDistance` (a precomputed per-cell distance grid makes this fast), `zoneAt`, `isClear` (where trees and farms may go);
+- **`surfaceAt(x, z)`: where you'd stand.** On a town block it's the sidewalk top (`smoothHeight + CURB_HEIGHT`); elsewhere it's the ground or road. Pedestrians, cash, shop and hospital doors, mission givers and spots, traffic-light poles, the helipad and the spawn all use it. Parked cars use `smoothHeight` (road level).
 
 ### 4.3 Streaming chunks (`chunks.ts`, `instancePool.ts`)
 
@@ -218,7 +226,12 @@ The world is cut into **13 × 13 chunks of 4 × 4 cells (312 m)**, built in two 
 - **Startup:** only the chunks within 450 m of the spawn are built before the game starts. Startup stays ~1.2 s; the rest streams in while you play.
 - **Teleports:** respawning at a hospital calls `loadAround()` first.
 
-**Per chunk meshes** are only three: the **terrain**, the **road surface** and the **road paint**.
+**Town blocks on hills.** Each block's raised slab is **draped over the smooth layer**: a grid every 8 m at `smoothHeight + 15 cm`, with curb faces down each side and the lawn draped the same way. A small **heightfield collider** per block matches the top.
+- **Decision:** the first attempt tilted each block as a flat plane. It left curbs from −0.6 to +0.9 m on 6.6 % of block edges, because the hills curve within 64 m. Draping keeps the curb at exactly 15 cm all round.
+- **Buildings stay upright:** the base sits at the lowest point of the footprint and the walls grow by the drop to the highest point, so nothing floats and the uphill side is set into the slope. Rooftop clutter goes on the adjusted roof (each roof prop remembers its building).
+- Intersections are draped like the road strips, so there's no step where slopes meet.
+
+**Per chunk meshes** are five: the **terrain**, the **road surface**, the **road paint**, the **sidewalk slabs** and the **lawns**.
 - Terrain: a grid every 6 m, with vertex colours from `colorAt` times a neutral grain texture.
 - Road surface: quads draped over the smooth layer, with world-space UVs so the asphalt never stretches.
 - Road paint: centre lines, dashes, edge lines on country roads, stop lines at lights, zebras at town junctions.
@@ -513,7 +526,7 @@ With a weapon in hand, **E** next to a stopped or slow traffic car (the driver r
 
 ### 7.7 Missions (`game/missions.ts`)
 
-Three fixed, invulnerable givers with a "!" marker. They're not pedestrians: just a model with a solid collider, so bullets and fists stop on them.
+Eight fixed, invulnerable givers with a "!" marker: three downtown, five out in the world. They're not pedestrians: just a model with a solid collider, so bullets and fists stop on them.
 
 | Giver | Missions | Base reward + bonus per second left |
 |---|---|---|
@@ -521,6 +534,18 @@ Three fixed, invulnerable givers with a "!" marker. They're not pedestrians: jus
 | **Marco** | Package run: collect several packages | $200 + $1.5/s |
 | **Vera** | Wreck a marked traffic car before it escapes | $250 + $2/s |
 | **Captain Reyes** | Fly the helicopter through rings | $300 + $3/s |
+
+**Five more givers out in the world** (each on the town block nearest a chosen spot, avoiding blocks used by hospitals and stores):
+
+| Giver | Where | Missions | How it's checked |
+|---|---|---|---|
+| **Lena** | Seaside | **Buoy swim**: 5 buoys in a zig-zag line out to sea (≥ 1.2 m deep), in order, 150 s | only counts while swimming |
+| **Farmer Joe** | Eastfield | **Country race**: ~8 gates along a route generated on the road network (mostly straight on, never back), a gate every 4 intersections; the clock starts at the first gate, with time for the rest at ~15 m/s | only counts while driving |
+| **Ranger Kim** | Pinecrest | **Summit hike**: flags on the 3 highest spots 150–650 m away, at least 150 m apart, 300 s | only counts on foot (not by helicopter) |
+| **Dusty** | Westbrook | **Long haul**: delivery 1.2–2.2 km away; base pay $150 + $0.15/m. Also **wreck** | — |
+| **Sam** | Northside | **Package run**, **wreck** | — |
+
+`main.ts` passes hooks (`isDriving`, `isSwimming`, `isOnFoot`, `ground`, `usedBlocks`). Buoys bob on the swell, gates are green rings, and flags are red pennants on poles. All show on both maps as objectives.
 
 One mission at a time. You fail on timeout or death, at no cost, and can ask again.
 
@@ -732,6 +757,8 @@ When adding a feature, the quickest check is the browser console in `npm run dev
 | Change swimming, breath or drowning | `player/onFoot.ts` (`SWIM_*`, `BREATH`, `DROWN_DAMAGE`) |
 | Change how vehicles sink | `sim/sinking.ts` |
 | Move or add hospitals and stores | `game/places.ts` (`HOSPITAL_TARGETS`, `STORE_TARGETS`) |
+| Make towns hillier or flatter | `world/terrain.ts` (`TOWN_HILLS`, `TOWN_HILLS_DOWNTOWN`, the town noise scale in `smoothHeight`) |
+| Add or move mission givers | `game/missions.ts` (`OUTER_GIVERS`; mission set-up in `start()`, completion in `fixedUpdate()`) |
 | Change building looks | `world/facadeMaterial.ts` (shader) and `layout.ts` (styles) |
 | Change day length or start time | `world/dayNight.ts` |
 | Change weapon prices or damage | `game/stats.ts` (`WEAPONS`, `ADDONS`, `AP_AMMO`) |

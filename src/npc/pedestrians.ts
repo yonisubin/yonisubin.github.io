@@ -3,7 +3,7 @@ import type { SimEntity } from '../sim/entity';
 import type { CharacterModel } from '../player/character';
 import type { CharacterLibrary } from '../player/characterLibrary';
 import { Rng } from '../world/rng';
-import { BLOCK_SIZE, CURB_HEIGHT, cellOf, type Block, type CityLayout } from '../world/layout';
+import { BLOCK_SIZE, type Block, type CityLayout } from '../world/layout';
 
 // Pedestrians: random people from the character library (each with their own skin tone,
 // hair, outfit colours and height), strolling around the
@@ -70,6 +70,8 @@ export interface PedestrianHooks {
   hitPlayer(damage: number): void;
   /** A pedestrian was knocked out here (drops cash). */
   knockedOut(position: THREE.Vector3): void;
+  /** Height you'd stand at, at (x, z): sidewalks follow the hills (Terrain.surfaceAt). */
+  surface(x: number, z: number): number;
 }
 
 export class Pedestrians implements SimEntity {
@@ -162,10 +164,12 @@ export class Pedestrians implements SimEntity {
     const k = Math.floor(t / side);
     const f = t - k * side;
     const { cx, cz } = ped.block;
-    if (k === 0) return out.set(cx - h + f, CURB_HEIGHT, cz - h);
-    if (k === 1) return out.set(cx + h, CURB_HEIGHT, cz - h + f);
-    if (k === 2) return out.set(cx + h - f, CURB_HEIGHT, cz + h);
-    return out.set(cx - h, CURB_HEIGHT, cz + h - f);
+    if (k === 0) out.set(cx - h + f, 0, cz - h);
+    else if (k === 1) out.set(cx + h, 0, cz - h + f);
+    else if (k === 2) out.set(cx + h - f, 0, cz + h);
+    else out.set(cx - h, 0, cz + h - f);
+    out.y = this.hooks.surface(out.x, out.z);
+    return out;
   }
 
   /** Inverse of loopPoint: the u of the loop point nearest to `p`. */
@@ -399,11 +403,9 @@ export class Pedestrians implements SimEntity {
     if (dx * dx + dz * dz > 1e-6) ped.facing = Math.atan2(-dx, -dz); // model faces −Z
   }
 
-  /** Sidewalks (block slabs) are raised by the curb height; roads are at 0. */
+  /** Sidewalks follow the hills; off the sidewalk, the road or ground. */
   private groundHeight(x: number, z: number): number {
-    const b = this.layout.blockAt(cellOf(x), cellOf(z));
-    if (b && Math.abs(x - b.cx) < BLOCK_SIZE / 2 && Math.abs(z - b.cz) < BLOCK_SIZE / 2) return CURB_HEIGHT;
-    return 0;
+    return this.hooks.surface(x, z);
   }
 
   afterStep(): void {}

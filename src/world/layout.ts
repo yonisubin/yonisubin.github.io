@@ -76,6 +76,8 @@ export interface Building {
 
 export interface RoofProp {
   kind: 'ac' | 'tank';
+  /** The building it sits on (its roof height changes when the block is on a slope). */
+  building: Building;
   x: number;
   y: number; // base height
   z: number;
@@ -157,11 +159,11 @@ export const blockCenter = cellCenter;
 
 /** Downtown centre cell (the old 8×8 city's middle was cell 4; here it's 26). */
 export const MID = CELLS / 2;
-/** Villages sit on country-road crossings: node (i, k) of the grid. */
+/** Villages sit on country-road crossings: node (i, k) of the grid, with i and k both ≡ 2 (mod 4) so country roads run through them and connect their streets to the rest of the map. */
 export const VILLAGES = [
-  { name: 'Eastfield', i: 44, k: 24 },
+  { name: 'Eastfield', i: 46, k: 22 },
   { name: 'Westbrook', i: 6, k: 30 },
-  { name: 'Pinecrest', i: 40, k: 6 },
+  { name: 'Pinecrest', i: 42, k: 6 },
 ];
 /** The lake: an ellipse in the northern hills. */
 export const LAKE = { x: -560, z: -1250, rx: 300, rz: 200 };
@@ -200,7 +202,25 @@ export function generateCity(seed: number): CityLayout {
   const zoneAt = (bx: number, bz: number): Zone | null =>
     bx < 0 || bz < 0 || bx >= CELLS || bz >= CELLS ? null : zones[bz * CELLS + bx];
 
-  const roads = buildRoads(zoneAt);
+  // A town cell whose streets don't join the rest of the road network (a stray suburb block,
+  // say) would be an island you can't drive to: turn such cells into farmland and lay the
+  // roads out again until every road connects to downtown.
+  let roads = buildRoads(zoneAt);
+  for (let pass = 0; pass < 4; pass++) {
+    const reached = reachableNodes(roads);
+    let changed = false;
+    for (let bz = 0; bz < CELLS; bz++) {
+      for (let bx = 0; bx < CELLS; bx++) {
+        if (!isTown(zones[bz * CELLS + bx])) continue;
+        // A cell's corners are nodes (bx, bz) … (bx + 1, bz + 1).
+        if (reached.has(bz * (CELLS + 1) + bx) || reached.has((bz + 1) * (CELLS + 1) + bx + 1)) continue;
+        zones[bz * CELLS + bx] = 'farm';
+        changed = true;
+      }
+    }
+    if (!changed) break;
+    roads = buildRoads(zoneAt);
+  }
 
   const grid: (Block | null)[] = new Array(CELLS * CELLS).fill(null);
   const blocks: Block[] = [];
@@ -274,6 +294,28 @@ function buildRoads(zoneAt: (bx: number, bz: number) => Zone | null): RoadNet {
       return town(zoneAt(i - 1, k - 1)) || town(zoneAt(i, k - 1)) || town(zoneAt(i - 1, k)) || town(zoneAt(i, k));
     },
   };
+}
+
+/** Intersections (index k·(CELLS+1) + i) reachable by road from the downtown centre. */
+function reachableNodes(roads: RoadNet): Set<number> {
+  const N = CELLS + 1;
+  const seen = new Set<number>([MID * N + MID]);
+  const queue = [[MID, MID]];
+  while (queue.length) {
+    const [i, k] = queue.pop()!;
+    const next: [number, number, boolean][] = [
+      [i + 1, k, roads.hasH(i, k)],
+      [i - 1, k, roads.hasH(i - 1, k)],
+      [i, k + 1, roads.hasV(i, k)],
+      [i, k - 1, roads.hasV(i, k - 1)],
+    ];
+    for (const [ni, nk, ok] of next) {
+      if (!ok || seen.has(nk * N + ni)) continue;
+      seen.add(nk * N + ni);
+      queue.push([ni, nk]);
+    }
+  }
+  return seen;
 }
 
 // --- Town blocks ---------------------------------------------------------------------
@@ -393,7 +435,7 @@ function addTowerBuilding(
     color: wallColor(rng, style),
     seed: rng.int(0, 999),
   });
-  addRoofClutter(block, rng, px, pz, width, depth, height, style);
+  addRoofClutter(block, rng, block.buildings[block.buildings.length - 1], px, pz, width, depth, height, style);
 }
 
 function addSeasideBuilding(block: Block, rng: Rng, px: number, pz: number, parcelW: number, parcelD: number): void {
@@ -412,7 +454,7 @@ function addSeasideBuilding(block: Block, rng: Rng, px: number, pz: number, parc
     [0.82, 0.8, 0.74],
   ]);
   block.buildings.push({ x: px, z: pz, y: CURB_HEIGHT, width, depth, height, style: STYLE_BRICK, color: pastel, seed: rng.int(0, 999) });
-  addRoofClutter(block, rng, px, pz, width, depth, height, STYLE_BRICK);
+  addRoofClutter(block, rng, block.buildings[block.buildings.length - 1], px, pz, width, depth, height, STYLE_BRICK);
 }
 
 /** A detached house set back from the street, with a pitched roof and a garden tree or two. */
@@ -462,6 +504,7 @@ function addHouse(block: Block, rng: Rng, px: number, pz: number, parcelW: numbe
 function addRoofClutter(
   block: Block,
   rng: Rng,
+  building: Building,
   px: number,
   pz: number,
   width: number,
@@ -476,6 +519,7 @@ function addRoofClutter(
     const sx = rng.range(1.5, 3);
     const sz = rng.range(1.5, 3);
     block.roofProps.push({
+      building,
       kind: 'ac',
       x: px + rng.range(-width / 2 + 2, width / 2 - 2),
       y: roofY,
@@ -486,6 +530,7 @@ function addRoofClutter(
   if (style === STYLE_BRICK && rng.chance(0.5)) {
     const r = rng.range(1.2, 1.8);
     block.roofProps.push({
+      building,
       kind: 'tank',
       x: px + rng.range(-width / 4, width / 4),
       y: roofY,
