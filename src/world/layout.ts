@@ -1,24 +1,29 @@
 import { Rng, hashSeed } from './rng';
-import { Warp } from './warp';
+import { generateStreets, type StreetWorld } from './suburbs';
 
 // The world layout as plain data: no three.js, no physics. Everything here is cheap to
 // generate for the whole 4 km world at startup; meshes and colliders are built from it
 // chunk by chunk as the player moves (world/chunks.ts).
 //
-// The world is a grid of CELLS × CELLS cells, PITCH metres apart. Each cell has a zone:
+// The world is a grid of CELLS × CELLS cells, PITCH metres apart, and each cell has a zone:
 //
-//   town zones (downtown, suburb, village, beachtown) — a raised block of sidewalk + lot,
-//       with roads on every grid line around it, exactly like the original city;
-//   countryside (farm, forest) — open terrain, crossed by country roads every 4th line;
+//   downtown — a grid of raised blocks (sidewalk + lot) with towers, roads on every grid line;
+//   suburb, beachtown, village — American-style streets grown by suburbs.ts: arterials,
+//       winding subdivision streets and cul-de-sacs, houses on lots, strip malls, schools…;
+//   countryside (farm, forest) — open terrain crossed by winding country roads;
 //   beach / lake — sand and water, no roads.
 //
-// Plan view of one cell, all sizes in metres:
+// All roads, downtown's included, live in one street network (streets.ts), built by
+// buildStreets() once the terrain exists (country roads follow the land).
+//
+// Downtown plan view of one cell, all sizes in metres:
 //
 //   |<- ROAD ->|<------------- BLOCK_SIZE ------------->|
 //              | SIDEWALK |<------- LOT ------->| SIDEWALK |
 //
-// Grid lines (road centre lines) sit at multiples of PITCH: line k is at (k − CELLS/2)·PITCH,
-// so line 26 runs through the origin. Cell c spans lines c … c+1. North is −Z.
+// Grid lines (downtown road centre lines) sit at multiples of PITCH: line k is at
+// (k − CELLS/2)·PITCH, so line 26 runs through the origin. Cell c spans lines c … c+1.
+// North is −Z.
 
 export const CELLS = 52; // cells per side
 export const ROAD_WIDTH = 14; // town roads: 4 lanes × 3.5 m (two each way)
@@ -31,11 +36,6 @@ export const CURB_HEIGHT = 0.15; // low enough for the character controller to a
 /** Half the size of the whole world (grid plus half a road). */
 export const WORLD_HALF = (CELLS * PITCH + ROAD_WIDTH) / 2; // ≈ 2035
 
-/** Country roads run along every 4th grid line, from line 2 to line 50. */
-const RURAL_EVERY = 4;
-const RURAL_OFFSET = 2;
-const RURAL_MIN = 2;
-const RURAL_MAX = CELLS - 2;
 /** The coastal road runs along this grid line; cells south of it are beach and sea. */
 export const COAST_LINE = 46;
 
@@ -121,37 +121,19 @@ export interface Block {
 
 export interface CityLayout {
   seed: number;
-  /** Bends the grid into winding roads and irregular blocks (see warp.ts). */
-  warp: Warp;
   /** Chebyshev distance in cells from each cell to the nearest town cell (0 in town). */
   townCells: Uint8Array;
   /** Zone of every cell, index bz·CELLS + bx. */
   zones: Zone[];
-  /** Town blocks only (cells in a town zone). */
+  /** Downtown blocks (cells in the downtown zone). */
   blocks: Block[];
-  /** Block at a cell, or null outside town. */
+  /** Block at a cell, or null outside downtown. */
   blockAt(bx: number, bz: number): Block | null;
-  roads: RoadNet;
-}
-
-/**
- * Which road segments exist. Nodes are grid-line intersections (i, k), i along X and k
- * along Z, 0…CELLS. A horizontal segment joins (i, k)–(i+1, k); a vertical one (i, k)–(i, k+1).
- */
-export interface RoadNet {
-  h: Uint8Array; // (CELLS) × (CELLS+1), index k·CELLS + i
-  v: Uint8Array; // (CELLS+1) × (CELLS), index k·(CELLS+1) + i
-  hasH(i: number, k: number): boolean;
-  hasV(i: number, k: number): boolean;
-  /** True for country roads (no town on either side): faster traffic, no lights. */
-  ruralH(i: number, k: number): boolean;
-  ruralV(i: number, k: number): boolean;
-  /** Town intersection where 3+ roads meet: has traffic lights. */
-  hasLights(i: number, k: number): boolean;
-  /** Intersection touching a town cell (its roads are town roads). */
-  townNode(i: number, k: number): boolean;
-  /** Half the size of the intersection square at (i, k), m (wider town roads meet there). */
-  nodeHalf(i: number, k: number): number;
+  /**
+   * Every road, plus the suburbs' houses and parcels. Set by buildStreets() right after the
+   * terrain is created (see city.ts): country roads follow the land, so they need it.
+   */
+  streets: StreetWorld;
 }
 
 export function cellCenter(c: number): number {
@@ -211,45 +193,14 @@ function zoneOf(seed: number, bx: number, bz: number): Zone {
 export function generateCity(seed: number): CityLayout {
   const zones: Zone[] = [];
   for (let bz = 0; bz < CELLS; bz++) for (let bx = 0; bx < CELLS; bx++) zones.push(zoneOf(seed, bx, bz));
-  const zoneAt = (bx: number, bz: number): Zone | null =>
-    bx < 0 || bz < 0 || bx >= CELLS || bz >= CELLS ? null : zones[bz * CELLS + bx];
-
-  // A town cell whose streets don't join the rest of the road network (a stray suburb block,
-  // say) would be an island you can't drive to: turn such cells into farmland and lay the
-  // roads out again until every road connects to downtown.
-  let roads = buildRoads(zoneAt);
-  for (let pass = 0; pass < 4; pass++) {
-    const reached = reachableNodes(roads);
-    let changed = false;
-    for (let bz = 0; bz < CELLS; bz++) {
-      for (let bx = 0; bx < CELLS; bx++) {
-        if (!isTown(zones[bz * CELLS + bx])) continue;
-        // A cell's corners are nodes (bx, bz) … (bx + 1, bz + 1).
-        if (reached.has(bz * (CELLS + 1) + bx) || reached.has((bz + 1) * (CELLS + 1) + bx + 1)) continue;
-        zones[bz * CELLS + bx] = 'farm';
-        changed = true;
-      }
-    }
-    if (!changed) break;
-    roads = buildRoads(zoneAt);
-  }
-
   const townCells = townCellDistance(zones);
-  const warp = new Warp({
-    seed,
-    townCells,
-    cells: CELLS,
-    pitch: PITCH,
-    lakeRadius,
-    coastZ: lineCoord(COAST_LINE),
-  });
 
   const grid: (Block | null)[] = new Array(CELLS * CELLS).fill(null);
   const blocks: Block[] = [];
   for (let bz = 0; bz < CELLS; bz++) {
     for (let bx = 0; bx < CELLS; bx++) {
       const zone = zones[bz * CELLS + bx];
-      if (!isTown(zone)) continue;
+      if (zone !== 'downtown') continue;
       const block = generateBlock(seed, bx, bz, zone);
       grid[bz * CELLS + bx] = block;
       blocks.push(block);
@@ -257,71 +208,44 @@ export function generateCity(seed: number): CityLayout {
   }
   return {
     seed,
-    warp,
     townCells,
     zones,
     blocks,
     blockAt: (bx, bz) => (bx < 0 || bz < 0 || bx >= CELLS || bz >= CELLS ? null : grid[bz * CELLS + bx]),
-    roads,
+    streets: null as unknown as StreetWorld, // filled in by buildStreets()
   };
 }
 
-function buildRoads(zoneAt: (bx: number, bz: number) => Zone | null): RoadNet {
-  const N = CELLS;
-  const h = new Uint8Array(N * (N + 1));
-  const v = new Uint8Array((N + 1) * N);
-  const hRural = new Uint8Array(N * (N + 1));
-  const vRural = new Uint8Array((N + 1) * N);
-  const town = (z: Zone | null) => z !== null && isTown(z);
-  const blocked = (z: Zone | null) => z === 'lake';
-  const sea = (z: Zone | null) => z === null || z === 'beach';
-  const ruralLine = (k: number) => k % RURAL_EVERY === RURAL_OFFSET;
-  const townNode = (i: number, k: number) =>
-    town(zoneAt(i - 1, k - 1)) || town(zoneAt(i, k - 1)) || town(zoneAt(i - 1, k)) || town(zoneAt(i, k));
+/** Zone of the cell under a world point (clamped to the grid). */
+export function zoneAtPoint(layout: Pick<CityLayout, 'zones'>, x: number, z: number): Zone {
+  const bx = Math.min(CELLS - 1, Math.max(0, cellOf(x)));
+  const bz = Math.min(CELLS - 1, Math.max(0, cellOf(z)));
+  return layout.zones[bz * CELLS + bx];
+}
 
-  // Horizontal segment (i, k)–(i+1, k): cells (i, k−1) north and (i, k) south of it.
-  for (let k = 0; k <= N; k++) {
-    for (let i = 0; i < N; i++) {
-      const a = zoneAt(i, k - 1);
-      const b = zoneAt(i, k);
-      if (blocked(a) || blocked(b) || (sea(a) && sea(b))) continue;
-      if (town(a) || town(b)) h[k * N + i] = 1;
-      else if (ruralLine(k) && i >= RURAL_MIN && i + 1 <= RURAL_MAX) {
-        h[k * N + i] = 1;
-        hRural[k * N + i] = 1;
-      }
-    }
-  }
-  // Vertical segment (i, k)–(i, k+1): cells (i−1, k) west and (i, k) east of it.
-  for (let k = 0; k < N; k++) {
-    for (let i = 0; i <= N; i++) {
-      const a = zoneAt(i - 1, k);
-      const b = zoneAt(i, k);
-      if (blocked(a) || blocked(b) || (sea(a) && sea(b))) continue;
-      if (town(a) || town(b)) v[k * (N + 1) + i] = 1;
-      else if (ruralLine(i) && k >= RURAL_MIN && k + 1 <= RURAL_MAX) {
-        v[k * (N + 1) + i] = 1;
-        vRural[k * (N + 1) + i] = 1;
-      }
-    }
-  }
-  const hasH = (i: number, k: number) => i >= 0 && i < N && k >= 0 && k <= N && h[k * N + i] === 1;
-  const hasV = (i: number, k: number) => i >= 0 && i <= N && k >= 0 && k < N && v[k * (N + 1) + i] === 1;
-  return {
-    h,
-    v,
-    hasH,
-    hasV,
-    ruralH: (i, k) => hasH(i, k) && hRural[k * N + i] === 1,
-    ruralV: (i, k) => hasV(i, k) && vRural[k * (N + 1) + i] === 1,
-    hasLights: (i, k) => {
-      const degree = +hasH(i - 1, k) + +hasH(i, k) + +hasV(i, k - 1) + +hasV(i, k);
-      if (degree < 3) return false;
-      return townNode(i, k);
-    },
-    townNode: (i, k) => townNode(i, k),
-    nodeHalf: (i, k) => (townNode(i, k) ? ROAD_WIDTH / 2 : RURAL_ROAD_WIDTH / 2),
-  };
+/** Downtown's edge: its grid spans lines DOWNTOWN_FIRST … DOWNTOWN_LAST. */
+export const DOWNTOWN_FIRST = 21;
+export const DOWNTOWN_LAST = 31;
+export const DOWNTOWN_HALF = ((DOWNTOWN_LAST - DOWNTOWN_FIRST) * PITCH) / 2; // 390
+
+/**
+ * Lay out every road (and the suburbs' houses and parcels) and store them in the layout.
+ * `height`: the smooth terrain height, which country roads follow.
+ */
+export function buildStreets(layout: CityLayout, height: (x: number, z: number) => number): StreetWorld {
+  const coastZ = lineCoord(COAST_LINE);
+  layout.streets = generateStreets({
+    seed: layout.seed,
+    zoneAt: (x, z) => zoneAtPoint(layout, x, z),
+    height,
+    water: (x, z) => lakeRadius(x, z) < 1.12 || z > coastZ + 20,
+    half: WORLD_HALF,
+    downtownHalf: DOWNTOWN_HALF,
+    downtownLines: Array.from({ length: DOWNTOWN_LAST - DOWNTOWN_FIRST + 1 }, (_, k) => lineCoord(DOWNTOWN_FIRST + k)),
+    coastZ,
+    villages: VILLAGES.map((v) => ({ name: v.name, x: lineCoord(v.i), z: lineCoord(v.k) })),
+  });
+  return layout.streets;
 }
 
 /** Distance in cells (Chebyshev) from every cell to the nearest town cell: breadth-first from all town cells. */
@@ -353,28 +277,6 @@ function townCellDistance(zones: Zone[]): Uint8Array {
     }
   }
   return dist;
-}
-
-/** Intersections (index k·(CELLS+1) + i) reachable by road from the downtown centre. */
-function reachableNodes(roads: RoadNet): Set<number> {
-  const N = CELLS + 1;
-  const seen = new Set<number>([MID * N + MID]);
-  const queue = [[MID, MID]];
-  while (queue.length) {
-    const [i, k] = queue.pop()!;
-    const next: [number, number, boolean][] = [
-      [i + 1, k, roads.hasH(i, k)],
-      [i - 1, k, roads.hasH(i - 1, k)],
-      [i, k + 1, roads.hasV(i, k)],
-      [i, k - 1, roads.hasV(i, k - 1)],
-    ];
-    for (const [ni, nk, ok] of next) {
-      if (!ok || seen.has(nk * N + ni)) continue;
-      seen.add(nk * N + ni);
-      queue.push([ni, nk]);
-    }
-  }
-  return seen;
 }
 
 // --- Town blocks ---------------------------------------------------------------------
@@ -678,13 +580,7 @@ function isHelipadBlock(bx: number, bz: number): boolean {
 /** Centre of the helipad (ground level is the top of the block slab). */
 export function helipadPosition(layout: CityLayout): { x: number; z: number } {
   const block = layout.blockAt(MID + 1, MID + 2)!;
-  return toWorld(layout, block.cx, block.cz);
-}
-
-/** A layout (grid) point in the world, through the road warp. A fresh object. */
-export function toWorld(layout: CityLayout, x: number, z: number): { x: number; z: number } {
-  const w = layout.warp.forward(x, z);
-  return { x: w.x, z: w.z };
+  return { x: block.cx, z: block.cz };
 }
 
 /**
@@ -693,7 +589,7 @@ export function toWorld(layout: CityLayout, x: number, z: number): { x: number; 
  */
 export function spawnPoint(layout: CityLayout): { x: number; z: number } {
   const block = layout.blockAt(MID, MID + 2)!;
-  return toWorld(layout, block.cx - BLOCK_SIZE / 2 + 2, block.cz + BLOCK_SIZE / 2 - 2);
+  return { x: block.cx - BLOCK_SIZE / 2 + 2, z: block.cz + BLOCK_SIZE / 2 - 2 };
 }
 
 export type ParkedCarType = 'sedan' | 'taxi' | 'van';
@@ -724,13 +620,7 @@ export function parkingSpots(layout: CityLayout): ParkingSpot[] {
     const type: ParkedCarType = i === 2 ? 'taxi' : i === 4 ? 'van' : 'sedan';
     spots.push({ x: laneX, z: block.cz + 22 - i * 8.5, yaw, type, colorIndex: rng.int(0, 8) });
   }
-  return spots.map((s) => warpSpot(layout, s));
-}
-
-/** A parking spot laid out on the grid, moved and turned with the road warp. */
-export function warpSpot(layout: CityLayout, s: ParkingSpot): ParkingSpot {
-  const w = toWorld(layout, s.x, s.z);
-  return { ...s, x: w.x, z: w.z, yaw: s.yaw + layout.warp.angle(s.x, s.z) };
+  return spots;
 }
 
 // --- Countryside features (generated per chunk, from the cell's own seed) ----------------

@@ -3,6 +3,7 @@ import type { SimEntity } from '../sim/entity';
 import type { PlayerStats } from './stats';
 import { Rng, hashSeed } from '../world/rng';
 import { BLOCK_SIZE, LOT, type CityLayout } from '../world/layout';
+import { ROAD_SPECS } from '../world/streets';
 
 // Cash lying around: glowing, spinning bundles of notes. Walk over one to pick it up.
 // Placed with the city's seeded RNG (same seed, same spots); each comes back a few minutes
@@ -61,11 +62,36 @@ export class Cash implements SimEntity {
           z = side < 2 ? along : side === 2 ? edge : -edge;
         }
         this.pickups.push({
-          position: ((w) => new THREE.Vector3(w.x, surface(w.x, w.z), w.z))(layout.warp.forward(block.cx + x, block.cz + z)),
+          position: new THREE.Vector3(block.cx + x, surface(block.cx + x, block.cz + z), block.cz + z),
           amount: 5 * rng.int(2, 16), // $10–80
           away: 0,
           dropped: false,
         });
+      }
+    }
+
+    // The suburbs: now and then on a sidewalk (about one per 250 m of street), and in parks.
+    const net = layout.streets.net;
+    const pt = { x: 0, z: 0, tx: 0, tz: 0 };
+    const add = (x: number, z: number) =>
+      this.pickups.push({ position: new THREE.Vector3(x, surface(x, z), z), amount: 5 * rng.int(2, 16), away: 0, dropped: false });
+    for (const e of net.edges) {
+      const spec = ROAD_SPECS[e.cls];
+      if (!spec.sidewalk || e.cls === 'downtown') continue;
+      for (let s = rng.range(30, 250); s < e.length - 15; s += rng.range(180, 320)) {
+        net.pointAt(e, s, pt);
+        const off = (spec.width / 2 + spec.sidewalk / 2) * (rng.chance(0.5) ? 1 : -1);
+        const x = pt.x - pt.tz * off;
+        const z = pt.z + pt.tx * off;
+        if (net.kerbDistance(x, z, 10) > 0.2) add(x, z);
+      }
+    }
+    for (const p of layout.streets.parcels) {
+      if (p.kind !== 'park') continue;
+      for (let k = rng.int(1, 3); k > 0; k--) {
+        const a = rng.range(-p.w / 2 + 6, p.w / 2 - 6);
+        const b = rng.range(-p.d / 2 + 6, p.d / 2 - 6);
+        add(p.x + Math.cos(p.yaw) * a + Math.sin(p.yaw) * b, p.z - Math.sin(p.yaw) * a + Math.cos(p.yaw) * b);
       }
     }
 

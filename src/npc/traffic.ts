@@ -3,23 +3,10 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import type { SimEntity } from '../sim/entity';
 import type { Smoke } from '../sim/smoke';
 import { Rng } from '../world/rng';
-import { ROAD_WIDTH, cellOf, type CityLayout } from '../world/layout';
+import type { CityLayout } from '../world/layout';
 import type { Terrain } from '../world/terrain';
-import type { Warp } from '../world/warp';
-import {
-  DIRS,
-  LANE_OFFSET,
-  LANE_SPACING,
-  RoadGraph,
-  bezierPoint,
-  bezierTangent,
-  dirVector,
-  lightState,
-  turnKind,
-  type Dir,
-  type Light,
-  type Piece,
-} from '../world/roadGraph';
+import { ROAD_SPECS } from '../world/streets';
+import { LANE_OFFSET, LANE_SPACING, RoadGraph, pieceAt, turnKind, type Light, type Piece } from '../world/roadGraph';
 import {
   CAR_DIMENSIONS,
   PAINT_COLORS,
@@ -31,7 +18,8 @@ import {
   type CarType,
 } from '../vehicles/carModel';
 
-// NPC traffic: cars that follow the road graph, obey traffic lights and keep their distance.
+// NPC traffic: cars that follow the street network, obey traffic lights and stop signs, and
+// keep their distance.
 //
 // They aren't physics-driven: each car moves along its path at a speed it chooses, and its
 // kinematic body is moved to match, so the player's car bumps into them like solid objects.
@@ -46,21 +34,25 @@ import {
 //       a·[1 − (v/v0)⁴ − (s*/s)²],   s* = s0 + v·T + v·Δv / (2√(a·b))
 //   where v0 is the speed it wants, s the gap to whatever is ahead, Δv how fast it's closing
 //   on it, T the time gap it likes to keep, s0 the gap it stops at, a its comfortable
-//   acceleration and b its comfortable braking. Red lights, junctions it must give way at
-//   and obstacles are leaders that stand still.
+//   acceleration and b its comfortable braking. Red lights, stop lines and obstacles are
+//   leaders that stand still.
 // - Personality: every driver gets their own v0 (85–120 % of the limit, some dawdlers),
 //   T, a, b and s0, so traffic spreads out, platoons form behind slow cars and fast ones
 //   want to get past.
-// - Lane changes (town roads, two lanes each way): a simplified MOBIL rule. Change lane if
+// - Lane changes (roads with two lanes each way): a simplified MOBIL rule. Change lane if
 //   the acceleration you'd have there beats the current one by a threshold, and the car
 //   that would be behind you there wouldn't have to brake hard. A bias keeps cars right
 //   (pass on the left), and near the end of a block they move into the lane for their turn.
 // - Overtaking (country roads, one lane each way): stuck behind something slower, a driver
 //   pulls into the oncoming lane if the road ahead is clear for the whole manoeuvre, and
 //   aborts if something appears.
+// - Junctions: lights (two phases); stop signs on the smaller road (stop, then go when the
+//   junction is clear and nothing is coming on the main road); left turns at lights wait for
+//   oncoming traffic; U-turns round cul-de-sacs.
+// - Routes: cars wander, preferring bigger roads and going straight on, so cul-de-sacs
+//   see only the odd car.
 // - Curves: a speed limit √(a_lat/κ) from the curvature of the road (precomputed per piece),
-//   braked for in advance. Unsignalled country junctions: slow down and wait while another
-//   car is crossing. Left turns at lights wait for oncoming traffic.
+//   braked for in advance.
 //
 // Cost: decisions about lanes run a couple of times a second per car (staggered), the
 // per-step work is IDM plus a scan over the other ~28 cars, and pieces are shared objects
@@ -70,11 +62,7 @@ const POOL_SIZE = 28;
 const SPAWN_MIN = 60; // m from the player (closer spawns would pop in visibly)
 const SPAWN_MAX = 220;
 const DESPAWN = 260;
-const TOWN_SPEED = 12.5; // m/s ≈ 45 km/h speed limit in town
-const RURAL_SPEED = 19; // m/s ≈ 70 km/h on country roads
-const JUNCTION_SPEED = 12; // m/s going straight over an unsignalled junction (turns are slower anyway)
-const STOP_LINE_BACK = 4.4; // m before the intersection edge (behind the zebra crossing)
-const JUNCTION_WAIT = 2.5; // m before an unsignalled junction's edge when giving way
+const STOP_LINE_BACK = 1.0; // m before the end of a lane (the paint is just before the junction)
 const SAME_LANE = 2.4; // m: cars whose lateral offsets differ by less than this share a lane
 const LANE_CHANGE_SPEED = 1.5; // m/s sideways at most
 const LOOKAHEAD = 90; // m of road ahead considered for curves and leaders
@@ -122,11 +110,13 @@ export interface TrafficCar {
   lat: number;
   latTarget: number;
   latVel: number;
-  /** Where it'll turn at the end of the lane it's on (or the lane it's about to join). */
-  exit: Dir;
+  /** The lane it'll take at the end of the lane it's on (or the lane it's about to join). */
+  exit: Piece;
   driver: Driver;
   /** Cache for plannedTurn(). */
-  planned: { lane: Piece | null; exit: Dir; offIn: number; turn: Piece | null };
+  planned: { lane: Piece | null; exit: Piece | null; offIn: number; turn: Piece | null };
+  /** The stop-sign junction it has already come to a stop at. */
+  stoppedAt: number;
   /** Seconds until the next lane decision. */
   decideIn: number;
   /** Overtaking on a country road: what it's passing, how long it has been at it. */
@@ -170,7 +160,6 @@ interface RouteStep {
 
 export class Traffic implements SimEntity {
   private readonly graph: RoadGraph;
-  private readonly warp: Warp;
   private readonly cars: TrafficCar[] = [];
   private readonly rng = new Rng(4242);
   private readonly meshes = new Map<CarType, THREE.InstancedMesh[]>();
@@ -190,10 +179,10 @@ export class Traffic implements SimEntity {
   // Scratch.
   private readonly tmp = new THREE.Vector3();
   private readonly tmp2 = new THREE.Vector3();
-  private readonly tmp3 = new THREE.Vector3();
   private readonly mat = new THREE.Matrix4();
   private readonly quat = new THREE.Quaternion();
   private readonly one = new THREE.Vector3(1, 1, 1);
+  private readonly at = { x: 0, z: 0, tx: 0, tz: 0 };
   private readonly route: RouteStep[] = [0, 1, 2].map(() => ({ piece: null as unknown as Piece, lat: 0, start: 0 }));
   private routeLength = 0;
   private readonly opposing: { rev: Piece; end: number; lat: number }[] = [];
@@ -212,8 +201,7 @@ export class Traffic implements SimEntity {
     private readonly playerPosition: () => THREE.Vector3,
     private readonly obstacles: ObstacleSource,
   ) {
-    this.graph = new RoadGraph(layout);
-    this.warp = layout.warp;
+    this.graph = new RoadGraph(layout.streets.net);
     this.lights = new TrafficLights(scene, world, this.graph, terrain);
 
     // Instanced meshes per car type and part.
@@ -263,6 +251,7 @@ export class Traffic implements SimEntity {
       scene.add(m);
     }
 
+    const placeholder = this.graph.lane(0, 1);
     for (const { type, slot } of slots) {
       const d = CAR_DIMENSIONS[type];
       const body = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased());
@@ -277,16 +266,17 @@ export class Traffic implements SimEntity {
         color,
         slot,
         body,
-        piece: this.graph.lane(26, 26, 0)!, // placeholder until respawn (downtown always has roads)
+        piece: placeholder, // until respawn
         s: 0,
         speed: 0,
         acc: 0,
         lat: 0,
         latTarget: 0,
         latVel: 0,
-        exit: 0,
+        exit: placeholder,
         driver: this.newDriver(type),
-        planned: { lane: null, exit: 0, offIn: 0, turn: null },
+        planned: { lane: null, exit: null, offIn: 0, turn: null },
+        stoppedAt: -1,
         decideIn: this.rng.range(0, 0.5),
         passing: null,
         passTime: 0,
@@ -327,31 +317,33 @@ export class Traffic implements SimEntity {
   /** Put a car on a random free lane within spawning distance of the player. */
   private respawn(car: TrafficCar, minDist = SPAWN_MIN): void {
     const player = this.playerPosition();
-    // Try intersections within a few blocks of the player (on the grid, before the warp).
-    const g = this.warp.inverse(player.x, player.z);
-    const pi = cellOf(g.x);
-    const pj = cellOf(g.z);
-    for (let attempt = 0; attempt < 40; attempt++) {
-      const i = Math.min(this.graph.size - 1, Math.max(0, pi + this.rng.int(-3, 3)));
-      const j = Math.min(this.graph.size - 1, Math.max(0, pj + this.rng.int(-3, 3)));
-      const d = this.rng.pick(DIRS);
-      const lane = this.graph.lane(i, j, d);
-      if (!lane || lane.length < 20) continue;
+    const net = this.graph.net;
+    // Roads near the player, weighted toward the busier ones.
+    const candidates: number[] = [];
+    net.index.forEachNear(player.x, player.z, SPAWN_MAX, (e) => {
+      const cls = net.edges[e].cls;
+      const w = cls === 'local' ? 1 : cls === 'collector' ? 3 : 5;
+      for (let k = 0; k < w; k++) candidates.push(e);
+    });
+    for (let attempt = 0; attempt < 40 && candidates.length; attempt++) {
+      const e = candidates[this.rng.int(0, candidates.length - 1)];
+      const lane = this.graph.lane(e, this.rng.chance(0.5) ? 1 : -1);
+      if (lane.length < 20) continue;
       const s = this.rng.range(4, lane.length - 12);
-      const gp = bezierPoint(lane, s / lane.length, this.tmp);
-      const w = this.warp.forward(gp.x, gp.z);
-      const dist = Math.hypot(w.x - player.x, w.z - player.z);
+      const p = pieceAt(lane, s, this.at);
+      const dist = Math.hypot(p.x - player.x, p.z - player.z);
       if (dist < minDist || dist > SPAWN_MAX) continue;
-      const wx = w.x;
-      const wz = w.z;
-      if (this.cars.some((o) => o !== car && o.active && Math.hypot(o.currPos.x - wx, o.currPos.z - wz) < 15)) continue;
+      const px = p.x;
+      const pz = p.z;
+      if (this.cars.some((o) => o !== car && o.active && Math.hypot(o.currPos.x - px, o.currPos.z - pz) < 15)) continue;
       car.piece = lane;
       car.s = s;
       car.driver = this.newDriver(car.type);
-      // Town roads: mostly the right-hand (outer) lane.
-      car.lat = car.latTarget = lane.rural ? 0 : this.rng.chance(0.65) ? LANE_SPACING : 0;
+      // Multi-lane roads: mostly the right-hand (outer) lane.
+      car.lat = car.latTarget = lane.lanes > 1 && this.rng.chance(0.65) ? LANE_SPACING : 0;
       car.latVel = 0;
       car.passing = null;
+      car.stoppedAt = -1;
       car.exit = this.chooseExit(lane);
       car.speed = this.desiredSpeed(car, lane) * 0.7;
       car.acc = 0;
@@ -370,41 +362,58 @@ export class Traffic implements SimEntity {
     car.body.setEnabled(false);
   }
 
-  /** Where to turn at the end of a lane: mostly straight on. */
-  private chooseExit(lane: Piece): Dir {
-    const exits = this.graph.exits(lane.toI, lane.toJ, lane.dir);
-    if (exits.includes(lane.dir) && this.rng.chance(0.55)) return lane.dir;
-    return this.rng.pick(exits);
+  /**
+   * Where to go at the end of a lane: mostly straight on, rather onto a road at least as
+   * big as this one; side streets and cul-de-sacs only now and then.
+   */
+  private chooseExit(lane: Piece): Piece {
+    const exits = this.graph.exits(lane);
+    if (exits.length === 1) return exits[0];
+    let total = 0;
+    const weights = exits.map((x) => {
+      const kind = turnKind(lane.endDir, x.startDir);
+      let w = kind === 'straight' ? 3 : kind === 'uturn' ? 0.05 : 1;
+      if (x.rank < lane.rank) w *= 0.35;
+      if (x.rank > lane.rank) w *= 1.6;
+      total += w;
+      return w;
+    });
+    let r = this.rng.float() * total;
+    for (let i = 0; i < exits.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return exits[i];
+    }
+    return exits[exits.length - 1];
   }
 
   /** The speed limit on a piece times this driver's pace. */
   private desiredSpeed(car: TrafficCar, piece: Piece): number {
-    return (piece.rural ? RURAL_SPEED : TOWN_SPEED) * car.driver.pace;
+    return piece.speed * car.driver.pace;
   }
 
   /**
    * Lane offset after the turn at the end of a lane: right turns into the right-hand lane,
-   * left turns into the left-hand one, straight on stays put; country roads have one lane.
+   * left turns into the left-hand one, straight on stays put; one-lane roads have one.
    */
-  private exitOffset(lane: Piece, exit: Dir, offIn: number): number {
-    const next = this.graph.lane(lane.toI, lane.toJ, exit);
-    const kind = turnKind(lane.dir, exit);
-    if (!next || next.rural) return kind === 'straight' && offIn < 0 ? offIn : 0;
+  private exitOffset(lane: Piece, next: Piece, offIn: number): number {
+    const kind = turnKind(lane.endDir, next.startDir);
+    if (next.lanes < 2) return kind === 'straight' && offIn < 0 && next.rural ? offIn : 0;
     if (kind === 'right' || kind === 'uturn') return LANE_SPACING;
     if (kind === 'left') return 0;
     return Math.max(0, offIn);
   }
 
   /** The turn a car on a lane will take at its end, from the lane it's aiming for. */
-  private plannedTurn(car: TrafficCar, lane: Piece): Piece {
-    const offIn = car.latTarget;
+  private plannedTurn(car: TrafficCar, lane: Piece, offIn = car.latTarget, exit = car.exit): Piece {
     const c = car.planned;
     // Cached while the lane, exit and target lane stay the same (most steps).
-    if (c.turn && c.lane === lane && c.exit === car.exit && c.offIn === offIn) return c.turn;
+    if (c.turn && c.lane === lane && c.exit === exit && c.offIn === offIn) return c.turn;
     c.lane = lane;
-    c.exit = car.exit;
+    c.exit = exit;
     c.offIn = offIn;
-    c.turn = this.graph.turn(lane.toI, lane.toJ, lane.dir, car.exit, offIn, this.exitOffset(lane, car.exit, offIn));
+    // A two-lane road's outer lane exists only where it has two lanes.
+    const off = lane.lanes > 1 || offIn < 0 ? offIn : 0;
+    c.turn = this.graph.turn(lane, exit, off, this.exitOffset(lane, exit, off));
     return c.turn;
   }
 
@@ -420,53 +429,56 @@ export class Traffic implements SimEntity {
       r[1].piece = turn;
       r[1].lat = 0;
       r[1].start = p.length - car.s;
-      r[2].piece = this.graph.lane(turn.toI, turn.toJ, turn.dir)!;
+      r[2].piece = turn.to!;
       r[2].lat = turn.offOut;
       r[2].start = r[1].start + turn.length;
     } else {
-      const lane = this.graph.lane(p.toI, p.toJ, p.dir)!;
+      const lane = p.to!;
       r[1].piece = lane;
       r[1].lat = p.offOut;
       r[1].start = p.length - car.s;
       // The car has already picked its exit for that lane; it'll arrive in lane offOut.
-      const target = car.latTarget;
-      car.latTarget = p.offOut;
-      r[2].piece = this.plannedTurn(car, lane);
-      car.latTarget = target;
+      const nextTurn = this.graph.turn(lane, car.exit, lane.lanes > 1 || p.offOut < 0 ? p.offOut : 0, this.exitOffset(lane, car.exit, p.offOut));
+      r[2].piece = nextTurn;
       r[2].lat = 0;
       r[2].start = r[1].start + lane.length;
     }
     this.routeLength = 3;
+    // A U-turn ahead (a dead end, a cul-de-sac): the lane after it is the reverse of ours,
+    // whose cars are oncoming, not leaders. Stop the route at the turn.
+    if (p.kind === 'lane' && r[2].piece === this.graph.reverse(p)) this.routeLength = 2;
   }
 
   /** Update the car's world position, heading and pitch from its piece, distance and offset. */
   private place(car: TrafficCar): void {
     const piece = car.piece;
-    const t = Math.min(1, car.s / piece.length);
-    const g = bezierPoint(piece, t, this.tmp);
-    const tan = bezierTangent(piece, t, this.tmp2).normalize();
-    // Sideways offset on the grid: the right of the tangent is (−tz, tx).
-    g.x += -tan.z * car.lat;
-    g.z += tan.x * car.lat;
-    // Two points 1.5 m ahead and behind, bent into the world: the midpoint is the car,
-    // the line between them its heading, and the road heights there its pitch.
-    const ax = g.x + tan.x * 1.5;
-    const az = g.z + tan.z * 1.5;
-    const bx = g.x - tan.x * 1.5;
-    const bz = g.z - tan.z * 1.5;
-    let w = this.warp.forward(ax, az);
-    const awx = w.x;
-    const awz = w.z;
-    w = this.warp.forward(bx, bz);
-    const bwx = w.x;
-    const bwz = w.z;
-    const ha = this.terrain.roadHeight(awx, awz, ax, az);
-    const hb = this.terrain.roadHeight(bwx, bwz, bx, bz);
-    car.currPos.set((awx + bwx) / 2, (ha + hb) / 2, (awz + bwz) / 2);
+    // Two points 1.5 m ahead and behind along the path, shifted sideways by the offset:
+    // the midpoint is the car, the line between them its heading, the road heights there
+    // its pitch.
+    const a = pieceAt(piece, car.s + 1.5, this.at);
+    let ax = a.x - a.tz * car.lat;
+    let az = a.z + a.tx * car.lat;
+    // Past the ends of the piece, extrapolate along its end direction.
+    const over = car.s + 1.5 - piece.length;
+    if (over > 0) {
+      ax += a.tx * over;
+      az += a.tz * over;
+    }
+    const b = pieceAt(piece, car.s - 1.5, this.at);
+    let bx = b.x - b.tz * car.lat;
+    let bz = b.z + b.tx * car.lat;
+    const under = car.s - 1.5;
+    if (under < 0) {
+      bx += b.tx * under;
+      bz += b.tz * under;
+    }
+    const ha = this.terrain.smoothHeight(ax, az);
+    const hb = this.terrain.smoothHeight(bx, bz);
+    car.currPos.set((ax + bx) / 2, (ha + hb) / 2, (az + bz) / 2);
     // Model forward is +X; yaw from the world direction, nosed toward the side it's
     // drifting to while changing lanes.
-    car.currYaw = Math.atan2(-(awz - bwz), awx - bwx) - Math.atan2(car.latVel, Math.max(car.speed, 2));
-    car.currPitch = Math.atan2(ha - hb, Math.hypot(awx - bwx, awz - bwz));
+    car.currYaw = Math.atan2(-(az - bz), ax - bx) - Math.atan2(car.latVel, Math.max(car.speed, 2));
+    car.currPitch = Math.atan2(ha - hb, Math.hypot(ax - bx, az - bz));
   }
 
   /** IDM acceleration for this driver at speed v wanting v0, with a leader `gap` m ahead closing at dv. */
@@ -481,7 +493,7 @@ export class Traffic implements SimEntity {
   /**
    * Nearest thing ahead in the lane at lateral offset `lat` (on the current piece): traffic
    * cars along the route (same shared piece objects and a similar offset), oncoming cars
-   * coming at it in that lane, other cars close in front (crossing an intersection), and
+   * coming at it in that lane, other cars close in front (crossing a junction), and
    * obstacles (the player, their cars).
    */
   private leader(car: TrafficCar, lat: number, routeAhead: boolean): Leader {
@@ -498,9 +510,9 @@ export class Traffic implements SimEntity {
     for (let k = 0; k < this.routeLength; k++) {
       const step = r[k];
       if (step.piece.kind !== 'lane') continue;
-      if (k > 0 && r[k - 1].piece.kind === 'turn' && r[k - 1].piece.from !== r[k - 1].piece.dir) break;
-      const rev = this.graph.lane(step.piece.toI, step.piece.toJ, ((step.piece.dir + 2) % 4) as Dir);
-      if (rev) opp.push({ rev, end: step.start + step.piece.length, lat: k === 0 ? lat : step.lat });
+      const prev = k > 0 ? r[k - 1].piece : null;
+      if (prev && prev.kind === 'turn' && turnKind(prev.from!.endDir, prev.to!.startDir) !== 'straight') break;
+      opp.push({ rev: this.graph.reverse(step.piece), end: step.start + step.piece.length, lat: k === 0 ? lat : step.lat });
     }
     for (const o of this.cars) {
       if (o === car || !o.active) continue;
@@ -517,12 +529,11 @@ export class Traffic implements SimEntity {
         if (ahead > 0) gap = ahead - halfs;
         break;
       }
-      // Coming the other way in this lane (an overtaker, or us overtaking): both cars
-      // close the gap, so treat it as a stopped car halfway.
       const facing = matched ? undefined : opp.find((q) => q.rev === o.piece);
       if (facing) {
-        // My offset from the centre line is LANE_OFFSET + lat; theirs, seen from my side,
-        // is −(LANE_OFFSET + o.lat): same spot across the road when these cancel.
+        // Coming the other way in this lane (an overtaker, or us overtaking): both cars
+        // close the gap, so treat it as a stopped car halfway. My offset from the centre
+        // line is LANE_OFFSET + lat; theirs, seen from my side, is −(LANE_OFFSET + o.lat).
         if (Math.abs(facing.lat + o.lat + 2 * LANE_OFFSET) < SAME_LANE) {
           const ahead = facing.end - o.s;
           if (ahead > 0 && (ahead - halfs) / 2 < best.gap) {
@@ -534,10 +545,21 @@ export class Traffic implements SimEntity {
         continue;
       }
       if (!matched) {
-        // Not on our route: only if it's right in front (e.g. crossing the intersection).
+        // Not on our route: only if it's right in front (e.g. crossing the junction).
         const rx = o.currPos.x - car.currPos.x;
         const rz = o.currPos.z - car.currPos.z;
         const along = rx * fwdX + rz * fwdZ;
+        // Coming straight at us in our lane, wherever it is on the network (an overtaker
+        // round a bend, say): measured along our own path so curves don't fool it.
+        if (along > 0 && along < 40 && Math.cos(o.currYaw - car.currYaw) < -0.5) {
+          const side = this.sideOffset(car, along, o.currPos) - shift;
+          if (Math.abs(side) < 1.8 && (along - halfs) / 2 < best.gap) {
+            best.gap = (along - halfs) / 2;
+            best.speed = 0;
+            best.car = null;
+          }
+          continue;
+        }
         if (along > 0 && along < 14) {
           const side = rx * -fwdZ + rz * fwdX - shift; // + = right of the lane's line
           const sameWay = Math.cos(o.currYaw - car.currYaw) > 0.5;
@@ -574,20 +596,11 @@ export class Traffic implements SimEntity {
   private sideOffset(car: TrafficCar, along: number, p: THREE.Vector3): number {
     const piece = car.piece;
     const s = car.s + along;
-    const t = Math.min(1, s / piece.length);
-    const g = bezierPoint(piece, t, this.tmp3);
-    const tan = bezierTangent(piece, t, this.tmp2).normalize();
+    const q = pieceAt(piece, s, this.at);
     const extra = Math.max(0, s - piece.length);
-    const gx = g.x + tan.x * extra - tan.z * car.lat;
-    const gz = g.z + tan.z * extra + tan.x * car.lat;
-    let w = this.warp.forward(gx, gz);
-    const qx = w.x;
-    const qz = w.z;
-    w = this.warp.forward(gx + tan.x, gz + tan.z);
-    const fx = w.x - qx;
-    const fz = w.z - qz;
-    const len = Math.hypot(fx, fz) || 1;
-    return ((p.x - qx) * -fz + (p.z - qz) * fx) / len;
+    const qx = q.x + q.tx * extra - q.tz * car.lat;
+    const qz = q.z + q.tz * extra + q.tx * car.lat;
+    return (p.x - qx) * -q.tz + (p.z - qz) * q.tx;
   }
 
   /** Highest speed from which the car can still brake to every curve limit ahead. */
@@ -611,77 +624,75 @@ export class Traffic implements SimEntity {
   }
 
   /**
-   * Stop lines that apply now: a red (or stoppable yellow) light, an unsignalled junction
-   * with someone crossing, or a left turn across oncoming traffic. Gap from the front
-   * bumper (m), or Infinity.
+   * Stop lines that apply now: a red (or stoppable yellow) light, a stop sign (stop, then go
+   * when clear), a left turn across oncoming traffic. Gap from the front bumper (m), or Infinity.
    */
   private stopGap(car: TrafficCar): number {
     const p = car.piece;
     if (p.kind !== 'lane') return Infinity;
-    const i = p.toI;
-    const j = p.toJ;
-    const toEdge = p.length - car.s - car.halfLength;
-    if (toEdge > LOOKAHEAD) return Infinity;
-    if (this.graph.hasLights(i, j)) {
-      const toLine = toEdge - STOP_LINE_BACK;
-      if (toLine < -0.5) return Infinity; // already over the line: carry on
-      const light = lightState(i, j, p.dir, this.time);
+    const toLine = p.length - car.s - car.halfLength - STOP_LINE_BACK;
+    if (toLine > LOOKAHEAD || toLine < -1.5) return Infinity;
+    if (this.graph.hasLights(p.node)) {
+      const light = this.graph.lightState(p, this.time);
       if (light === 'red') return Math.max(0, toLine);
       if (light === 'yellow') {
         // Stop if it can comfortably; otherwise go through.
         return toLine > (car.speed * car.speed) / (2 * car.driver.b) ? Math.max(0, toLine) : Infinity;
       }
       // Green: a left turn waits (at the line) for oncoming cars going straight or right.
-      if (turnKind(p.dir, car.exit) === 'left' && toLine < 25 && this.oncomingConflict(car, i, j, p.dir)) return Math.max(0, toLine);
+      if (turnKind(p.endDir, car.exit.startDir) === 'left' && toLine < 25 && this.oncomingConflict(car, p)) return Math.max(0, toLine);
       return Infinity;
     }
-    // Give way a couple of metres back from the junction, clear of cars turning across it.
-    if (this.graph.isJunction(i, j) && this.junctionBusy(car, i, j, p.dir)) return Math.max(0, toEdge - JUNCTION_WAIT);
+    if (this.graph.mustStop(p)) {
+      // Come to a full stop at the line first; then wait while it isn't clear.
+      if (car.stoppedAt !== p.node) {
+        if (toLine < 1.5 && car.speed < 0.4) car.stoppedAt = p.node;
+        else return Math.max(0, toLine);
+      }
+      if (this.junctionBusy(car, p) || this.crossTraffic(car, p)) return Math.max(0, toLine);
+    }
     return Infinity;
   }
 
-  /** Is another car crossing junction (i, j) from a different direction? */
-  private junctionBusy(car: TrafficCar, i: number, j: number, from: Dir): boolean {
+  /** Is another car crossing the junction at the end of `lane` from a different approach? */
+  private junctionBusy(car: TrafficCar, lane: Piece): boolean {
     for (const o of this.cars) {
       if (o === car || !o.active || o.piece.kind !== 'turn') continue;
-      if (o.piece.toI === i && o.piece.toJ === j && o.piece.from !== from) return true;
+      if (o.piece.node === lane.node && o.piece.from !== lane) return true;
     }
     return false;
   }
 
-  /** Oncoming traffic a left turn at (i, j) must wait for. */
-  private oncomingConflict(car: TrafficCar, i: number, j: number, dir: Dir): boolean {
-    const back = ((dir + 2) % 4) as Dir;
-    const beyond = this.graph.neighbor(i, j, dir);
-    const oncoming = beyond ? this.graph.lane(beyond[0], beyond[1], back) : null;
-    const theirLeft = ((back + 3) % 4) as Dir;
-    for (const o of this.cars) {
-      if (o === car || !o.active || o.wrecked >= 0) continue;
-      if (o.piece === oncoming) {
-        if (o.exit === theirLeft) continue; // two left turns pass in front of each other
-        const rem = o.piece.length - o.s;
-        if ((rem < 35 && o.speed > 2) || rem < 8) return true;
-      } else if (o.piece.kind === 'turn' && o.piece.toI === i && o.piece.toJ === j && o.piece.from === back) {
-        if (turnKind(o.piece.from, o.piece.dir) !== 'left') return true;
+  /** Cars coming on the bigger road(s) at a stop-sign junction, close enough to matter. */
+  private crossTraffic(car: TrafficCar, lane: Piece): boolean {
+    for (const appr of this.graph.approaches(lane)) {
+      if (appr.rank <= lane.rank && !this.graph.mustStop(lane)) continue;
+      if (this.graph.mustStop(appr)) continue; // they stop too
+      for (const o of this.cars) {
+        if (o === car || !o.active || o.piece !== appr || o.wrecked >= 0) continue;
+        const rem = appr.length - o.s;
+        // Coming within ~4 s, or right at the junction.
+        if (rem < o.speed * 4 + 6) return true;
       }
     }
     return false;
   }
 
-  /** Is a car alongside, on the side the car is moving to (would moving over hit it)? */
-  private blockedSideways(car: TrafficCar, dl: number): boolean {
-    const fwdX = Math.cos(car.currYaw);
-    const fwdZ = -Math.sin(car.currYaw);
-    for (const o of this.cars) {
-      if (o === car || !o.active) continue;
-      const rx = o.currPos.x - car.currPos.x;
-      const rz = o.currPos.z - car.currPos.z;
-      if (rx * rx + rz * rz > 100) continue;
-      const along = rx * fwdX + rz * fwdZ;
-      const side = rx * -fwdZ + rz * fwdX;
-      // Overlapping lengthwise (plus a little), and on the side we're heading to, within
-      // reach of where we're going.
-      if (Math.abs(along) < car.halfLength + o.halfLength + 0.8 && side * dl > 0 && Math.abs(side) < Math.abs(dl) + 2.1) return true;
+  /** Oncoming traffic a left turn at the end of `lane` must wait for. */
+  private oncomingConflict(car: TrafficCar, lane: Piece): boolean {
+    for (const appr of this.graph.approaches(lane)) {
+      // Oncoming: arriving head-on (roughly opposite direction).
+      if (appr.endDir[0] * lane.endDir[0] + appr.endDir[1] * lane.endDir[1] > -0.7) continue;
+      for (const o of this.cars) {
+        if (o === car || !o.active || o.wrecked >= 0) continue;
+        if (o.piece === appr) {
+          if (turnKind(appr.endDir, o.exit.startDir) === 'left') continue; // two left turns pass in front of each other
+          const rem = appr.length - o.s;
+          if ((rem < 35 && o.speed > 2) || rem < 8) return true;
+        } else if (o.piece.kind === 'turn' && o.piece.from === appr) {
+          if (turnKind(appr.endDir, o.piece.to!.startDir) !== 'left') return true;
+        }
+      }
     }
     return false;
   }
@@ -712,23 +723,23 @@ export class Traffic implements SimEntity {
   }
 
   /**
-   * Lane decisions, a couple of times a second. Town roads: simplified MOBIL (switch if it
-   * pays and it's safe; keep right unless passing; get into the lane for the next turn).
-   * Country roads: overtake slow cars through the oncoming lane when it's clear.
+   * Lane decisions, a couple of times a second. Multi-lane roads: simplified MOBIL (switch
+   * if it pays and it's safe; keep right unless passing; get into the lane for the next
+   * turn). Country roads: overtake slow cars through the oncoming lane when it's clear.
    */
   private decideLane(car: TrafficCar, v0: number): void {
     const p = car.piece;
     if (p.kind !== 'lane') return;
-    const remaining = p.length - car.s;
-    if (p.rural) {
-      this.decideOvertake(car, v0);
+    if (p.lanes < 2) {
+      if (p.rural) this.decideOvertake(car, v0);
       return;
     }
+    const remaining = p.length - car.s;
     if (Math.abs(car.lat - car.latTarget) > 0.2 || remaining < 14) return; // mid-change / too late
     const current = car.latTarget;
     const other = current === 0 ? LANE_SPACING : 0;
     // Near the end of the block: the lane for the turn (right → right lane, left → left).
-    const kind = turnKind(p.dir, car.exit);
+    const kind = turnKind(p.endDir, car.exit.startDir);
     const needed = remaining < 60 ? (kind === 'right' || kind === 'uturn' ? LANE_SPACING : kind === 'left' ? 0 : -1) : -1;
     if (needed === current) return;
 
@@ -797,8 +808,8 @@ export class Traffic implements SimEntity {
   }
 
   /**
-   * The car's lane and the country lanes that carry straight on after it, through nodes
-   * where the road simply continues (no junction, no lights, no bend), with the distance
+   * The car's lane and the country lanes that carry straight on after it, through junctions
+   * where the road simply continues (two roads, no lights, no sharp bend), with the distance
    * from the car to the start of each (≤ 0 for its own lane).
    */
   private straightRun(car: TrafficCar): { lane: Piece; start: number }[] {
@@ -807,17 +818,18 @@ export class Traffic implements SimEntity {
     if (p.kind !== 'lane') return run;
     let lane = p;
     let start = -car.s;
-    let first = true;
+    let next: Piece = car.exit;
     while (start + lane.length < 300) {
-      const { toI: i, toJ: j, dir } = lane;
-      if (this.graph.isJunction(i, j) || this.graph.hasLights(i, j)) break;
-      if (first ? car.exit !== dir : !this.graph.exits(i, j, dir).every((d) => d === dir)) break;
-      const next = this.graph.lane(i, j, dir);
-      if (!next || !next.rural) break;
-      start += lane.length + 2 * this.graph.nodeHalf(i, j);
+      const node = this.graph.nodes[lane.node];
+      if (node.edges.length !== 2 || node.control !== 'none') break;
+      if (turnKind(lane.endDir, next.startDir) !== 'straight' || !next.rural) break;
+      const gap = Math.hypot(next.pts[0] - lane.pts[lane.pts.length - 2], next.pts[1] - lane.pts[lane.pts.length - 1]);
+      start += lane.length + gap;
       lane = next;
       run.push({ lane, start });
-      first = false;
+      const exits = this.graph.exits(lane);
+      if (exits.length !== 1) break;
+      next = exits[0];
     }
     return run;
   }
@@ -829,17 +841,28 @@ export class Traffic implements SimEntity {
       if (o === car || !o.active) continue;
       for (const { lane, start } of run) {
         if (start > dist) break;
-        // A car on the reverse of this lane, or crossing the node at its far end.
+        // A car on the reverse of this lane, or crossing the junction at its far end.
         const end = start + lane.length;
         let ahead = Infinity;
-        if (o.piece === this.graph.lane(lane.toI, lane.toJ, ((lane.dir + 2) % 4) as Dir)) ahead = end - o.s;
-        else if (o.piece.kind === 'turn' && o.piece.toI === lane.toI && o.piece.toJ === lane.toJ && o.piece.from !== lane.dir) ahead = end;
+        if (o.piece === this.graph.reverse(lane)) ahead = end - o.s;
+        else if (o.piece.kind === 'turn' && o.piece.node === lane.node && o.piece.from !== lane) ahead = end;
         if (ahead > -5 && ahead < dist) return true;
       }
     }
-    // The player: anything moving in the road ahead counts (straight-line check).
     const fx = Math.cos(car.currYaw);
     const fz = -Math.sin(car.currYaw);
+    // Cars heading our way from beyond what the lanes above cover (round a bend, past a
+    // junction) that could arrive in time: anything ahead coming the other way, within the
+    // distance and a generous width (a false alarm only cancels an overtake).
+    for (const o of this.cars) {
+      if (o === car || !o.active || o.wrecked >= 0 || o.speed < 1) continue;
+      if (Math.cos(o.currYaw - car.currYaw) > -0.3) continue;
+      const rx = o.currPos.x - car.currPos.x;
+      const rz = o.currPos.z - car.currPos.z;
+      const along = rx * fx + rz * fz;
+      if (along > 0 && along < dist && Math.abs(rx * -fz + rz * fx) < 12 + along * 0.25) return true;
+    }
+    // The player: anything moving in the road ahead counts (straight-line check).
     for (const q of this.obstacleList) {
       const rx = q.x - car.currPos.x;
       const rz = q.z - car.currPos.z;
@@ -871,10 +894,11 @@ export class Traffic implements SimEntity {
     }
     const closing = car.speed + 20;
     const danger = this.oncomingWithin(car, closing * 2.5 + 15);
+    const node = this.graph.nodes[p.node];
     const runningOut =
       p.kind === 'lane' &&
       remaining < 15 &&
-      (car.exit !== p.dir || this.graph.isJunction(p.toI, p.toJ) || this.graph.hasLights(p.toI, p.toJ));
+      (node.edges.length !== 2 || node.control !== 'none' || turnKind(p.endDir, car.exit.startDir) !== 'straight');
     if (done || danger || runningOut || car.passTime > 18 || along > 45) {
       if (done) this.stats.passCompleted++;
       else this.stats.passAborted++;
@@ -886,7 +910,7 @@ export class Traffic implements SimEntity {
   fixedUpdate(dt: number): void {
     this.time += dt;
     // Lamp colours only need refreshing ten times a second (cars read the light state
-    // directly); there are thousands of signal heads in the world.
+    // directly); there are hundreds of signal heads in the world.
     this.lightTimer -= dt;
     if (this.lightTimer <= 0) {
       this.lightTimer = 0.1;
@@ -922,14 +946,8 @@ export class Traffic implements SimEntity {
   private drive(car: TrafficCar, dt: number): void {
     const d = car.driver;
     this.buildRoute(car);
-    // Wanted speed: the driver's pace on this road, capped by curves ahead and, near an
-    // unsignalled junction, by the speed to enter it.
-    let v0 = Math.min(this.desiredSpeed(car, car.piece), this.curveSpeed(car));
-    const p = car.piece;
-    if (p.kind === 'lane' && car.exit === p.dir && this.graph.isJunction(p.toI, p.toJ)) {
-      const toEdge = Math.max(0, p.length - car.s - car.halfLength - 3);
-      v0 = Math.min(v0, Math.sqrt(JUNCTION_SPEED * JUNCTION_SPEED + 2 * d.b * 0.8 * toEdge));
-    }
+    // Wanted speed: the driver's pace on this road, capped by curves ahead.
+    const v0 = Math.min(this.desiredSpeed(car, car.piece), this.curveSpeed(car));
 
     car.decideIn -= dt;
     if (car.decideIn <= 0) {
@@ -968,16 +986,10 @@ export class Traffic implements SimEntity {
       car.latVel = 0;
     }
 
-    // Move on to the next piece: lane → turn through the intersection → next lane.
+    // Move on to the next piece: lane → turn through the junction → next lane.
     while (car.s >= car.piece.length) {
       const piece = car.piece;
       if (piece.kind === 'lane') {
-        // Unsignalled junction still busy: wait at its edge.
-        if (this.graph.isJunction(piece.toI, piece.toJ) && this.junctionBusy(car, piece.toI, piece.toJ, piece.dir)) {
-          car.s = piece.length - 0.01;
-          car.speed = 0;
-          break;
-        }
         car.s -= piece.length;
         const turn = this.plannedTurn(car, piece);
         car.piece = turn;
@@ -985,12 +997,12 @@ export class Traffic implements SimEntity {
         // lane it was aiming for, so what's left is only an unfinished lane change.
         car.lat -= turn.offIn;
         car.latTarget = 0;
+        car.stoppedAt = -1;
         // Pick the exit for the lane after this turn.
-        const next = this.graph.lane(turn.toI, turn.toJ, turn.dir)!;
-        car.exit = this.chooseExit(next);
+        car.exit = this.chooseExit(turn.to!);
       } else {
         car.s -= piece.length;
-        car.piece = this.graph.lane(piece.toI, piece.toJ, piece.dir)!;
+        car.piece = piece.to!;
         car.lat += piece.offOut;
         car.latTarget = piece.offOut;
       }
@@ -999,6 +1011,23 @@ export class Traffic implements SimEntity {
     this.orientation(car.currYaw, car.currPitch, this.quat);
     car.body.setNextKinematicTranslation(car.currPos);
     car.body.setNextKinematicRotation(this.quat);
+  }
+
+  /** Is a car alongside, on the side the car is moving to (would moving over hit it)? */
+  private blockedSideways(car: TrafficCar, dl: number): boolean {
+    const fwdX = Math.cos(car.currYaw);
+    const fwdZ = -Math.sin(car.currYaw);
+    for (const o of this.cars) {
+      if (o === car || !o.active) continue;
+      const rx = o.currPos.x - car.currPos.x;
+      const rz = o.currPos.z - car.currPos.z;
+      if (rx * rx + rz * rz > 100) continue;
+      const along = rx * fwdX + rz * fwdZ;
+      const side = rx * -fwdZ + rz * fwdX;
+      // Overlapping lengthwise (plus a little), on the side we're heading to, within reach.
+      if (Math.abs(along) < car.halfLength + o.halfLength + 0.8 && side * dl > 0 && Math.abs(side) < Math.abs(dl) + 2.1) return true;
+    }
+    return false;
   }
 
   afterStep(): void {}
@@ -1195,34 +1224,31 @@ const IDENTITY_QUAT = new THREE.Quaternion();
 const SCALE = new THREE.Vector3();
 
 /**
- * Traffic signals: a pole on the sidewalk corner before each intersection approach, with a
- * three-lamp head facing the oncoming lane. Lamps are unlit-material instances whose colour
- * is switched between bright (on) and dark (off).
+ * Traffic signals: a pole on the kerb at each approach to a lit junction, with a three-lamp
+ * head facing the oncoming traffic. Lamps are unlit-material instances whose colour is
+ * switched between bright (on) and dark (off).
  */
 class TrafficLights {
-  private readonly approaches: { i: number; j: number; d: Dir }[] = [];
+  private readonly approaches: Piece[] = [];
   private readonly lamps: Record<Light, THREE.InstancedMesh>;
   private readonly state: Light[] = [];
 
-  constructor(scene: THREE.Scene, world: RAPIER.World, graph: RoadGraph, terrain: Terrain) {
-    const half = ROAD_WIDTH / 2;
-    for (let i = 0; i < graph.size; i++) {
-      for (let j = 0; j < graph.size; j++) {
-        if (!graph.hasLights(i, j)) continue;
-        for (const d of DIRS) {
-          // An approach exists if a road arrives here travelling in direction d.
-          if (graph.neighbor(i, j, ((d + 2) % 4) as Dir)) this.approaches.push({ i, j, d });
-        }
-      }
+  constructor(scene: THREE.Scene, world: RAPIER.World, private readonly graph: RoadGraph, terrain: Terrain) {
+    const net = graph.net;
+    for (const n of net.nodes) {
+      if (n.control !== 'lights') continue;
+      for (const e of n.edges) this.approaches.push(graph.lane(e, net.edges[e].b === n.id ? 1 : -1));
     }
-    const n = this.approaches.length;
+    const count = Math.max(1, this.approaches.length);
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.5, metalness: 0.6 });
-    const pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.07, 0.09, 3.6, 8).translate(0, 1.8, 0), poleMat, n);
-    const head = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 1.0, 0.32).translate(0, 3.25, 0), poleMat, n);
+    const pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.07, 0.09, 3.6, 8).translate(0, 1.8, 0), poleMat, count);
+    const head = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 1.0, 0.32).translate(0, 3.25, 0), poleMat, count);
     pole.castShadow = head.castShadow = true;
+    pole.count = head.count = this.approaches.length;
     const lampGeo = new THREE.CircleGeometry(0.11, 12);
     const makeLamps = () => {
-      const m = new THREE.InstancedMesh(lampGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }), n);
+      const m = new THREE.InstancedMesh(lampGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }), count);
+      m.count = this.approaches.length;
       scene.add(m);
       return m;
     };
@@ -1232,25 +1258,24 @@ class TrafficLights {
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const s = new THREE.Vector3(1, 1, 1);
-    this.approaches.forEach(({ i, j, d }, k) => {
-      const fwd = dirVector(d);
-      const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
-      // On the sidewalk at the corner, on the right before the intersection.
-      const base = graph
-        .node(i, j)
-        .addScaledVector(fwd, -(half + 0.8))
-        .addScaledVector(right, half + 0.9);
-      const turn = terrain.warpAngle(base.x, base.z);
-      const w = terrain.toWorld(base.x, base.z);
-      base.set(w.x, terrain.surfaceAt(w.x, w.z) - 0.05, w.z);
-      fwd.applyAxisAngle(new THREE.Vector3(0, 1, 0), turn);
-      // Face the head toward the oncoming traffic (−fwd). Circles face +Z by default.
-      q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fwd.clone().negate());
+    this.approaches.forEach((lane, k) => {
+      const [tx, tz] = lane.endDir;
+      const edge = net.edges[lane.edge];
+      const hw = ROAD_SPECS[edge.cls].width / 2;
+      // On the kerb to the right, level with the end of the lane (just before the junction).
+      const end = lane.pts.length - 2;
+      const out = hw - LANE_OFFSET + 0.8;
+      const x = lane.pts[end] - tz * out;
+      const z = lane.pts[end + 1] + tx * out;
+      const base = new THREE.Vector3(x, terrain.surfaceAt(x, z) - 0.05, z);
+      // Face the head toward the oncoming traffic (−travel). Circles face +Z by default.
+      const back = new THREE.Vector3(-tx, 0, -tz);
+      q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), back);
       m.compose(base, q, s);
       pole.setMatrixAt(k, m);
       head.setMatrixAt(k, m);
       for (const light of ['red', 'yellow', 'green'] as Light[]) {
-        const lampPos = base.clone().addScaledVector(fwd, -0.17);
+        const lampPos = base.clone().addScaledVector(back, 0.17);
         lampPos.y += lampY[light];
         m.compose(lampPos, q, s);
         this.lamps[light].setMatrixAt(k, m);
@@ -1271,8 +1296,8 @@ class TrafficLights {
 
   update(time: number, force = false): void {
     let changed = false;
-    this.approaches.forEach(({ i, j, d }, k) => {
-      const light = lightState(i, j, d, time);
+    this.approaches.forEach((lane, k) => {
+      const light = this.graph.lightState(lane, time);
       if (!force && light === this.state[k]) return;
       this.state[k] = light;
       changed = true;
@@ -1280,6 +1305,6 @@ class TrafficLights {
         this.lamps[l].setColorAt(k, l === light ? TrafficLights.ON[l] : TrafficLights.OFF);
       }
     });
-    if (changed) for (const l of ['red', 'yellow', 'green'] as Light[]) this.lamps[l].instanceColor!.needsUpdate = true;
+    if (changed) for (const l of ['red', 'yellow', 'green'] as Light[]) if (this.lamps[l].instanceColor) this.lamps[l].instanceColor!.needsUpdate = true;
   }
 }

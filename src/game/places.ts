@@ -15,9 +15,8 @@ import {
   type CityLayout,
   type ParkingSpot,
   type Zone,
-  toWorld,
-  warpSpot,
 } from '../world/layout';
+import type { Parcel, ParcelKind } from '../world/suburbs';
 
 // Special places spread around the world, chosen deterministically from the layout:
 //
@@ -26,8 +25,9 @@ import {
 //   stores    — extra Guns & Ammo shops (the first one, downtown by the spawn, is placed by
 //               game/shop.ts as before).
 //
-// Each place takes over one town block: its buildings are replaced before any chunk is built,
-// so the streamed meshes and colliders already include them.
+// Downtown, a place takes over one town block; elsewhere it takes over a parcel (a strip mall,
+// a school's grounds, a village or seaside shop). Buildings are replaced before any chunk is
+// built, so the streamed meshes and colliders already include them.
 
 export interface Hospital {
   name: string;
@@ -45,6 +45,10 @@ export interface StoreSite {
   door: THREE.Vector3;
   normal: THREE.Vector3;
 }
+
+/** Parcels a hospital may take over (big ones first), and ones a store may move into. */
+const HOSPITAL_PARCELS: ParcelKind[] = ['stripmall', 'school', 'bigbox', 'shop', 'village'];
+const STORE_PARCELS: ParcelKind[] = ['stripmall', 'shop', 'village'];
 
 const HOSPITAL_TARGETS: { name: string; x: number; z: number; zones: Zone[] }[] = [
   { name: 'City General Hospital', x: -200, z: -200, zones: ['downtown'] },
@@ -66,6 +70,8 @@ const STORE_TARGETS: { name: string; x: number; z: number; zones: Zone[] }[] = [
 export interface Places {
   /** Blocks taken by hospitals, stores, the spawn, the helipad and the downtown givers. */
   usedBlocks: Set<Block>;
+  /** Parcels taken by hospitals and stores. */
+  usedParcels: Set<Parcel>;
   hospitals: Hospital[];
   stores: StoreSite[];
   /** The hospital nearest to (x, z). */
@@ -104,11 +110,40 @@ export function createPlaces(
     return best;
   };
 
+  const usedParcels = new Set<Parcel>();
+  /** The nearest free parcel of one of `kinds` (in order of preference within 600 m). */
+  const pickParcel = (x: number, z: number, kinds: ParcelKind[]): Parcel | null => {
+    for (const kind of kinds) {
+      let best: Parcel | null = null;
+      let bestDist = 600;
+      for (const p of layout.streets.parcels) {
+        if (p.kind !== kind || usedParcels.has(p) || !p.buildings.length) continue;
+        const d = Math.hypot(p.x - x, p.z - z);
+        if (d < bestDist) {
+          best = p;
+          bestDist = d;
+        }
+      }
+      if (best) {
+        usedParcels.add(best);
+        return best;
+      }
+    }
+    return null;
+  };
+  // Parcel-local axes: u along the street, v into the parcel (the front faces the street at −v).
+  const axes = (yaw: number) => ({ ux: Math.cos(yaw), uz: -Math.sin(yaw), vx: Math.sin(yaw), vz: Math.cos(yaw) });
+
   const signTex = hospitalSignTexture();
   const signMaterial = new THREE.MeshStandardMaterial({ map: signTex, emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: 0.6 });
 
   const hospitals: Hospital[] = [];
   for (const t of HOSPITAL_TARGETS) {
+    if (!t.zones.includes('downtown')) {
+      const p = pickParcel(t.x, t.z, HOSPITAL_PARCELS);
+      if (p) hospitals.push(parcelHospital(p, t.name, hospitals.length));
+      continue;
+    }
     const b = pick(t.x, t.z, t.zones);
     if (!b) continue;
     // A white four-storey block set back toward the north, leaving a forecourt by the
@@ -126,20 +161,13 @@ export function createPlaces(
     ];
     b.roofProps = [];
     b.trees = b.trees.filter((tr) => Math.abs(tr.z - b.cz) > LOT / 2); // keep street trees only
-    // The layout is a grid bent by the road warp: work out spots on the grid, then move
-    // them (and turn them by the warp's local angle) into the world.
-    const angle = layout.warp.angle(b.cx, z);
-    const world = (gx: number, gz: number, lift = 0) => {
-      const w = toWorld(layout, gx, gz);
-      return new THREE.Vector3(w.x, surface(w.x, w.z) + lift, w.z);
-    };
+    const world = (x: number, z: number, lift = 0) => new THREE.Vector3(x, surface(x, z) + lift, z);
     const door = world(b.cx, z + depth / 2 + 1);
 
     // Sign over the entrance.
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.8), signMaterial);
     const signAt = world(b.cx, z + depth / 2 + 0.08);
     sign.position.set(signAt.x, door.y + metrics.groundFloor + 0.45, signAt.z);
-    sign.rotation.y = angle;
     scene.add(sign);
 
     // Two cars in the parking lane of the street to the south (its northern lane, by the
@@ -149,12 +177,12 @@ export function createPlaces(
     const parking: ParkingSpot[] = [
       { x: b.cx - 9, z: laneZ, yaw: Math.PI, type: 'sedan' as const, colorIndex: hospitals.length % 9 },
       { x: b.cx + 4, z: laneZ, yaw: Math.PI, type: hospitals.length % 2 ? ('van' as const) : ('sedan' as const), colorIndex: (hospitals.length + 4) % 9 },
-    ].map((spot) => warpSpot(layout, spot));
+    ];
 
     hospitals.push({
       name: t.name,
       spawn: world(b.cx, z + depth / 2 + 5, 1.0),
-      heading: Math.PI + angle, // facing out to the street; camera yaw π looks toward +Z
+      heading: Math.PI, // facing out to the street; camera yaw π looks toward +Z
       door,
       parking,
     });
@@ -162,6 +190,19 @@ export function createPlaces(
 
   const stores: StoreSite[] = [];
   for (const t of STORE_TARGETS) {
+    if (!t.zones.includes('downtown')) {
+      const p = pickParcel(t.x, t.z, STORE_PARCELS);
+      if (!p) continue;
+      // One unit of the row of shops: a door in the front wall (facing the parking lot or
+      // the street), toward one end for a strip mall.
+      const bl = p.buildings[0];
+      const { ux, uz, vx, vz } = axes(p.yaw);
+      const along = p.kind === 'stripmall' ? (bl.width / 2 - 8) * (p.x > 0 ? 1 : -1) : 0;
+      const x = bl.x + ux * along - vx * (bl.depth / 2);
+      const z = bl.z + uz * along - vz * (bl.depth / 2);
+      stores.push({ name: t.name, door: new THREE.Vector3(x, surface(x - vx, z - vz), z), normal: new THREE.Vector3(-vx, 0, -vz) });
+      continue;
+    }
     const b = pick(t.x, t.z, t.zones);
     if (!b) continue;
     // A low brick shop along the southern sidewalk, its door facing that street.
@@ -184,18 +225,68 @@ export function createPlaces(
     });
     b.roofProps = b.roofProps.filter((p) => p.z < z - depth / 2 - 2);
     b.trees = b.trees.filter((tr) => !(Math.abs(tr.x - b.cx) < width / 2 + 2 && Math.abs(tr.z - z) < depth / 2 + 2));
-    const sa = layout.warp.angle(b.cx, z);
-    const sw = toWorld(layout, b.cx, z + depth / 2);
     stores.push({
       name: t.name,
-      door: new THREE.Vector3(sw.x, surface(sw.x + Math.sin(sa), sw.z + Math.cos(sa)), sw.z),
-      // The wall's outward normal (+Z on the grid), turned by the warp.
-      normal: new THREE.Vector3(Math.sin(sa), 0, Math.cos(sa)),
+      door: new THREE.Vector3(b.cx, surface(b.cx, z + depth / 2 + 1), z + depth / 2),
+      normal: new THREE.Vector3(0, 0, 1), // the wall faces +Z, the southern street
     });
+  }
+
+  /**
+   * Turn a parcel's main building into a hospital (a clinic on a small parcel): white
+   * concrete, set back with the parking lot (or the street) in front, two cars parked there.
+   */
+  function parcelHospital(p: Parcel, name: string, index: number): Hospital {
+    const { ux, uz, vx, vz } = axes(p.yaw);
+    const metrics = STYLE_METRICS[STYLE_CONCRETE];
+    const big = p.w > 80;
+    const width = big ? 42 : Math.min(22, p.w - 2);
+    const depth = big ? 26 : Math.min(14, p.d - 4);
+    const floors = big ? 4 : 2;
+    const height = metrics.groundFloor + floors * metrics.floor + PARAPET;
+    // Building at the back of the parcel (or where the old one stood on a small parcel).
+    const back = big ? p.d / 2 - depth / 2 - 4 : -p.d / 2 + depth / 2 + 2;
+    const cx = p.x + vx * back;
+    const cz = p.z + vz * back;
+    p.buildings = [{ x: cx, z: cz, y: 0, yaw: p.yaw, width, depth, height, style: STYLE_CONCRETE, color: [0.78, 0.8, 0.82], seed: 7, kind: 'hospital' }];
+    p.trees = p.trees.filter((tr) => Math.hypot(tr.x - cx, tr.z - cz) > Math.max(width, depth) / 2 + 3);
+    if (p.kind === 'school') {
+      p.fields = [];
+      p.grass = [];
+      p.paved = [{ x: p.x - vx * (p.d / 4), z: p.z - vz * (p.d / 4), yaw: p.yaw, w: p.w - 10, d: p.d / 2 - 6 }];
+      p.stalls = [];
+    }
+    // Door in the front wall (facing −v), sign above it.
+    const dx = cx - vx * (depth / 2);
+    const dz = cz - vz * (depth / 2);
+    const door = new THREE.Vector3(dx, surface(dx - vx, dz - vz), dz);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.8), signMaterial);
+    sign.position.set(dx - vx * 0.08, door.y + metrics.groundFloor + 0.45, dz - vz * 0.08);
+    // A plane faces +Z; turn it to face −v.
+    sign.rotation.y = Math.atan2(-vx, -vz);
+    scene.add(sign);
+    // Two cars in front, facing the building (car forward is +X; yaw turns +X toward (cos, −sin)).
+    const yaw = Math.atan2(-vz, vx);
+    const spot = (a: number): ParkingSpot => {
+      const x = dx + ux * a - vx * 12;
+      const z = dz + uz * a - vz * 12;
+      return { x, z, yaw, type: index % 2 ? 'van' : 'sedan', colorIndex: (index * 3 + Math.round(a)) % 9 };
+    };
+    const sx = dx - vx * 5;
+    const sz = dz - vz * 5;
+    return {
+      name,
+      spawn: new THREE.Vector3(sx, surface(sx, sz) + 1.0, sz),
+      // Facing away from the door: camera yaw θ looks along (−sin θ, −cos θ).
+      heading: Math.atan2(vx, vz),
+      door,
+      parking: [spot(-7), spot(4)],
+    };
   }
 
   return {
     usedBlocks: reserved,
+    usedParcels,
     hospitals,
     stores,
     nearestHospital(x, z) {

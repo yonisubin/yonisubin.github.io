@@ -25,13 +25,13 @@ import { fbm, hash2, lerp, smoothstep, valueNoise } from './noise';
 //             downtown) blending into countryside hills (rolling farmland, tall in the
 //             northern forest, a rim of high hills at the world's edge); flat by the coast
 //             and the lake. Roads follow this layer, so streets climb and dip with the hills.
-//             Town blocks are draped over it too.
-//
-// The layout is a grid bent by the road warp (warp.ts): questions about zones, roads, towns
-// and blocks convert a world point back to the grid first (toGrid).
+//             Downtown blocks are draped over it too.
 //   detail  — smaller bumps, faded out near roads and towns so those stay smooth.
 //   lake    — a bowl carved below the water level in the northern hills.
 //   beach   — south of the coastal road: sand sloping into the sea.
+//   roads   — the ground dips just below every road, so the road surface (its own mesh and
+//             collider, built from the street network) always sits on top. In town the
+//             lawns are CURB_HEIGHT above the road, level with the sidewalks.
 
 /** The sea and the lake share one water level. */
 export const WATER_Y = -0.5;
@@ -47,6 +47,9 @@ export interface BlockPlane {
   gz: number;
 }
 
+/** Width (m) beyond a road's edge that its sidewalk and grass verge cover. */
+export const VERGE = 4.5;
+
 /** Height range (m) of the town hills, in the suburbs and villages and downtown. */
 const TOWN_HILLS = 34;
 const TOWN_HILLS_DOWNTOWN = 22;
@@ -61,33 +64,8 @@ export class Terrain {
     this.townCells = layout.townCells;
   }
 
-  /**
-   * World → grid. The layout lives on a perfect grid and the warp (warp.ts) bends it; every
-   * question about zones, roads, towns and blocks is answered on the grid. Returns a copy.
-   */
-  private toGrid(x: number, z: number): { x: number; z: number } {
-    const g = this.layout.warp.inverse(x, z);
-    return { x: g.x, z: g.z };
-  }
-
-  /** A layout (grid) point in the world, through the road warp. A fresh object. */
-  toWorld(gx: number, gz: number): { x: number; z: number } {
-    const w = this.layout.warp.forward(gx, gz);
-    return { x: w.x, z: w.z };
-  }
-
-  /** How much the road warp turns things at a grid point (rad, add to a grid yaw). */
-  warpAngle(gx: number, gz: number): number {
-    return this.layout.warp.angle(gx, gz);
-  }
-
   /** Zone at a world point. */
   zoneAt(x: number, z: number): Zone {
-    const g = this.toGrid(x, z);
-    return this.zoneAtGrid(g.x, g.z);
-  }
-
-  private zoneAtGrid(x: number, z: number): Zone {
     const bx = Math.min(CELLS - 1, Math.max(0, cellOf(x)));
     const bz = Math.min(CELLS - 1, Math.max(0, cellOf(z)));
     return this.layout.zones[bz * CELLS + bx];
@@ -95,14 +73,23 @@ export class Terrain {
 
   /** Metres from a world point to the nearest town cell (0 inside one; large if none nearby). */
   townDistance(x: number, z: number): number {
-    const g = this.toGrid(x, z);
-    return this.townDistanceGrid(g.x, g.z);
+    return this.townDistanceGrid(x, z);
   }
 
-  /** Metres from a world point to the centre line of the nearest road (capped at ~200). */
+  /** Metres from a world point to the centre line of the nearest road (capped at 200). */
   roadDistance(x: number, z: number): number {
-    const g = this.toGrid(x, z);
-    return this.roadDistanceGrid(g.x, g.z);
+    return this.layout.streets ? this.layout.streets.net.distance(x, z, 200) : 200;
+  }
+
+  /** Metres from a world point to the nearest road's edge (negative on the road; capped at 40). */
+  kerbDistance(x: number, z: number): number {
+    return this.layout.streets ? this.layout.streets.net.kerbDistance(x, z, 40) : 40;
+  }
+
+  /** In a town zone outside downtown: lawns are raised to sidewalk level there. */
+  private lawnLift(x: number, z: number): number {
+    const zone = this.zoneAt(x, z);
+    return zone === 'suburb' || zone === 'village' || zone === 'beachtown' ? CURB_HEIGHT : 0;
   }
 
   private townDistanceGrid(x: number, z: number): number {
@@ -126,37 +113,6 @@ export class Terrain {
     return best;
   }
 
-  private roadDistanceGrid(x: number, z: number): number {
-    const roads = this.layout.roads;
-    const ix = cellOf(x);
-    const iz = cellOf(z);
-    let best = 200;
-    // Horizontal segments on the lines just north and south (and one more each way).
-    for (let k = iz - 1; k <= iz + 2; k++) {
-      const lz = lineCoord(k);
-      const dz = Math.abs(z - lz);
-      if (dz >= best) continue;
-      for (let i = ix - 1; i <= ix + 1; i++) {
-        if (!roads.hasH(i, k)) continue;
-        const x0 = lineCoord(i);
-        const dx = x < x0 ? x0 - x : x > x0 + PITCH ? x - x0 - PITCH : 0;
-        best = Math.min(best, Math.hypot(dx, dz));
-      }
-    }
-    for (let i = ix - 1; i <= ix + 2; i++) {
-      const lx = lineCoord(i);
-      const dx = Math.abs(x - lx);
-      if (dx >= best) continue;
-      for (let k = iz - 1; k <= iz + 1; k++) {
-        if (!roads.hasV(i, k)) continue;
-        const z0 = lineCoord(k);
-        const dz = z < z0 ? z0 - z : z > z0 + PITCH ? z - z0 - PITCH : 0;
-        best = Math.min(best, Math.hypot(dx, dz));
-      }
-    }
-    return best;
-  }
-
   /** 0 in the south … 1 in the northern forest hills. */
   private forestWeight(x: number, z: number): number {
     return smoothstep(-450, -950, z + 120 * Math.sin(x / 500));
@@ -164,16 +120,7 @@ export class Terrain {
 
   /** The big, smooth hills at a world point. Roads and town blocks sit on this layer. */
   smoothHeight(x: number, z: number): number {
-    const g = this.toGrid(x, z);
-    return this.smoothCore(x, z, this.townDistanceGrid(g.x, g.z));
-  }
-
-  /**
-   * Road level at a world point whose grid point is already known (traffic knows both),
-   * which skips the warp inversion smoothHeight() has to do.
-   */
-  roadHeight(wx: number, wz: number, gx: number, gz: number): number {
-    return this.smoothCore(wx, wz, this.townDistanceGrid(gx, gz));
+    return this.smoothCore(x, z, this.townDistanceGrid(x, z));
   }
 
   /** The smooth layer, given the distance to town (the hills are defined in world space). */
@@ -204,10 +151,7 @@ export class Terrain {
     let p = this.planes.get(b);
     if (!p) {
       const r = BLOCK_SIZE / 2;
-      const at = (gx: number, gz: number) => {
-        const w = this.layout.warp.forward(gx, gz);
-        return this.smoothHeight(w.x, w.z);
-      };
+      const at = (x: number, z: number) => this.smoothHeight(x, z);
       const h00 = at(b.cx - r, b.cz - r);
       const h10 = at(b.cx + r, b.cz - r);
       const h01 = at(b.cx - r, b.cz + r);
@@ -235,29 +179,46 @@ export class Terrain {
 
   /** The block whose slab covers the world point (x, z), if any. */
   blockUnder(x: number, z: number): Block | null {
-    const g = this.toGrid(x, z);
-    const b = this.layout.blockAt(cellOf(g.x), cellOf(g.z));
-    if (!b || Math.abs(g.x - b.cx) > BLOCK_SIZE / 2 || Math.abs(g.z - b.cz) > BLOCK_SIZE / 2) return null;
+    const b = this.layout.blockAt(cellOf(x), cellOf(z));
+    if (!b || Math.abs(x - b.cx) > BLOCK_SIZE / 2 || Math.abs(z - b.cz) > BLOCK_SIZE / 2) return null;
     return b;
   }
 
-  /** Where you'd stand at (x, z): a block's sidewalk top, or else the ground / road. */
+  /**
+   * Where you'd stand at (x, z): a downtown block's sidewalk top; on a road, the road; on a
+   * sidewalk or verge beside it, road level plus the lawn lift; else the ground.
+   */
   surfaceAt(x: number, z: number): number {
     const b = this.blockUnder(x, z);
-    return b ? this.blockHeight(b, x, z) + CURB_HEIGHT : this.heightAt(x, z);
+    if (b) return this.blockHeight(b, x, z) + CURB_HEIGHT;
+    if (!this.layout.streets) return this.heightAt(x, z);
+    const k = this.layout.streets.net.kerb(x, z, 40);
+    if (k.dist < 0) return this.smoothHeight(x, z);
+    // Sidewalks are always a curb above the road; the verge beyond slopes to the lawn level.
+    if (k.dist < k.sidewalk) return this.smoothHeight(x, z) + CURB_HEIGHT;
+    if (k.dist < VERGE) {
+      const inner = k.sidewalk > 0 ? CURB_HEIGHT : 0;
+      const t = (k.dist - k.sidewalk) / (VERGE + 0.4 - k.sidewalk);
+      return this.smoothHeight(x, z) + lerp(inner, this.lawnLift(x, z), t);
+    }
+    return this.heightAt(x, z);
   }
 
   /** Height of the ground at (x, z), in metres. */
   heightAt(x: number, z: number): number {
-    const g = this.toGrid(x, z);
-    const townDist = this.townDistanceGrid(g.x, g.z);
-    let h = this.smoothCore(x, z, townDist);
+    const townDist = this.townDistanceGrid(x, z);
+    const smooth = this.smoothCore(x, z, townDist);
+    let h = smooth + this.lawnLift(x, z);
 
     // Smaller bumps, smoothed away near roads and towns.
     const forest = this.forestWeight(x, z);
-    const detailMask =
-      smoothstep(9, 32, this.roadDistanceGrid(g.x, g.z)) * smoothstep(15, 60, townDist) * (1 - smoothstep(1300, 1450, z));
+    const detailMask = smoothstep(9, 32, this.roadDistance(x, z)) * smoothstep(15, 60, townDist) * (1 - smoothstep(1300, 1450, z));
     if (detailMask > 0) h += (fbm(x / 110, z / 110, 3, this.seed + 2) - 0.5) * 2 * (2.5 + 5 * forest) * detailMask;
+
+    // Under and beside roads: dip below the road surface (the road mesh, sidewalks and
+    // verges cover the transition), so the ground never pokes through on a 6 m mesh.
+    const kerb = this.kerbDistance(x, z);
+    if (kerb < VERGE) h = lerp(smooth - 0.6, h, smoothstep(-1.5, VERGE, kerb));
 
     // The lake: a bowl below the water level.
     const lr = lakeRadius(x, z);
@@ -309,7 +270,6 @@ export class Terrain {
     }
 
     const forest = this.forestWeight(x, z);
-    const gp = this.toGrid(x, z);
     const n1 = fbm(x / 60, z / 60, 2, this.seed + 9);
     // Meadow grass, varying between lush and dry.
     let r = lerp(0.1, 0.22, n1);
@@ -321,7 +281,15 @@ export class Terrain {
     b = lerp(b, 0.04, forest * 0.8);
 
     // Farmland: a patchwork of fields (wheat, young crops, ploughed earth, pasture).
-    if (this.zoneAtGrid(gp.x, gp.z) === 'farm' && this.roadDistanceGrid(gp.x, gp.z) > ROAD_WIDTH / 2 + 2) {
+    const zone = this.zoneAt(x, z);
+    if (zone === 'suburb' || zone === 'village' || zone === 'beachtown') {
+      // Mown lawns: greener and more even than the meadows.
+      const m = 0.85 + 0.15 * valueNoise(x / 9, z / 9, 13);
+      r = lerp(0.09, 0.14, n1) * m;
+      g = lerp(0.17, 0.2, n1) * m;
+      b = lerp(0.04, 0.06, n1) * m;
+    }
+    if (zone === 'farm' && this.roadDistance(x, z) > ROAD_WIDTH / 2 + 2) {
       const fx = Math.floor((x + 1000) / 58);
       const fz = Math.floor((z + 1000) / 42);
       const pick = hash2(fx, fz, this.seed + 11);
@@ -335,7 +303,7 @@ export class Terrain {
       const c = crops[Math.floor(pick * crops.length)];
       // Crop rows: faint stripes.
       const rows = 0.9 + 0.1 * Math.sin((pick > 0.5 ? x : z) * 2.2);
-      const field = (1 - forest) * smoothstep(40, 80, this.townDistanceGrid(gp.x, gp.z));
+      const field = (1 - forest) * smoothstep(40, 80, this.townDistanceGrid(x, z));
       r = lerp(r, c[0] * rows, field);
       g = lerp(g, c[1] * rows, field);
       b = lerp(b, c[2] * rows, field);

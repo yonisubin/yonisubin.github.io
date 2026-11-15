@@ -317,12 +317,26 @@ export function polylineLength(pts: ArrayLike<number>): number {
 
 export class StreetNet {
   readonly index: SegmentIndex;
+  /** Cul-de-sac turning circles, bucketed like the segments. */
+  private readonly bulbs = new Map<number, number[]>();
   constructor(
     readonly nodes: StreetNode[],
     readonly edges: StreetEdge[],
   ) {
     this.index = new SegmentIndex((e) => this.edges[e].pts);
     for (const e of edges) this.index.addAll(e.id);
+    for (const n of nodes) {
+      if (!n.bulb) continue;
+      const k = Math.floor(n.x / BUCKET) * 4096 + Math.floor(n.z / BUCKET);
+      const list = this.bulbs.get(k);
+      if (list) list.push(n.id);
+      else this.bulbs.set(k, [n.id]);
+    }
+  }
+
+  /** Half the road width of an edge. */
+  halfWidth(e: StreetEdge): number {
+    return ROAD_SPECS[e.cls].width / 2;
   }
 
   /** Distance from (x, z) to the nearest road centre line (capped at `cap`). */
@@ -330,10 +344,34 @@ export class StreetNet {
     return this.index.nearest(x, z, cap)?.dist ?? cap;
   }
 
-  /** Distance to the nearest road's kerb (negative on the road). */
-  kerbDistance(x: number, z: number, cap = 200): number {
+  /**
+   * Distance to the nearest road's kerb (negative on the road), counting cul-de-sac circles.
+   * `skip`: an edge to leave out (a road's own sidewalk asks about the *other* roads).
+   */
+  kerbDistance(x: number, z: number, cap = 200, skip = -1): number {
+    return this.kerb(x, z, cap, skip).dist;
+  }
+
+  /** Like kerbDistance, plus the sidewalk width of that nearest road (0 if it has none). */
+  kerb(x: number, z: number, cap = 200, skip = -1): { dist: number; sidewalk: number } {
     let best = cap;
+    let sidewalk = 0;
+    const bx = Math.floor(x / BUCKET);
+    const bz = Math.floor(z / BUCKET);
+    for (let a = -1; a <= 1; a++) {
+      for (let b = -1; b <= 1; b++) {
+        for (const id of this.bulbs.get((bx + a) * 4096 + (bz + b)) ?? []) {
+          const n = this.nodes[id];
+          const d = Math.hypot(x - n.x, z - n.z) - n.bulb;
+          if (d < best) {
+            best = d;
+            sidewalk = ROAD_SPECS[this.edges[n.edges[0]].cls].sidewalk;
+          }
+        }
+      }
+    }
     this.index.forEachNear(x, z, Math.min(cap, 40), (e, seg) => {
+      if (e === skip) return;
       const p = this.edges[e].pts;
       const ax = p[seg * 2];
       const az = p[seg * 2 + 1];
@@ -341,10 +379,14 @@ export class StreetNet {
       const dz = p[seg * 2 + 3] - az;
       const len2 = dx * dx + dz * dz;
       const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2)) : 0;
-      const d = Math.hypot(x - ax - dx * t, z - az - dz * t) - ROAD_SPECS[this.edges[e].cls].width / 2;
-      if (d < best) best = d;
+      const spec = ROAD_SPECS[this.edges[e].cls];
+      const d = Math.hypot(x - ax - dx * t, z - az - dz * t) - spec.width / 2;
+      if (d < best) {
+        best = d;
+        sidewalk = spec.sidewalk;
+      }
     });
-    return best;
+    return { dist: best, sidewalk };
   }
 
   nearest(x: number, z: number, maxDist = 200): NearestRoad | null {

@@ -7,8 +7,8 @@ import type { CharacterLibrary, Look } from '../player/characterLibrary';
 import type { Interactable } from '../player/onFoot';
 import type { Traffic, TrafficCar } from '../npc/traffic';
 import type { PlayerStats } from './stats';
-import { BLOCK_SIZE, MID, PITCH, VILLAGES, WORLD_HALF, cellOf, lineCoord, type Block, type CityLayout, type Zone } from '../world/layout';
-import { RoadGraph, type Dir } from '../world/roadGraph';
+import { BLOCK_SIZE, MID, VILLAGES, WORLD_HALF, lineCoord, type Block, type CityLayout, type Zone } from '../world/layout';
+import { ROAD_SPECS, type StreetEdge } from '../world/streets';
 import { WATER_Y } from '../world/terrain';
 
 // Missions, handed out by three characters who stand at fixed spots with a "!" over their
@@ -64,7 +64,7 @@ const BUOY_RADIUS = 4; // m: swim this close to a buoy to tag it
 const GATE_RADIUS = 9; // m: drive through a race gate within this distance of its centre
 const FLAG_RADIUS = 4; // m: walk up to a summit flag
 const GIVER_RADIUS = 2.6; // m, how close to stand to talk to a giver
-/** The givers further out: where (a point the nearest town block is chosen from), who, and what. */
+/** The givers further out: where (a point; they stand on the nearest street's sidewalk), who, and what. */
 const OUTER_GIVERS: { name: string; x: number; z: number; zones: Zone[]; kinds: MissionKind[]; greeting: string; look: Look }[] = [
   { name: 'Lena', x: -120, z: 1521, zones: ['beachtown'], kinds: ['swim'], greeting: 'Lifeguard trials today. Think you can keep up?', look: { id: 'w_casual', skin: 1, hair: 3, outfit: 3, height: 1.7 } },
   { name: 'Farmer Joe', x: lineCoord(VILLAGES[0].i) - 60, z: lineCoord(VILLAGES[0].k) - 70, zones: ['village'], kinds: ['race'], greeting: "Fancy a spin round the farm roads? I'll time you.", look: { id: 'm_farmer', skin: 2, hair: 5, outfit: 1, height: 1.82 } },
@@ -127,7 +127,6 @@ export class Missions implements SimEntity {
   private readonly packageMeshes: THREE.Mesh[] = [];
   private readonly rings: THREE.Mesh[] = [];
   private readonly targetArrow: THREE.Mesh;
-  private readonly graph: RoadGraph;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -152,36 +151,48 @@ export class Missions implements SimEntity {
     // --- The three givers, on sidewalks around the spawn (fixed, not random).
     const mid = MID;
     const block = (bx: number, bz: number) => layout.blockAt(bx, bz)!;
-    const specs: [string, MissionKind[], Block, string][] = [
-      ['Marco', ['delivery', 'packages'], block(mid, mid + 1), 'Need a courier. Quick money, no questions.'],
-      ['Vera', ['wreck'], block(mid - 1, mid + 2), "There's a car out there I want off the road."],
-      ['Captain Reyes', ['rings'], block(mid + 1, mid + 2), 'Fancy yourself a pilot? Prove it.'],
+    // Where each giver stands and which way they face (θ looks along (−sin θ, −cos θ)).
+    type Spot = { x: number; z: number; facing: number };
+    const onBlock = (b: Block): Spot => {
+      // On the sidewalk 6 m from the block's south-west corner, between the pedestrians'
+      // path and the curb, facing out to the street (−X).
+      const half = BLOCK_SIZE / 2;
+      return { x: b.cx - half + 1.2, z: b.cz + half - 6, facing: Math.PI / 2 };
+    };
+    const specs: [string, MissionKind[], Spot, string][] = [
+      ['Marco', ['delivery', 'packages'], onBlock(block(mid, mid + 1)), 'Need a courier. Quick money, no questions.'],
+      ['Vera', ['wreck'], onBlock(block(mid - 1, mid + 2)), "There's a car out there I want off the road."],
+      ['Captain Reyes', ['rings'], onBlock(block(mid + 1, mid + 2)), 'Fancy yourself a pilot? Prove it.'],
     ];
-    // …and the ones further out, each on the town block nearest their spot.
+    // …and the ones further out, on the sidewalk of the nearest proper street to their spot.
     const looks = [...GIVER_LOOKS];
-    const taken = new Set<Block>([...hooks.usedBlocks, ...specs.map((s) => s[2])]);
+    const net = layout.streets.net;
     for (const o of OUTER_GIVERS) {
-      let best: Block | null = null;
-      for (const b of layout.blocks) {
-        if (!o.zones.includes(b.zone) || taken.has(b) || b.helipad) continue;
-        if (!best || Math.hypot(b.cx - o.x, b.cz - o.z) < Math.hypot(best.cx - o.x, best.cz - o.z)) best = b;
+      const hit = net.index.nearest(o.x, o.z, 400, (e) => ROAD_SPECS[net.edges[e].cls].sidewalk === 0);
+      if (!hit) continue;
+      const e = net.edges[hit.edge];
+      const p = e.pts;
+      const dx = p[hit.seg * 2 + 2] - p[hit.seg * 2];
+      const dz = p[hit.seg * 2 + 3] - p[hit.seg * 2 + 1];
+      const l = Math.hypot(dx, dz) || 1;
+      // The side of the road the spot is on.
+      let nx = -dz / l;
+      let nz = dx / l;
+      if ((o.x - hit.x) * nx + (o.z - hit.z) * nz < 0) {
+        nx = -nx;
+        nz = -nz;
       }
-      if (!best) continue;
-      taken.add(best);
-      specs.push([o.name, o.kinds, best, o.greeting]);
+      const spec = ROAD_SPECS[e.cls];
+      const off = spec.width / 2 + spec.sidewalk * 0.6;
+      specs.push([o.name, o.kinds, { x: hit.x + nx * off, z: hit.z + nz * off, facing: Math.atan2(nx, nz) }, o.greeting]);
       looks.push(o.look);
     }
-    this.graph = new RoadGraph(layout);
+    void hooks.usedBlocks;
     const badge = badgeTexture();
-    specs.forEach(([name, kinds, b, greeting], k) => {
-      // On the sidewalk 6 m from the block's south-west corner, between the pedestrians'
-      // path and the curb, facing out to the street.
-      const half = BLOCK_SIZE / 2;
-      const gp = { x: b.cx - half + 1.2, z: b.cz + half - 6 };
-      const w = layout.warp.forward(gp.x, gp.z);
-      const position = new THREE.Vector3(w.x, 0, w.z);
+    specs.forEach(([name, kinds, spot, greeting], k) => {
+      const position = new THREE.Vector3(spot.x, 0, spot.z);
       position.y = surface(position.x, position.z);
-      const facing = Math.PI / 2 + layout.warp.angle(gp.x, gp.z); // face the road (−X on the grid)
+      const facing = spot.facing;
       world.createCollider(RAPIER.ColliderDesc.capsule(0.55, 0.35).setTranslation(position.x, position.y + 0.9, position.z));
       const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: badge, depthTest: true }));
       marker.scale.set(0.7, 0.7, 0.7);
@@ -314,28 +325,50 @@ export class Missions implements SimEntity {
 
   // ---------------------------------------------------------------- mission setup
 
-  /** A random spot on some block's sidewalk between `min` and `max` metres from `from`. */
+  /**
+   * A random spot on a sidewalk between `min` and `max` metres from `from`: on a downtown
+   * block, or beside a suburban street.
+   */
   private sidewalkSpot(from: THREE.Vector3, min: number, max: number): THREE.Vector3 | null {
-    // Only town blocks in range (the world has ~1000 of them).
-    const candidates = this.layout.blocks.filter((bl) => {
+    const blocks = this.layout.blocks.filter((bl) => {
       const d = Math.hypot(bl.cx - from.x, bl.cz - from.z);
       return d > min - BLOCK_SIZE && d < max + BLOCK_SIZE;
     });
-    if (!candidates.length) return null;
-    for (let attempt = 0; attempt < 60; attempt++) {
-      const b = candidates[Math.floor(Math.random() * candidates.length)];
-      const edge = BLOCK_SIZE / 2 - 2;
-      const along = (Math.random() * 2 - 1) * (edge - 6);
-      const side = Math.floor(Math.random() * 4);
-      const x = side < 2 ? (side === 0 ? edge : -edge) : along;
-      const z = side < 2 ? along : side === 2 ? edge : -edge;
-      const w = this.layout.warp.forward(b.cx + x, b.cz + z);
-      const p = new THREE.Vector3(w.x, this.surface(w.x, w.z), w.z);
-      const d = Math.hypot(p.x - from.x, p.z - from.z);
-      if (d >= min && d <= max) return p;
+    const net = this.layout.streets.net;
+    const edges = net.edges.filter((e) => {
+      if (ROAD_SPECS[e.cls].sidewalk === 0) return false;
+      const d = Math.hypot(e.pts[0] - from.x, e.pts[1] - from.z);
+      return d > min - e.length && d < max + e.length;
+    });
+    if (!blocks.length && !edges.length) return null;
+    const pt = { x: 0, z: 0, tx: 0, tz: 0 };
+    for (let attempt = 0; attempt < 80; attempt++) {
+      let x: number;
+      let z: number;
+      if (edges.length && (!blocks.length || Math.random() < edges.length / (edges.length + blocks.length * 4))) {
+        const e: StreetEdge = edges[Math.floor(Math.random() * edges.length)];
+        if (e.length < 30) continue;
+        net.pointAt(e, 12 + Math.random() * (e.length - 24), pt);
+        const side = Math.random() < 0.5 ? 1 : -1;
+        const spec = ROAD_SPECS[e.cls];
+        const off = (spec.width / 2 + spec.sidewalk / 2) * side;
+        x = pt.x - pt.tz * off;
+        z = pt.z + pt.tx * off;
+        if (net.kerbDistance(x, z, 10) < 0.2) continue;
+      } else {
+        const b = blocks[Math.floor(Math.random() * blocks.length)];
+        const edge = BLOCK_SIZE / 2 - 2;
+        const along = (Math.random() * 2 - 1) * (edge - 6);
+        const side = Math.floor(Math.random() * 4);
+        x = b.cx + (side < 2 ? (side === 0 ? edge : -edge) : along);
+        z = b.cz + (side < 2 ? along : side === 2 ? edge : -edge);
+      }
+      const d = Math.hypot(x - from.x, z - from.z);
+      if (d >= min && d <= max) return new THREE.Vector3(x, this.surface(x, z), z);
     }
     return null;
   }
+
 
   private start(giver: Giver, kind: MissionKind): boolean {
     const from = this.playerPosition();
@@ -463,53 +496,54 @@ export class Missions implements SimEntity {
   }
 
   /**
-   * A race along the road network: from the intersection nearest `from`, wander along the
-   * roads (mostly straight on, never back) and put a gate every few intersections.
+   * A race along the road network: from the junction nearest `from`, wander along the bigger
+   * roads (country roads, arterials, collectors; never back the way it came, avoiding places
+   * already passed) and put a gate every ~160 m or more.
    */
   private raceRoute(from: THREE.Vector3): THREE.Vector3[] {
-    const g = this.layout.warp.inverse(from.x, from.z);
-    let i = cellOf(g.x + PITCH / 2);
-    let j = cellOf(g.z + PITCH / 2);
-    // Snap to a node that has a road.
-    const dirs: Dir[] = [0, 1, 2, 3];
-    const hasAny = (a: number, b: number) => dirs.some((d) => this.graph.hasRoad(a, b, d));
-    for (let r = 0; r < 4 && !hasAny(i, j); r++) {
-      i += r % 2 ? 1 : -1;
+    const net = this.layout.streets.net;
+    const big = (e: StreetEdge) => e.cls !== 'local';
+    let node = -1;
+    let bestD = 600;
+    for (const n of net.nodes) {
+      if (!n.edges.some((e) => big(net.edges[e]))) continue;
+      const d = Math.hypot(n.x - from.x, n.z - from.z);
+      if (d < bestD) {
+        bestD = d;
+        node = n.id;
+      }
     }
-    if (!hasAny(i, j)) return [];
-    // Head off toward the middle of the map (away from the dead ends at the world's edge).
-    const DX = [1, 0, -1, 0];
-    const DZ = [0, 1, 0, -1];
-    const toCentre = (d: Dir) => -(DX[d] * lineCoord(i) + DZ[d] * lineCoord(j));
-    let dir: Dir = dirs.filter((d) => this.graph.hasRoad(i, j, d)).sort((a, b) => toCentre(b) - toCentre(a))[0];
+    if (node < 0) return [];
     const points: THREE.Vector3[] = [];
-    // Intersections already on the route: avoided where possible, so the race doesn't loop
-    // back over itself (and never gets two gates in one place).
-    const visited = new Set<string>([`${i},${j}`]);
-    for (let step = 0; step < 48 && points.length < 8; step++) {
-      const next = this.graph.neighbor(i, j, dir);
-      if (!next) break;
-      [i, j] = next;
-      const key = `${i},${j}`;
-      if (step % 4 === 3 && !visited.has(key)) {
-        const w = this.layout.warp.forward(lineCoord(i), lineCoord(j));
-        points.push(new THREE.Vector3(w.x, this.hooks.ground(w.x, w.z), w.z));
+    const visited = new Set<number>([node]);
+    let came = -1;
+    let sinceGate = 0;
+    for (let step = 0; step < 200 && points.length < 8; step++) {
+      const n = net.nodes[node];
+      const options = n.edges.filter((e) => e !== came && big(net.edges[e]));
+      if (!options.length) {
+        if (came < 0) break;
+        // Dead end: turn round.
+        options.push(came);
       }
-      visited.add(key);
-      // Choose the next direction: straight on mostly, turn sometimes, never back, and
-      // preferably toward intersections not visited yet.
-      const exits = this.graph.exits(i, j, dir).filter((d) => d !== (dir + 2) % 4);
-      if (!exits.length) {
-        dir = ((dir + 2) % 4) as Dir; // dead end: turn round
-        continue;
+      // Prefer edges to junctions not visited yet; then prefer heading toward the middle of
+      // the map (away from the world's edge), with some randomness.
+      const score = (e: number) => {
+        const o = net.nodes[net.other(net.edges[e], node)];
+        return (visited.has(o.id) ? 1000 : 0) + Math.hypot(o.x, o.z) * 0.2 + Math.random() * 300;
+      };
+      const e = options.sort((a, b) => score(a) - score(b))[0];
+      const edge = net.edges[e];
+      came = e;
+      node = net.other(edge, node);
+      sinceGate += edge.length;
+      const fresh = !visited.has(node);
+      visited.add(node);
+      if (sinceGate > 160 && fresh) {
+        const m = net.nodes[node];
+        points.push(new THREE.Vector3(m.x, this.hooks.ground(m.x, m.z), m.z));
+        sinceGate = 0;
       }
-      const fresh = exits.filter((d) => {
-        const n = this.graph.neighbor(i, j, d);
-        return n !== null && !visited.has(`${n[0]},${n[1]}`);
-      });
-      const options = fresh.length ? fresh : exits;
-      const straight = options.includes(dir) && Math.random() < 0.6;
-      dir = straight ? dir : options[Math.floor(Math.random() * options.length)];
     }
     return points;
   }

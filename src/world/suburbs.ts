@@ -269,7 +269,11 @@ function addLine(inp: StreetInputs, builder: NetworkBuilder, raster: Raster, pts
     const z = pts[i * 2 + 1];
     if (inp.water(x, z)) cls.push(null);
     else if (Math.abs(x) <= dh && Math.abs(z) <= dh) cls.push('downtown');
-    else cls.push(isTownZone(inp.zoneAt(x, z)) ? 'arterial' : 'rural');
+    else {
+      // Town if it runs through or right beside a town (the coastal road edges the beach town).
+      const near = [[0, 0], [0, -40], [0, 40], [-40, 0], [40, 0]].some(([dx, dz]) => isTownZone(inp.zoneAt(x + dx, z + dz)));
+      cls.push(near ? 'arterial' : 'rural');
+    }
   }
   // Smooth the class along the line (a majority over ±10 points = ±80 m) so a road doesn't
   // flicker between arterial and country road at a ragged suburb edge.
@@ -622,7 +626,7 @@ function superblock(inp: StreetInputs, builder: NetworkBuilder, raster: Raster, 
     if (coastal && ew === sb.south) continue;
     if (!rng.chance(0.75)) continue;
     const c = corner(ns, ew);
-    if (!town(c.x + Math.sign(cx - c.x) * 40, c.z + Math.sign(cz - c.z) * 40)) continue;
+    if (!town(c.x + Math.sign(cx - c.x) * 60, c.z + Math.sign(cz - c.z) * 60)) continue;
     const r = rng.float();
     const kind: ParcelKind = !bigbox && r < 0.14 ? 'bigbox' : r < 0.62 ? 'stripmall' : 'gas';
     if (kind === 'bigbox') bigbox = true;
@@ -632,9 +636,10 @@ function superblock(inp: StreetInputs, builder: NetworkBuilder, raster: Raster, 
     const sx = Math.sign(cx - c.x);
     const sz = Math.sign(cz - c.z);
     const front = alongEW ? ew : ns;
-    // The inward normal of the frontage line, from its local direction.
-    const a = alongEW ? c.x : c.z;
-    const slope = (across(front, a + 4) - across(front, a - 4)) / 8;
+    // The inward normal of the frontage line, from its direction halfway along the parcel's
+    // frontage (the road may bend over that length).
+    const a = (alongEW ? c.x + sx * (FRONT + w / 2) : c.z + sz * (FRONT + w / 2));
+    const slope = (across(front, a + 6) - across(front, a - 6)) / 12;
     let nx: number;
     let nz: number;
     if (alongEW) {
@@ -654,10 +659,18 @@ function superblock(inp: StreetInputs, builder: NetworkBuilder, raster: Raster, 
       ux = -ux;
       uz = -uz;
     }
-    const setback = FRONT;
-    const px = c.x + ux * (setback + w / 2) + nx * (setback + d / 2);
-    const pz = c.z + uz * (setback + w / 2) + nz * (setback + d / 2);
-    placeParcel(rng, raster, out, kind, px, pz, nx, nz, w, d, parcelRegion);
+    // Shrink and slide away from the corner until it fits.
+    let placed = false;
+    for (const scale of [1, 0.8, 0.62]) {
+      for (const slide of [0, 25, 50]) {
+        if (placed) break;
+        const ww = w * scale;
+        const dd = Math.max(40, d * scale);
+        const px = c.x + ux * (FRONT + slide + ww / 2) + nx * (FRONT + dd / 2);
+        const pz = c.z + uz * (FRONT + slide + ww / 2) + nz * (FRONT + dd / 2);
+        placed = placeParcel(rng, raster, out, kind === 'bigbox' && scale < 1 ? 'stripmall' : kind, px, pz, nx, nz, ww, dd, parcelRegion) !== null;
+      }
+    }
   }
 
   // 2. Civic places on the arterial frontage: school, church, park.
@@ -692,11 +705,18 @@ function superblock(inp: StreetInputs, builder: NetworkBuilder, raster: Raster, 
   if (rng.chance(0.3)) civic.push('school');
   if (rng.chance(0.35)) civic.push('church');
   if (rng.chance(0.4)) civic.push('park');
+  // Strip malls also line the arterials between the corners.
+  if (rng.chance(0.45)) civic.push('stripmall');
+  if (rng.chance(0.25)) civic.push('gas');
   for (const kind of civic) {
-    const side = rng.pick(sides);
-    const p = side.at(rng.range(0.3, 0.7));
-    const [w, d] = kind === 'school' ? [170, 125] : kind === 'church' ? [70, 65] : [rng.range(90, 130), rng.range(80, 110)];
-    placeParcel(rng, raster, out, kind, p.x + p.nx * (FRONT + d / 2), p.z + p.nz * (FRONT + d / 2), p.nx, p.nz, w, d, parcelRegion);
+    const [w, d] =
+      kind === 'school' ? [170, 125] : kind === 'church' ? [70, 65] : kind === 'stripmall' ? [rng.range(100, 140), rng.range(65, 80)] : kind === 'gas' ? [55, 45] : [rng.range(90, 130), rng.range(80, 110)];
+    // A few tries along different sides.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const side = rng.pick(sides);
+      const p = side.at(rng.range(0.25, 0.75));
+      if (placeParcel(rng, raster, out, kind, p.x + p.nx * (FRONT + d / 2), p.z + p.nz * (FRONT + d / 2), p.nx, p.nz, w, d, parcelRegion)) break;
+    }
   }
 
   // 3. Beach town: a row of shops along the coastal road.
@@ -851,14 +871,17 @@ function placeParcel(
   const uz = -Math.sin(yaw);
   const vx = Math.sin(yaw);
   const vz = Math.cos(yaw);
+  // In its area: the centre and at least three of the four corners (suburb edges are ragged).
+  let corners = 0;
   for (const [a, b] of [
     [-1, -1],
     [1, -1],
     [-1, 1],
     [1, 1],
   ]) {
-    if (!region(x + (ux * w * a) / 2 + (vx * d * b) / 2, z + (uz * w * a) / 2 + (vz * d * b) / 2)) return null;
+    if (region(x + (ux * w * a) / 2 + (vx * d * b) / 2, z + (uz * w * a) / 2 + (vz * d * b) / 2)) corners++;
   }
+  if (corners < 3 || !region(x, z)) return null;
   if (!raster.rectFree(x, z, w / 2, d / 2, yaw)) return null;
   raster.markRect(x, z, w / 2 + 3, d / 2 + 3, yaw, CELL_PARCEL);
 
@@ -877,6 +900,13 @@ function placeParcel(
     p.trees.push({ x: c.x, y: 0, z: c.z, scale: rng.range(0.8, 1.3), hue: rng.float() });
   };
   const front = -d / 2; // the edge facing the road
+  // Parcels on an arterial get two entrance driveways from the kerb to their front edge
+  // (the arterial's kerb is ROAD_SPECS.arterial.width / 2 from its centre line, FRONT is
+  // where the parcel starts).
+  const entrances = (gap: number) => {
+    const reach = FRONT - ROAD_SPECS.arterial.width / 2 + 0.5;
+    for (const a of [-gap, gap]) p.paved.push(rect(a, front - reach / 2, 9, reach));
+  };
 
   switch (kind) {
     case 'stripmall': {
@@ -887,6 +917,7 @@ function placeParcel(
       p.paved.push(rect(0, front + lotD / 2, w, lotD));
       p.stalls.push(rect(0, front + lotD / 2 + 2, w - 8, lotD - 12));
       for (let a = -w / 2 + 6; a <= w / 2 - 6; a += 24) tree(a, front + 1.5);
+      entrances(w / 3);
       break;
     }
     case 'bigbox': {
@@ -895,12 +926,14 @@ function placeParcel(
       p.paved.push(rect(0, front + lotD / 2, w, lotD));
       p.stalls.push(rect(0, front + lotD / 2 + 2, w - 12, lotD - 14));
       p.paved.push(rect(w / 2 - 20, d / 2 - 40, 36, 76)); // loading yard beside the store
+      entrances(w / 3);
       break;
     }
     case 'gas': {
       p.paved.push(rect(0, 0, w, d));
       p.canopy = rect(0, front + 17, 26, 14);
       building(0, d / 2 - 7, 16, 10, 4.2, STYLE_CONCRETE, [0.86, 0.84, 0.8]);
+      entrances(w / 2 - 8);
       break;
     }
     case 'school': {
@@ -910,6 +943,7 @@ function placeParcel(
       building(-w / 2 + 19, front + 62, 22, 40, 8, STYLE_BRICK, col);
       p.paved.push(rect(-w / 2 + 52, front + 12, 64, 18));
       p.stalls.push(rect(-w / 2 + 52, front + 12, 60, 14));
+      p.paved.push(rect(-w / 2 + 52, front - (FRONT - ROAD_SPECS.arterial.width / 2 + 0.5) / 2, 9, FRONT - ROAD_SPECS.arterial.width / 2 + 0.5));
       p.grass.push(rect(w / 4, 0, w / 2 - 4, d - 8));
       p.fields.push(rect(w / 4, 0, Math.min(w / 2 - 14, 72), Math.min(d - 24, 100)));
       for (let b = front + 8; b < d / 2 - 4; b += 14) tree(-w / 2 + 4, b);
@@ -922,6 +956,7 @@ function placeParcel(
       p.steeple = { x: c.x, z: c.z, size: 5, height: 22 };
       p.paved.push(rect(w / 2 - 15, 4, 26, d - 14));
       p.stalls.push(rect(w / 2 - 15, 4, 22, d - 20));
+      p.paved.push(rect(w / 2 - 15, front - (FRONT - ROAD_SPECS.arterial.width / 2 + 0.5) / 2 - 1, 9, FRONT - ROAD_SPECS.arterial.width / 2 + 2.5));
       p.grass.push(rect(-w / 2 + 16, 0, 28, d - 6));
       tree(-w / 2 + 8, front + 8);
       tree(-w / 2 + 8, d / 2 - 8);

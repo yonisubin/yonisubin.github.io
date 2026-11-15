@@ -34,13 +34,8 @@ function storeSpot(
       }
     }
   }
-  // Into the world: move the door with the road warp and turn the normal by its angle.
-  const angle = layout.warp.angle(best!.door.x, best!.door.z);
-  const w = layout.warp.forward(best!.door.x, best!.door.z);
-  const door = new THREE.Vector3(w.x, 0, w.z);
-  const n = best!.normal;
-  // Yaw θ turns (x, z) into (x cos θ + z sin θ, −x sin θ + z cos θ).
-  const normal = new THREE.Vector3(n.x * Math.cos(angle) + n.z * Math.sin(angle), 0, -n.x * Math.sin(angle) + n.z * Math.cos(angle));
+  const door = best!.door;
+  const normal = best!.normal;
   // Door height: the sidewalk just outside it.
   door.y = surface(door.x + normal.x, door.z + normal.z);
   return { door, normal };
@@ -89,8 +84,7 @@ export class Shop {
     const signMaterial = new THREE.MeshStandardMaterial({ map: signTex, emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: 0.5 });
     const doorMaterial = new THREE.MeshStandardMaterial({ color: 0x3b2a1e, roughness: 0.6 });
     const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xf2c94c, transparent: true, opacity: 0.8, depthWrite: false });
-    const g = layout.warp.inverse(near.x, near.z);
-    const first = storeSpot(layout, new THREE.Vector3(g.x, near.y, g.z), surface);
+    const first = storeSpot(layout, near, surface);
     for (const spot of [first, ...sites]) {
       // Stand-in-front point, a little out from the wall.
       const door = spot.door.clone().addScaledVector(spot.normal, 1.2);

@@ -41,7 +41,8 @@ The project followed the milestones in `CLAUDE.md`, one commit each, then gamepl
 | `a258943` | Hospitals (respawn at the nearest one) and five more gun stores |
 | `2497a27` | Full-screen world map (M or tap the minimap) |
 | `e73e0fd` | Hilly towns (sidewalks draped over the hills), more relief in the country, five new mission givers around the map |
-| *(next)* | Curvy roads (the road warp), narrower two-lane country roads, realistic traffic (IDM car following, driver personalities, lane changes, overtaking, brake lights) |
+| `fbf08cd` | Realistic traffic (IDM car following, driver personalities, lane changes, overtaking, brake lights); a short-lived "road warp" that bent the grid (replaced next) |
+| *(next)* | American suburbs and winding country roads: a free-form street network (arterials, subdivisions, loops, cul-de-sacs), houses on lots, strip malls, gas stations, big-box stores, schools, parks, churches, parked cars; traffic and pedestrians on the new network |
 
 ---
 
@@ -147,47 +148,57 @@ The world grew from a 640 m city (8 × 8 blocks) to a **~4 × 4 km world** with 
 
 ### 4.1 Layout: cells, zones, roads, blocks (`layout.ts`, `rng.ts`)
 
-The world is a grid of **52 × 52 cells**, each 78 m (`PITCH`). Grid lines (road centre lines) sit at multiples of 78 m; line 26 runs through the origin. North is −Z.
+The world is a grid of **52 × 52 cells**, each 78 m (`PITCH`), each with a zone. Downtown's road centre lines sit on the grid lines (multiples of 78 m; line 26 runs through the origin). Everything else's roads are free-form (§4.1b). North is −Z.
 
 **Each cell has a zone:**
 
 | Zone | Where | What's in it |
 |---|---|---|
 | `downtown` | the centre, ±400 m | towers: a block of sidewalk + lot with glass/brick/concrete buildings, in a gentle valley |
-| `suburb` | a ring out to ~1 km (stretched south) | houses with pitched roofs, front gardens, lawns |
-| `beachtown` | the row just north of the coastal road, centre | low pastel shops and flats, houses |
-| `village` | 3 spots on country-road crossings (Eastfield, Westbrook, Pinecrest) | a few house blocks |
+| `suburb` | a ring out to ~1 km (stretched south) | American subdivisions: winding streets, cul-de-sacs, houses on lots; strip malls, gas stations, schools, parks, churches on the arterials |
+| `beachtown` | the row just north of the coastal road, centre | a strip of pastel shops facing the coastal road, houses behind |
+| `village` | 3 spots in the countryside (Eastfield, Westbrook, Pinecrest) | a main street with shops, a few side streets with houses |
 | `farm` | east, west and south countryside | open fields; now and then a red barn + farmhouse |
 | `forest` | north of ~−700 m | hills covered in low-poly trees |
 | `lake` | an ellipse in the northern hills | water |
 | `beach` | south of the coastal road (line 46) | sand, then the sea |
 
-**Town zones** are blocks exactly like the original city:
-- each block is 64 m: a 56 m lot plus 4 m sidewalks, on a 15 cm curb slab;
-- town roads are 14 m wide (two 3.5 m lanes each way);
-- country roads are 8 m wide (`RURAL_ROAD_WIDTH`: one lane each way, dashed yellow centre line, white edge lines). Intersections are sized by `RoadNet.nodeHalf(i, j)`: 14 m squares where a town road meets, 8 m where only country roads do.
-
-**Roads** (`RoadNet`): a segment between two neighbouring grid intersections exists if:
-- either cell beside it is a town (so towns are fully gridded and ringed by roads); or
-- it's on every 4th grid line in the countryside (lines 2, 6, … 50), giving country roads ~312 m apart;
-- and in either case it doesn't cross the lake or the sea.
-
-The coastal road falls on one of those lines (46). Each segment also knows if it's rural (no town either side: faster traffic, no lights). An intersection gets **traffic lights** only if it's in town and 3+ roads meet.
-
-**Blocks** are generated per zone (`generateBlock`):
-- downtown towers, as before;
-- suburban and village houses: 1–2 floors, a pitched roof, set back from the street, a garden tree;
-- seaside shops.
+**Downtown** is blocks exactly like the original city:
+- each block is 64 m: a 56 m lot plus 4 m sidewalks, on a 15 cm curb slab, with towers (`generateBlock`);
+- its roads are 14 m wide (two 3.5 m lanes each way), with lights at every crossing.
 
 Countryside features (forest trees, farmsteads, hedgerow trees) are generated **per cell when its chunk is built** (`ruralFeatures`). That keeps startup fast, since there are tens of thousands of forest trees.
 
-**The road warp (`warp.ts`): why the map isn't graph paper.** Everything above is laid out on a perfect grid ("grid space"). Before it's built, every point is pushed sideways by a smooth, seeded noise displacement: *world = grid + D(grid)*. Straight grid lines become gently winding roads, square blocks become slightly irregular, and because roads, sidewalks, buildings, trees, lamps, traffic lanes and pedestrians' paths are all built from the same grid data and moved by the same field, everything still fits together.
-- How far things move depends on the area: **~2 m downtown** (small kinks; it still reads as a grid), **~7 m in suburbs and villages**, **~25 m in the countryside** (country roads meander between crossings). The bends are ~400 m long (two noise octaves).
-- It fades to nothing near the coast (the coastal road and beach stay put), around the lake (roads mustn't wander into it) and at the world's edge.
-- `warp.forward(gx, gz)` is grid → world. `warp.inverse(wx, wz)` is world → grid, by fixed-point iteration (*g ← w − D(g)*, 4 rounds). That converges because the field's slope stays below ~0.3, so it never folds space over itself. `warp.angle(gx, gz)` is how much the warp turns things locally (added to a building's or lamp's yaw).
-- **Rule of thumb:** layout data (`Block`, `Building`, road lines, `lineCoord`) is in grid space; anything you place in the world (meshes, colliders, people, doors, pickups, map drawing) goes through `forward`. `Terrain`'s public API (`heightAt`, `surfaceAt`, `smoothHeight`, `zoneAt`, `roadDistance`, `blockUnder`…) takes **world** coordinates and converts internally. Helpers: `toWorld(layout, x, z)`, `warpSpot(layout, spot)` (position + yaw), `terrain.toWorld`, `terrain.warpAngle`.
-- Countryside features (forest trees, farms) are generated directly in world space; only things tied to roads and blocks are warped.
-- **Decision:** a warp field, not a different road generator. Generating a real irregular road network would mean rewriting blocks, lots, traffic routing, the map and missions, which all rely on the grid's simple neighbour structure. The warp keeps all of that and only changes how it looks and where it is.
+### 4.1b The street network and the suburbs (`streets.ts`, `suburbs.ts`)
+
+Outside downtown, roads aren't on a grid. **Every road in the world lives in one graph** (`StreetNet`), in world coordinates:
+- **Nodes:** junctions, dead ends and cul-de-sac bulbs, each with its control: `lights`, `stop` (smaller roads give way) or `none`.
+- **Edges:** a polyline (a point every 5–8 m) and a road class (`ROAD_SPECS`):
+
+| Class | Width | Lanes each way | Sidewalk | Speed | Where |
+|---|---|---|---|---|---|
+| `downtown` | 14 m | 2 | (block slabs) | 45 km/h | downtown grid |
+| `arterial` | 14 m | 2 | 2 m | 60 km/h | the suburbs' main roads |
+| `collector` | 10 m | 1 | 1.8 m | 43 km/h | the road through a subdivision; village main streets |
+| `local` | 8 m | 1 | 1.6 m | 36 km/h | residential streets, cul-de-sacs |
+| `rural` | 8 m | 1 | — | 68 km/h | country roads |
+
+**How it's generated** (`generateStreets`, deterministic, ~200 ms at startup). It follows how American sprawl is laid out (Plano, Phoenix suburbs, Irvine):
+1. **Arterials** on a rough half-mile super-grid (lines every 470 m, continuing downtown's edge lines outward). Each line is a smooth curve through control points ~170 m apart, pushed sideways by a random amount: ±20 m in town (nearly straight), up to ±115 m in the country, where it picks the offset with the gentlest climb from the last point (so country roads follow valleys and contours). Lines are cut at the lake, and classed `arterial` in or beside town, `rural` elsewhere (smoothed so a road doesn't flicker between the two).
+2. **Villages:** a gently curved main street through the middle, joined at both ends to the nearest roads by winding country connectors, with shops along it and two or three side streets.
+3. **Superblocks**, the land between arterials, where it's mostly suburb:
+   - **Commercial corners:** where two arterials cross, a strip mall (one-storey row of shops at the back, a striped parking lot in front), a gas station, or now and then a big-box store with a huge lot. Parcels shrink and slide until they fit.
+   - **Civic frontage:** schools (L-shaped building, a car park, a playing field), churches (with a steeple), parks (lawn, trees, a pond), mid-block strip malls and gas stations, facing the arterial with entrance driveways.
+   - **The subdivision:** 2–4 entrances off the arterials. From each, a **walker** grows a collector road: it steps 15–18 m at a time and turns a little each step (a random walk on the turn rate, so curves tighten and relax and never repeat like a wave). It stops before crossing a road or leaving the superblock, joins a street close ahead (a loop), or ends in a **cul-de-sac** bulb. Local streets branch off every 60–110 m; about a third are **loop streets** that curl round and rejoin their parent. An infill pass sprouts more local streets wherever open land is left.
+   - **Houses** on lots along both sides of every local street and collector (~20 m frontage, set back 5–9 m, a driveway, a back-yard tree), and pie-shaped lots round cul-de-sacs. Houses face their street at whatever angle it runs and never face the arterials (they back onto them).
+   - **Beach town:** a row of shops along the coastal road.
+4. **The builder** (`NetworkBuilder`) turns all the polylines into the graph: it finds every crossing, puts a node wherever a street joins another (a T-junction), splits lines into edges, removes stubs, prunes about a third of the country-road links between junctions (only where everything stays connected) to break up the pattern, and sets junction control: lights where two big roads cross, stop signs on the smaller road elsewhere.
+
+**Helpers:**
+- `SegmentIndex`: a spatial hash of road segments. It gives `net.distance()`, `net.kerb()` (distance to the nearest kerb, cul-de-sacs included, and that road's sidewalk width), `net.nearest()` and roads near a point.
+- `Raster`: a 4 m occupancy grid over the world (road / parcel / house / blocked). Generators check it so nothing overlaps.
+
+**Decision:** a real graph, not a grid bent by noise. An earlier attempt pushed the grid sideways with a smooth noise field ("road warp"); it read as regular waves, not real streets. Subdivisions need branching, looping and dead-end streets that no deformed grid can make.
 
 **Determinism.** `rng.ts` uses **mulberry32** (a tiny 32-bit PRNG) and `hashSeed(seed, x, z)` to give every cell its own random stream. A cell's content never depends on the order cells are generated, which is what lets chunks stream in any order.
 
@@ -220,7 +231,13 @@ Early versions hit 56 % near the lake, until the shore flattening was widened. T
 
 Helpers used everywhere:
 - `roadDistance`, `townDistance` (a precomputed per-cell distance grid makes this fast), `zoneAt`, `isClear` (where trees and farms may go);
-- **`surfaceAt(x, z)`: where you'd stand.** On a town block it's the sidewalk top (`smoothHeight + CURB_HEIGHT`); elsewhere it's the ground or road. Pedestrians, cash, shop and hospital doors, mission givers and spots, traffic-light poles, the helipad and the spawn all use it. Parked cars use `smoothHeight` (road level).
+- **Roads:** the ground dips just below every road and rises back within `VERGE` (4.5 m) of the kerb, so the road surface (its own mesh and collider) always sits on top. In town zones the lawns are `CURB_HEIGHT` above road level.
+- **`surfaceAt(x, z)`: where you'd stand.**
+  - On a downtown block: the slab top.
+  - On a road: road level.
+  - On a sidewalk: a curb above it.
+  - On the verge: sloping to the lawn.
+  - Elsewhere: the ground. Pedestrians, cash, shop and hospital doors, mission givers and spots, traffic-light poles, the helipad and the spawn all use it. Parked cars use `smoothHeight` (road level).
 
 ### 4.3 Streaming chunks (`chunks.ts`, `instancePool.ts`)
 
@@ -228,20 +245,30 @@ The world is cut into **13 × 13 chunks of 4 × 4 cells (312 m)**, built in two 
 
 | Tier | Loads within | Unloads beyond | Contents |
 |---|---|---|---|
-| **far** | 850 m | 1000 m | terrain mesh + **Rapier heightfield collider**, road surface and paint, block slabs, lawns, buildings, pitched roofs (+ colliders) |
-| **near** | 400 m | 520 m | street, park and forest trees, lamps (+ light pools), rooftop AC units and tanks (+ colliders) |
+| **far** | 850 m | 1000 m | terrain mesh + **Rapier heightfield collider**; roads (asphalt ribbons, junction discs, cul-de-sac circles, sidewalks with curbs, grass verges, markings), driveways and parking lots, with **one trimesh collider** for every paved surface; downtown block slabs; houses and other buildings, pitched roofs, steeples (+ colliders) |
+| **near** | 400 m | 520 m | street, garden, park and forest trees, lamps (+ light pools), rooftop clutter, gas-station canopies and pumps, **parked cars** in the lots (+ colliders) |
+
+**Roads from the graph.** Each chunk builds the road segments whose midpoints fall inside it, and the nodes, houses and parcels whose centres do, so every piece is built once whatever order chunks load in:
+- Ribbons follow the polyline with mitred normals.
+- Sidewalks and verges are skipped where they'd cross another road or lie on a downtown block.
+- Markings depend on the class:
+  - arterial and downtown: double yellow line and lane dashes;
+  - collector: a dashed yellow centre line;
+  - country road: dashed yellow centre and white edge lines;
+  - quiet residential streets: none.
+- Stop lines are painted before lights and before stop signs (on the smaller road); zebra crossings are painted downtown.
 
 - **Hysteresis:** the unload distance is larger than the load distance, so walking back and forth over a boundary doesn't rebuild chunks.
 - **Per-frame budget:** jobs are queued nearest first and built for up to ~4 ms per frame, so streaming never causes a long hitch.
 - **Startup:** only the chunks within 450 m of the spawn are built before the game starts. Startup stays ~1.2 s; the rest streams in while you play.
 - **Teleports:** respawning at a hospital calls `loadAround()` first.
 
-**Town blocks on hills.** Each block's raised slab is **draped over the smooth layer**: a grid every 8 m at `smoothHeight + 15 cm`, with curb faces down each side and the lawn draped the same way. A small **triangle-mesh collider** per block matches the top (a trimesh rather than a heightfield, because the road warp bends the block out of its square).
+**Downtown blocks on hills.** Each block's raised slab is **draped over the smooth layer**: a grid every 8 m at `smoothHeight + 15 cm`, with curb faces down each side and the lawn draped the same way. A small **triangle-mesh collider** per block matches the top.
 - **Decision:** the first attempt tilted each block as a flat plane. It left curbs from −0.6 to +0.9 m on 6.6 % of block edges, because the hills curve within 64 m. Draping keeps the curb at exactly 15 cm all round.
 - **Buildings stay upright:** the base sits at the lowest point of the footprint and the walls grow by the drop to the highest point, so nothing floats and the uphill side is set into the slope. Rooftop clutter goes on the adjusted roof (each roof prop remembers its building).
 - Intersections are draped like the road strips, so there's no step where slopes meet.
 
-**Per chunk meshes** are five: the **terrain**, the **road surface**, the **road paint**, the **sidewalk slabs** and the **lawns**.
+**Per chunk meshes** are six: the **terrain**, the **road surface** (with parking lots), the **paint** (with ponds and field lines), the **pavement** (sidewalks, curbs, driveways, block slabs), the **verges** and the **lawns**.
 - Terrain: a grid every 6 m, with vertex colours from `colorAt` times a neutral grain texture.
 - Road surface: quads draped over the smooth layer, with world-space UVs so the asphalt never stretches.
 - Road paint: centre lines, dashes, edge lines on country roads, stop lines at lights, zebras at town junctions.
@@ -290,16 +317,16 @@ Asphalt, sidewalk, grass, the helipad, glow sprites and the terrain grain are pa
 
 ### 4.8 Road graph and traffic lights (`roadGraph.ts`)
 
-Intersections are nodes. Pieces are laid out on the grid and bent into the world by the warp when a car is placed. A car's route is a chain of pieces:
-- **lane:** straight (on the grid) along a road segment, on the inner lane line on the right. Cars carry a lateral offset from it: `0` = inner lane, `LANE_SPACING` (3.5 m) = outer lane on town roads; on country roads `0` is the only lane and `−3.5` is the oncoming lane (overtaking);
-- **turn:** a cubic Bézier through the intersection (left, right or straight), from a given lane offset to another (`turn(i, j, from, to, offIn, offOut)`). Its control points sit 0.55 of the way to where the two lane lines cross, which makes a near-circular arc with the heading continuous at both ends;
-- **U-turn:** only at dead ends, for example where a country road stops at the lake.
+Traffic runs on the street network. A car's route is a chain of pieces, each a polyline in the world:
+- **lane:** along one edge in one direction, 1.75 m right of the centre line, trimmed back from the junctions at both ends. Cars carry a lateral offset from it: `0` = inner lane, `LANE_SPACING` (3.5 m) = outer lane on two-lane-each-way roads. On one-lane country roads `−3.5` is the oncoming lane (overtaking).
+- **turn:** a cubic Bézier through a junction from the end of one lane to the start of the next, at any angle, between given lane offsets (`turn(from, to, offIn, offOut)`). Its control points lie along the two lanes' own directions, so the heading is continuous.
+- **U-turn:** round a cul-de-sac's circle, or at a dead end.
 
-**Pieces are cached and shared:** two cars on the same piece hold the same object, so "is that car on my lane?" is an identity check. Each piece also stores a **curvature speed limit** every few metres, measured on the *warped* world path: *v = √(a_lat / κ)* with a comfortable a_lat = 3 m/s² (κ from the circle through three neighbouring points).
+**Pieces are cached and shared:** two cars on the same piece hold the same object, so "is that car on my lane?" is an identity check. Each piece also stores a **curvature speed limit** every few metres: *v = √(a_lat / κ)* with a comfortable a_lat = 3 m/s² (κ from the circle through three neighbouring points).
 
-The graph reads the `RoadNet` from the layout, so missing segments simply aren't there. `isJunction(i, j)` marks unsignalled crossings where 3+ roads meet (country junctions); `turnKind(from, to)` says whether a turn is right, left, straight or a U-turn.
+`turnKind(dirIn, dirOut)` classifies a turn from the angle between the headings: right, left, straight or U-turn. `mustStop(lane)` says whether a lane's road gives way at a stop-sign junction.
 
-`lightState(i, j, dir, time)` gives lit intersections a 24 s cycle in which north–south and east–west alternate.
+At a lit junction the approaches are split into two **phase groups** by direction (roughly along the first road's axis, or across it). `lightPhase(group, node, time)` alternates them on a 24 s cycle, with yellow and an all-red gap, and an offset per junction.
 
 ### 4.9 Water: the sea and the lake (`water.ts`)
 
@@ -425,8 +452,9 @@ Sinking or sunken vehicles can't be entered.
 
 ### 6.1 Traffic (`traffic.ts`)
 
-- **Pool:** 28 cars kept around the player. They spawn on lanes within a few blocks (60–220 m away) and are recycled beyond 260 m.
-- **Placement:** a car's grid point (piece + lateral offset) and two points 1.5 m ahead and behind are moved through the warp. Their midpoint is the car, the line between them its heading, and the road heights there its pitch (`terrain.roadHeight`, which skips the warp inversion because the grid point is known). While changing lanes the nose turns toward the side it's drifting to.
+- **Pool:** 28 cars kept around the player. They spawn on roads 60–220 m away (weighted toward the busier roads) and are recycled beyond 260 m.
+- **Placement:** two points 1.5 m ahead and behind along the piece, shifted by the lateral offset. Their midpoint is the car, the line between them its heading, and the road heights there its pitch. While changing lanes the nose turns toward the side it's drifting to.
+- **Routes:** at the end of each lane a driver picks the next road. They mostly go straight on, prefer roads at least as big as the current one, and rarely take a U-turn, so cul-de-sacs see only the odd car.
 - **Not physics-driven.** Each car chooses its speed along its route, and a *kinematic* body is moved to match, so your car bumps into them as solid objects. This is far cheaper and more predictable than simulating the cars.
 - **Speed limits:** 12.5 m/s (45 km/h) in town and 19 m/s (~70 km/h) on country roads, times each driver's pace. Curves cap it further (the piece's curvature limits, braked for in advance: *v² = v_lim² + 2·b·d*).
 - **Car following: the Intelligent Driver Model (IDM).** Each step a car's acceleration is *a·[1 − (v/v0)⁴ − (s\*/s)²]* with *s\* = s0 + v·T + v·Δv / (2√(a·b))*. Here *s* is the gap to the leader and *Δv* how fast it's closing. Red lights, give-way lines and obstacles (you, your cars) are leaders that stand still. IDM gives smooth, collision-free following, queues that start and stop naturally, and stop-and-go waves, from one formula.
@@ -434,7 +462,7 @@ Sinking or sunken vehicles can't be entered.
 - **Lane changes (town roads): a simplified MOBIL.** A couple of times a second (staggered), a car compares the IDM acceleration it would have in the other lane with its current one:
   - it switches if the gain beats a threshold, with a bias that keeps cars right;
   - only if the car that would end up behind it wouldn't have to brake harder than 3 m/s²;
-  - within 60 m of the end of a block it moves to the lane for its turn (right turns from the right lane, left turns from the left);
+  - within 60 m of a junction it moves to the lane for its turn (right turns from the right lane, left turns from the left);
   - it never moves sideways into a car that's alongside.
 - **Overtaking (country roads).** Stuck behind something slower, a driver estimates how long passing takes. It pulls into the oncoming lane only if:
   - the manoeuvre fits before the next junction or bend (along the straight run of road ahead);
@@ -444,7 +472,7 @@ Sinking or sunken vehicles can't be entered.
 - **Junctions and lights:**
   - Red lights and stoppable yellows stop cars at the stop line.
   - Left turns at lights wait for oncoming cars going straight or right.
-  - At unsignalled country junctions cars slow down and give way while another car is crossing.
+  - **Stop signs:** cars on the smaller road come to a full stop. They go once no other car is crossing and nothing on the main road is within ~4 s. Where roads of equal rank meet, it's an all-way stop.
 - **Brake lights:** an extra instanced mesh per car type over the tail lights (unlit, so they glow at night), shown while a car is braking or standing.
 - **Cost:** ~0.15 ms per physics step for all 28 cars, measured in headless Chromium:
   - the leader search is a scan over the other cars with identity checks on shared pieces;
@@ -456,7 +484,9 @@ Sinking or sunken vehicles can't be entered.
 
 ### 6.2 Pedestrians (`pedestrians.ts`)
 
-- **Pool:** about 16 people kept around the player. Each walks a square loop on one block's sidewalk, pausing now and then and waiting if you block them.
+- **Pool:** about 16 people kept around the player. Each walks a loop (a closed polyline), pausing now and then and waiting if you block them:
+  - downtown: round one block's sidewalk;
+  - in the suburbs: out along one sidewalk of a street and back along the other.
 - **No physics:** they follow their loop exactly.
 - **States:**
   - `walk`;
@@ -536,11 +566,16 @@ Each has a lit sign, a door and a pulsing marker. **E** at any door opens the sa
 
 ### 7.4b Hospitals and respawning (`game/places.ts`)
 
-`createPlaces()` picks town blocks deterministically: the nearest suitable block to a target point in the right zone, avoiding the spawn, helipad and mission-giver blocks. It replaces their buildings **before any chunk is built**, so the streamed meshes and colliders include the new places.
+`createPlaces()` picks places deterministically, nearest to a target point, and replaces their buildings **before any chunk is built**, so the streamed meshes and colliders include them:
+- **Downtown:** a block, avoiding the spawn, helipad and mission-giver blocks.
+- **Elsewhere:** a parcel.
+  - A hospital takes over a strip mall, school or big-box parcel: the building at the back, the lot in front, two cars parked facing the door.
+  - Villages and the beach town get a smaller clinic in a shop's place.
+  - Gun stores become one unit of a strip mall, or a village or beachfront shop.
 
 - **8 hospitals:** City General (downtown), Northside, Eastside, Westside, Seaside, and a clinic in each village.
   - Each is a white building with a red-cross **HOSPITAL** sign over the entrance and a forecourt.
-  - Each has **two parked cars** in the street outside, which respawn like the others.
+  - Each has **two parked cars** outside (in the street downtown, in the lot elsewhere), which respawn like the others.
 - **When you're knocked out**, you wake up at the hospital **nearest to where you fell**, with a toast naming it. The chunks there are loaded first.
 - Hospitals are marked on both maps.
 
@@ -566,12 +601,12 @@ Eight fixed, invulnerable givers with a "!" marker: three downtown, five out in 
 | **Vera** | Wreck a marked traffic car before it escapes | $250 + $2/s |
 | **Captain Reyes** | Fly the helicopter through rings | $300 + $3/s |
 
-**Five more givers out in the world** (each on the town block nearest a chosen spot, avoiding blocks used by hospitals and stores):
+**Five more givers out in the world**, each standing on the sidewalk of the street nearest a chosen spot, facing the road:
 
 | Giver | Where | Missions | How it's checked |
 |---|---|---|---|
 | **Lena** | Seaside | **Buoy swim**: 5 buoys in a zig-zag line out to sea (≥ 1.2 m deep), in order, 150 s | only counts while swimming |
-| **Farmer Joe** | Eastfield | **Country race**: ~8 gates along a route generated on the road network (mostly straight on, never back), a gate every 4 intersections; the clock starts at the first gate, with time for the rest at ~15 m/s | only counts while driving |
+| **Farmer Joe** | Eastfield | **Country race**: ~8 gates along a route generated on the street network. It wanders the bigger roads, never back the way it came, avoiding junctions already passed, with a gate every ~160 m or more. The clock starts at the first gate, with time for the rest at ~15 m/s | only counts while driving |
 | **Ranger Kim** | Pinecrest | **Summit hike**: flags on the 3 highest spots 150–650 m away, at least 150 m apart, 300 s | only counts on foot (not by helicopter) |
 | **Dusty** | Westbrook | **Long haul**: delivery 1.2–2.2 km away; base pay $150 + $0.15/m. Also **wreck** | — |
 | **Sam** | Northside | **Package run**, **wreck** | — |
@@ -717,7 +752,8 @@ Each one-shot is retimed so it lasts as long as the gameplay action.
   - World data for everything is generated at startup, which stays ~1.2 s.
   - Chunk building is budgeted to ~4 ms per frame.
 - **Traffic:** ~0.15 ms per physics step for 28 cars (§6.1).
-- **Road warp:** world → grid conversions (4 noise evaluations each) are the price of curvy roads. Code that already knows a grid point uses it directly (`roadHeight`, chunk building works on the grid and only warps the results).
+- **Street network:** generated once at startup (~200 ms). Distance queries go through a 32 m spatial hash of segments, and chunks build only the segments, houses and parcels they own.
+- **Parked cars:** three instanced pools (body, glass, tyres) for every car in the loaded lots.
 - **Instance pools:** one draw call per object type, drawing only up to the highest slot in use.
 - **Per-chunk meshes** are just terrain, road surface and road paint (3 draw calls per loaded far chunk).
 - **Typical load:** ~200 draw calls and ~1.7 M triangles counting the shadow pass, downtown with ~36 far and ~10 near chunks loaded.
@@ -762,6 +798,7 @@ There is no unit-test suite. Instead the real game is driven in **headless Chrom
   - the helicopter holding a hover with zero drift;
   - traffic gaps and stopping for the player;
   - traffic over 2 minutes in town and in the country: no overlapping cars, no cars off the road, the spread of cruise speeds, lane changes, overtakes started/completed/aborted, and the cost per step;
+  - the street world: every road connected, road grades, houses and parcel buildings clear of the roads, curb heights, pedestrians on sidewalks; map previews of the network rendered in a page during development;
   - pedestrians staying on sidewalks;
   - chat outcomes;
   - damage per weapon, fall and crash damage, regen, death and respawn;
@@ -784,7 +821,7 @@ When adding a feature, the quickest check is the browser console in `npm run dev
 | Tune the helicopter | `player/heli.ts` constants |
 | Rebind keys | `input/actions.ts` (the key table) |
 | Change touch controls | `input/touch.ts` |
-| Change the world size, zones or road spacing | `world/layout.ts` (`CELLS`, `zoneOf`, `RURAL_EVERY`, `VILLAGES`, `LAKE`) |
+| Change the world size or zones | `world/layout.ts` (`CELLS`, `zoneOf`, `VILLAGES`, `LAKE`) |
 | Change hills, the beach or ground colours | `world/terrain.ts` (`smoothHeight`, `heightAt`, `colorAt`) |
 | Change streaming distances or chunk size | `world/chunks.ts` (`FAR_LOAD`, `NEAR_LOAD`…, `CHUNK_CELLS`) |
 | Change waves or water colour | `world/water.ts` (`WAVES`, amplitudes, shader colours) |
@@ -800,7 +837,10 @@ When adding a feature, the quickest check is the browser console in `npm run dev
 | Change pedestrian behaviour | `npc/pedestrians.ts` constants and the state switch in `fixedUpdate` |
 | Change traffic density or speed | `npc/traffic.ts` (`POOL_SIZE`, `TOWN_SPEED`, `RURAL_SPEED`, `newDriver()` for the spread of driver habits) |
 | Change how drivers change lanes or overtake | `npc/traffic.ts` (`decideLane`, `decideOvertake`, `updateOvertake`) |
-| Make roads curvier or straighter | `world/warp.ts` (`DOWNTOWN`, `TOWN`, `COUNTRY`, `WAVELENGTH`; keep the slope well below 1 so `inverse` converges) |
+| Change the suburbs' layout (arterial spacing, how streets wind, cul-de-sacs, lot sizes) | `world/suburbs.ts` (`SPACING`, the `walk()` options in `superblock()`, `lotsAlong`) |
+| Add a kind of commercial or civic place | `world/suburbs.ts` (`placeParcel` and where it's called), then its details in `world/chunks.ts` |
+| Change road widths, lanes, sidewalks or speeds | `world/streets.ts` (`ROAD_SPECS`) |
+| Change junction rules (lights, stop signs) | `world/streets.ts` (`compact`: which junctions get lights), `world/roadGraph.ts` (`mustStop`, `lightPhase`) |
 | Change skin/hair/outfit palettes | `player/characterLibrary.ts` |
 | Change which clip plays for an action | `player/character.ts` (`ONE_SHOTS`, aims) |
 | Add or replace characters | `scripts/build-quaternius.mjs` (`CHARACTERS`, `OVERRIDES`), then `npm run build:quaternius` |

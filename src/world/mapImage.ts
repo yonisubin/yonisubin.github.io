@@ -1,4 +1,6 @@
-import { BLOCK_SIZE, CELLS, LOT, ROAD_WIDTH, RURAL_ROAD_WIDTH, WORLD_HALF, cellOf, lineCoord, type CityLayout } from './layout';
+import { BLOCK_SIZE, CELLS, LOT, WORLD_HALF, cellOf, type CityLayout } from './layout';
+import { ROAD_SPECS } from './streets';
+import type { Rect } from './suburbs';
 import { WATER_Y, type Terrain } from './terrain';
 import type { CoarseGrid } from './city';
 
@@ -78,11 +80,8 @@ export function createWorldMap(layout: CityLayout, terrain: Terrain, coarse: Coa
     canvas,
     half: MAP_HALF,
     drawDetail(c, x, z, radius) {
-      const g = layout.warp.inverse(x, z);
-      const gx = g.x;
-      const gz = g.z;
-      drawRoads(c, layout, gx, gz, radius);
-      drawBlocks(c, layout, gx, gz, radius);
+      drawRoads(c, layout, x, z, radius);
+      drawBlocks(c, layout, x, z, radius);
     },
   };
 }
@@ -93,53 +92,50 @@ function cellRange(c: number, radius: number): [number, number] {
   return [Math.max(0, cellOf(c - radius) - 1), Math.min(CELLS, cellOf(c + radius) + 2)];
 }
 
-/** Trace a polygon through grid points, bent by the road warp. */
-function warpedPath(ctx: CanvasRenderingContext2D, layout: CityLayout, points: [number, number][]): void {
-  ctx.beginPath();
-  points.forEach(([gx, gz], i) => {
-    const w = layout.warp.forward(gx, gz);
-    if (i === 0) ctx.moveTo(w.x, w.z);
-    else ctx.lineTo(w.x, w.z);
-  });
-  ctx.closePath();
-}
+const inRange = (px: number, pz: number, x: number, z: number, r: number) => Math.abs(px - x) < r && Math.abs(pz - z) < r;
 
-/** Points along the edge of a rectangle on the grid (centre, half sizes), `n` per side. */
-function rectPoints(cx: number, cz: number, hx: number, hz: number, n: number): [number, number][] {
-  const pts: [number, number][] = [];
-  for (let i = 0; i < n; i++) pts.push([cx - hx + (2 * hx * i) / n, cz - hz]);
-  for (let i = 0; i < n; i++) pts.push([cx + hx, cz - hz + (2 * hz * i) / n]);
-  for (let i = 0; i < n; i++) pts.push([cx + hx - (2 * hx * i) / n, cz + hz]);
-  for (let i = 0; i < n; i++) pts.push([cx - hx, cz + hz - (2 * hz * i) / n]);
-  return pts;
+/** A rotated rectangle (local +Z along its depth). */
+function fillRect(ctx: CanvasRenderingContext2D, r: Rect): void {
+  ctx.save();
+  ctx.translate(r.x, r.z);
+  ctx.rotate(-r.yaw);
+  ctx.fillRect(-r.w / 2, -r.d / 2, r.w, r.d);
+  ctx.restore();
 }
 
 function drawRoads(ctx: CanvasRenderingContext2D, layout: CityLayout, x: number, z: number, radius: number): void {
-  const roads = layout.roads;
-  const [i0, i1] = cellRange(x, radius);
-  const [k0, k1] = cellRange(z, radius);
-  ctx.strokeStyle = MAP_COLORS.road;
-  ctx.lineCap = 'square';
-  // Each segment as a polyline through warped points, as wide as the road.
-  const line = (ax: number, az: number, bx: number, bz: number, width: number) => {
-    ctx.lineWidth = width;
-    ctx.beginPath();
-    for (let t = 0; t <= 6; t++) {
-      const w = layout.warp.forward(ax + ((bx - ax) * t) / 6, az + ((bz - az) * t) / 6);
-      if (t === 0) ctx.moveTo(w.x, w.z);
-      else ctx.lineTo(w.x, w.z);
+  const net = layout.streets.net;
+  const reach = radius + 400;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  // Sidewalks first (a pale band under the asphalt), then the roads.
+  for (const pass of [0, 1]) {
+    ctx.strokeStyle = pass === 0 ? MAP_COLORS.sidewalk : MAP_COLORS.road;
+    for (const e of net.edges) {
+      const spec = ROAD_SPECS[e.cls];
+      if (pass === 0 && !spec.sidewalk) continue;
+      const p = e.pts;
+      if (!inRange(p[0], p[1], x, z, reach)) continue;
+      ctx.lineWidth = spec.width + (pass === 0 ? spec.sidewalk * 2 : 0);
+      ctx.beginPath();
+      for (let i = 0; i < p.length; i += 2) {
+        if (i === 0) ctx.moveTo(p[i], p[i + 1]);
+        else ctx.lineTo(p[i], p[i + 1]);
+      }
+      ctx.stroke();
     }
-    ctx.stroke();
-  };
-  for (let k = k0; k <= k1; k++) {
-    for (let i = i0; i <= i1; i++) {
-      if (roads.hasH(i, k)) line(lineCoord(i), lineCoord(k), lineCoord(i + 1), lineCoord(k), roads.ruralH(i, k) ? RURAL_ROAD_WIDTH : ROAD_WIDTH);
-      if (roads.hasV(i, k)) line(lineCoord(i), lineCoord(k), lineCoord(i), lineCoord(k + 1), roads.ruralV(i, k) ? RURAL_ROAD_WIDTH : ROAD_WIDTH);
+    ctx.fillStyle = pass === 0 ? MAP_COLORS.sidewalk : MAP_COLORS.road;
+    for (const n of net.nodes) {
+      if (!n.bulb || !inRange(n.x, n.z, x, z, reach)) continue;
+      ctx.beginPath();
+      ctx.arc(n.x, n.z, n.bulb + (pass === 0 ? 1.6 : 0), 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 }
 
 function drawBlocks(ctx: CanvasRenderingContext2D, layout: CityLayout, x: number, z: number, radius: number): void {
+  // Downtown blocks.
   const [bx0, bx1] = cellRange(x, radius);
   const [bz0, bz1] = cellRange(z, radius);
   for (let bz = bz0; bz < bz1; bz++) {
@@ -147,33 +143,55 @@ function drawBlocks(ctx: CanvasRenderingContext2D, layout: CityLayout, x: number
       const b = layout.blockAt(bx, bz);
       if (!b) continue;
       ctx.fillStyle = MAP_COLORS.sidewalk;
-      warpedPath(ctx, layout, rectPoints(b.cx, b.cz, BLOCK_SIZE / 2, BLOCK_SIZE / 2, 4));
-      ctx.fill();
+      ctx.fillRect(b.cx - BLOCK_SIZE / 2, b.cz - BLOCK_SIZE / 2, BLOCK_SIZE, BLOCK_SIZE);
       if (b.lawn) {
         ctx.fillStyle = MAP_COLORS.lawn;
-        warpedPath(ctx, layout, rectPoints(b.cx, b.cz, LOT / 2, LOT / 2, 4));
-        ctx.fill();
+        ctx.fillRect(b.cx - LOT / 2, b.cz - LOT / 2, LOT, LOT);
       }
       if (b.helipad) {
-        const w = layout.warp.forward(b.cx, b.cz);
         ctx.fillStyle = '#6a6c70';
         ctx.beginPath();
-        ctx.arc(w.x, w.z, 9, 0, Math.PI * 2);
+        ctx.arc(b.cx, b.cz, 9, 0, Math.PI * 2);
         ctx.fill();
       }
       for (const bl of b.buildings) {
-        // Taller buildings drawn darker; houses in their roof colour.
-        if (bl.roof) {
-          const [r, g, bb] = bl.roof.color.map(toByte);
-          ctx.fillStyle = `rgb(${r},${g},${bb})`;
-        } else {
-          const shade = Math.max(70, 150 - bl.height * 0.6);
-          ctx.fillStyle = `rgb(${shade},${shade},${shade + 6})`;
-        }
-        warpedPath(ctx, layout, rectPoints(bl.x, bl.z, bl.width / 2, bl.depth / 2, 1));
-        ctx.fill();
+        const shade = Math.max(70, 150 - bl.height * 0.6);
+        ctx.fillStyle = `rgb(${shade},${shade},${shade + 6})`;
+        ctx.fillRect(bl.x - bl.width / 2, bl.z - bl.depth / 2, bl.width, bl.depth);
       }
     }
+  }
+  // The suburbs: parcels (lots, fields, ponds, buildings), driveways and houses.
+  const streets = layout.streets;
+  const reach = radius + 250;
+  for (const p of streets.parcels) {
+    if (!inRange(p.x, p.z, x, z, reach)) continue;
+    ctx.fillStyle = MAP_COLORS.lawn;
+    for (const r of p.grass) fillRect(ctx, r);
+    ctx.fillStyle = '#5f9a48';
+    for (const r of p.fields) fillRect(ctx, r);
+    ctx.fillStyle = MAP_COLORS.road;
+    for (const r of p.paved) fillRect(ctx, r);
+    ctx.fillStyle = MAP_COLORS.water;
+    for (const o of p.ponds) {
+      ctx.beginPath();
+      ctx.ellipse(o.x, o.z, o.rx, o.rz, -o.yaw, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#77756f';
+    for (const bl of p.buildings) fillRect(ctx, { x: bl.x, z: bl.z, yaw: bl.yaw ?? 0, w: bl.width, d: bl.depth });
+    if (p.canopy) {
+      ctx.fillStyle = '#e8e4dc';
+      fillRect(ctx, p.canopy);
+    }
+  }
+  ctx.fillStyle = MAP_COLORS.sidewalk;
+  for (const d of streets.driveways) if (inRange(d.x, d.z, x, z, reach)) fillRect(ctx, d);
+  for (const h of streets.houses) {
+    if (!inRange(h.x, h.z, x, z, reach)) continue;
+    const [r, g, bb] = (h.roof?.color ?? h.color).map((v) => toByte(v * 1.6));
+    ctx.fillStyle = `rgb(${r},${g},${bb})`;
+    fillRect(ctx, { x: h.x, z: h.z, yaw: h.yaw ?? 0, w: h.width, d: h.depth });
   }
 }
 

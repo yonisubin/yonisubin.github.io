@@ -1,323 +1,398 @@
-import * as THREE from 'three';
-import { CELLS, lineCoord, type CityLayout, type RoadNet } from './layout';
+import { ROAD_SPECS, type StreetEdge, type StreetNet, type StreetNode } from './streets';
 
-// Road graph for traffic. The road grid's intersections are the nodes (i, j). Pieces are
-// laid out on the grid (layout space) and bent into the world by the road warp (warp.ts)
-// when a car is placed. Traffic drives on the right. Town roads have two lanes each way:
-// a piece follows the inner lane line and cars carry a lateral offset from it (0 = inner,
-// LANE_SPACING = outer). Country roads have one lane each way (offset 0); an overtaking car
-// moves to −LANE_SPACING, the oncoming lane.
+// Lanes and turns for traffic, on top of the street network (streets.ts). Traffic drives on
+// the right.
 //
-// A car's route is a chain of "pieces":
-//   lane — straight on the grid, from the far edge of one intersection to the near edge of
-//          the next (the warp makes it gently curvy in the world);
-//   turn — a cubic Bézier through the intersection, from the end of one lane to the start
-//          of the next (straight on, left, right or a U-turn), between given lane offsets.
+// A car's route is a chain of "pieces", each a polyline in the world:
+//   lane — along one edge in one direction, `LANE_OFFSET` right of the centre line, from just
+//          after the junction at its start to just before the one at its end;
+//   turn — a cubic Bézier through a junction from the end of one lane to the start of the
+//          next (straight on, left, right, or a U-turn round a cul-de-sac or at a dead end).
+//
+// Multi-lane roads (arterials, downtown) have two lanes each way: a lane piece follows the
+// inner lane and cars carry a lateral offset from it (0 = inner, LANE_SPACING = outer). On a
+// one-lane road an overtaking car moves to −LANE_SPACING, the oncoming lane. Turn pieces are
+// built between given lane offsets.
+//
+// Pieces are built on demand and cached, so cars on the same piece hold the same object and
+// "is that car on my lane?" is an identity check. Each piece also stores a curvature speed
+// limit every few metres, v = √(a_lat / κ).
 
-export const LANE_OFFSET = 1.75; // m from the road centre line to the inner lane centre
-
-/** 0 = +X, 1 = +Z, 2 = −X, 3 = −Z. */
-export type Dir = 0 | 1 | 2 | 3;
-export const DIRS: Dir[] = [0, 1, 2, 3];
-const DX = [1, 0, -1, 0];
-const DZ = [0, 1, 0, -1];
-
-export function dirVector(d: Dir): THREE.Vector3 {
-  return new THREE.Vector3(DX[d], 0, DZ[d]);
-}
-
-/** The side traffic keeps to: forward (dx, dz) rotated 90° clockwise seen from above. */
-function rightOf(d: Dir): THREE.Vector3 {
-  return new THREE.Vector3(-DZ[d], 0, DX[d]);
-}
-
-export function isNorthSouth(d: Dir): boolean {
-  return d === 1 || d === 3;
-}
+export const LANE_OFFSET = 1.75; // m from the centre line to the inner lane's centre
+/** Lateral offset of the outer (right) lane from the inner one on multi-lane roads, m. */
+export const LANE_SPACING = 3.5;
+/** Comfortable sideways acceleration on curves (m/s², ≈ 0.3 g). */
+const A_LAT = 3.0;
 
 export interface Piece {
   kind: 'lane' | 'turn';
-  /** Cubic Bézier on the grid (layout space): p0 → p2 with control points c1, c2. */
-  p0: THREE.Vector3;
-  c1: THREE.Vector3;
-  c2: THREE.Vector3;
-  p2: THREE.Vector3;
+  /** x, z pairs along the piece. */
+  pts: Float32Array;
+  /** Distance along the piece at each point. */
+  cum: Float32Array;
   length: number;
-  /** For lanes: the intersection at the end. For turns: the intersection it crosses. */
-  toI: number;
-  toJ: number;
-  /** Direction of travel at the end of the piece. */
-  dir: Dir;
-  /** Direction of travel at the start (same as `dir` for lanes). */
-  from: Dir;
-  /** Turns: lateral offsets (m, + = right) of the lanes it joins, relative to the inner lane. */
+  /** Lane: the edge and direction (+1 a → b, −1 b → a). Turn: the edge it leads onto. */
+  edge: number;
+  dir: 1 | -1;
+  /** The junction at the end of a lane, or the one a turn crosses. */
+  node: number;
+  /** Turns: the lane it comes from and the lane it leads to. */
+  from: Piece | null;
+  to: Piece | null;
+  /** Turns: lateral offsets (m, + = right) of the lanes it joins, relative to their inner lanes. */
   offIn: number;
   offOut: number;
-  /** Country road: higher cruise speed, one lane each way. */
+  /** Lanes each way on this road (turns: on the road it leads onto). */
+  lanes: number;
+  /** One lane each way, out of town: overtaking through the oncoming lane allowed. */
   rural: boolean;
-  /**
-   * Curvature speed limit (m/s) every `limitStep` m along the piece, measured in the world
-   * (so the road warp's bends count): v = √(a_lat / κ), the speed at which the sideways
-   * acceleration on a curve of curvature κ is a comfortable a_lat.
-   */
+  /** Speed limit (m/s) and importance (smaller roads give way). */
+  speed: number;
+  rank: number;
+  /** Curvature speed limit every `limitStep` m. */
   limits: Float32Array;
   limitStep: number;
+  /** Direction of travel (unit) at the start and the end. */
+  startDir: [number, number];
+  endDir: [number, number];
 }
 
-/** Comfortable sideways acceleration on curves (m/s², ≈ 0.3 g). */
-const A_LAT = 3.0;
-/** Lateral offset of the outer (right) lane from the inner one on town roads, m. */
-export const LANE_SPACING = 3.5;
+export type TurnKind = 'right' | 'left' | 'straight' | 'uturn';
+
+/** Left/right/straight/U from the heading in and the heading out. */
+export function turnKind(a: [number, number], b: [number, number]): TurnKind {
+  const dot = a[0] * b[0] + a[1] * b[1];
+  // The right of +X is +Z, so a positive cross product (a × b)·y… here a.x·b.z − a.z·b.x > 0
+  // means turning toward the right.
+  const cross = a[0] * b[1] - a[1] * b[0];
+  const angle = Math.atan2(cross, dot);
+  if (Math.abs(angle) < 0.6) return 'straight';
+  if (Math.abs(angle) > 2.5) return 'uturn';
+  return angle > 0 ? 'right' : 'left';
+}
 
 export class RoadGraph {
-  /** Grid lines per side: nodes are (i, j) for i, j in 0…size−1. */
-  readonly size = CELLS + 1;
-  private readonly roads: RoadNet;
-  private readonly layout: CityLayout;
-  /**
-   * Pieces are deterministic, so they're built once and shared: two cars on the same piece
-   * hold the same object, which makes "is that car in my lane?" an identity check.
-   */
   private readonly cache = new Map<string, Piece>();
+  /** Lights: which phase group each approach (edge, arriving direction) is in. */
+  private readonly phase = new Map<string, number>();
 
-  constructor(layout: CityLayout) {
-    this.layout = layout;
-    this.roads = layout.roads;
-  }
-  node(i: number, j: number): THREE.Vector3 {
-    return new THREE.Vector3(lineCoord(i), 0, lineCoord(j));
-  }
-
-  /** Unsignalled crossing where 3+ roads meet (country junctions): cars give way here. */
-  isJunction(i: number, j: number): boolean {
-    if (this.roads.hasLights(i, j)) return false;
-    return DIRS.filter((d) => this.hasRoad(i, j, d)).length >= 3;
-  }
-
-  /** Is there a road from (i, j) in direction d? */
-  hasRoad(i: number, j: number, d: Dir): boolean {
-    switch (d) {
-      case 0:
-        return this.roads.hasH(i, j);
-      case 2:
-        return this.roads.hasH(i - 1, j);
-      case 1:
-        return this.roads.hasV(i, j);
-      default:
-        return this.roads.hasV(i, j - 1);
+  constructor(readonly net: StreetNet) {
+    // Group each lit junction's approaches into two phases: those roughly along the first
+    // road's axis, and the rest.
+    for (const n of net.nodes) {
+      if (n.control !== 'lights') continue;
+      const axes = n.edges.map((e) => this.axisAt(net.edges[e], n.id));
+      const ref = axes[0];
+      n.edges.forEach((e, i) => {
+        let d = Math.abs(axes[i] - ref) % Math.PI;
+        if (d > Math.PI / 2) d = Math.PI - d;
+        this.phase.set(`${e},${n.id}`, d < Math.PI / 4 ? 0 : 1);
+      });
     }
   }
 
-  /** Country road (faster, no lights) from (i, j) in direction d. */
-  isRural(i: number, j: number, d: Dir): boolean {
-    switch (d) {
-      case 0:
-        return this.roads.ruralH(i, j);
-      case 2:
-        return this.roads.ruralH(i - 1, j);
-      case 1:
-        return this.roads.ruralV(i, j);
-      default:
-        return this.roads.ruralV(i, j - 1);
+  get nodes(): StreetNode[] {
+    return this.net.nodes;
+  }
+
+  /** Angle of an edge's direction where it leaves a node. */
+  private axisAt(e: StreetEdge, node: number): number {
+    const p = e.pts;
+    const n = p.length / 2;
+    if (e.a === node) return Math.atan2(p[3] - p[1], p[2] - p[0]);
+    return Math.atan2(p[(n - 2) * 2 + 1] - p[(n - 1) * 2 + 1], p[(n - 2) * 2] - p[(n - 1) * 2]);
+  }
+
+  /** How far back from a node lanes stop (inside the junction is the turn). */
+  private trim(nodeId: number): number {
+    const n = this.net.nodes[nodeId];
+    if (n.bulb) return n.bulb * 0.8;
+    let hw = 0;
+    for (const e of n.edges) hw = Math.max(hw, this.net.halfWidth(this.net.edges[e]));
+    if (n.edges.length >= 3) return hw + 1.2;
+    if (n.edges.length === 1) return 3;
+    return 2; // a plain bend or a change of road class: a short join
+  }
+
+  hasLights(node: number): boolean {
+    return this.net.nodes[node].control === 'lights';
+  }
+
+  /** A stop-controlled junction where this lane's road is the smaller one (or all are equal). */
+  mustStop(lane: Piece): boolean {
+    const n = this.net.nodes[lane.node];
+    if (n.control !== 'stop') return false;
+    let max = 0;
+    let count = 0;
+    for (const e of n.edges) {
+      const r = ROAD_SPECS[this.net.edges[e].cls].rank;
+      if (r > max) {
+        max = r;
+        count = 1;
+      } else if (r === max) count++;
     }
+    // The biggest road has priority, unless several roads share the top rank and this is
+    // a three-or-more-way meeting of equals (an all-way stop).
+    return lane.rank < max || (count === n.edges.length && n.edges.length >= 3 && lane.rank < 3);
   }
 
-  /** Half the size of the intersection square at (i, j). */
-  nodeHalf(i: number, j: number): number {
-    return this.roads.nodeHalf(i, j);
+  /** Lit phase of a lane arriving at its junction: 'green', 'yellow' or 'red'. */
+  lightState(lane: Piece, time: number): Light {
+    const n = this.net.nodes[lane.node];
+    const group = this.phase.get(`${lane.edge},${lane.node}`) ?? 0;
+    return lightPhase(group, n.id, time);
   }
 
-  hasLights(i: number, j: number): boolean {
-    return this.roads.hasLights(i, j);
-  }
-
-  /** The neighbouring intersection in direction d, or null if no road goes that way. */
-  neighbor(i: number, j: number, d: Dir): [number, number] | null {
-    if (!this.hasRoad(i, j, d)) return null;
-    return [i + DX[d], j + DZ[d]];
-  }
-
-  /** Straight lane (inner lane line) from intersection (i, j) toward its neighbour in direction d. */
-  lane(i: number, j: number, d: Dir): Piece | null {
-    const key = `l${i},${j},${d}`;
+  /** Lane along `edge` in direction `dir` (null if the edge is too short for one). */
+  lane(edgeId: number, dir: 1 | -1): Piece {
+    const key = `l${edgeId},${dir}`;
     const hit = this.cache.get(key);
     if (hit) return hit;
-    const next = this.neighbor(i, j, d);
-    if (!next) return null;
-    const fwd = dirVector(d);
-    const side = rightOf(d).multiplyScalar(LANE_OFFSET);
-    const p0 = this.node(i, j).addScaledVector(fwd, this.roads.nodeHalf(i, j)).add(side);
-    const p2 = this.node(next[0], next[1]).addScaledVector(fwd, -this.roads.nodeHalf(next[0], next[1])).add(side);
-    const piece = this.finish({
+    const e = this.net.edges[edgeId];
+    const spec = ROAD_SPECS[e.cls];
+    // Centre line in the direction of travel, offset right by LANE_OFFSET.
+    const src = e.pts;
+    const n = src.length / 2;
+    const pts: number[] = [];
+    const at = (i: number) => (dir === 1 ? i : n - 1 - i);
+    for (let i = 0; i < n; i++) {
+      const k = at(i);
+      const kp = at(Math.max(0, i - 1));
+      const kn = at(Math.min(n - 1, i + 1));
+      let tx = src[kn * 2] - src[kp * 2];
+      let tz = src[kn * 2 + 1] - src[kp * 2 + 1];
+      const l = Math.hypot(tx, tz) || 1;
+      tx /= l;
+      tz /= l;
+      // Right of travel: (−tz, tx).
+      pts.push(src[k * 2] - tz * LANE_OFFSET, src[k * 2 + 1] + tx * LANE_OFFSET);
+    }
+    const startNode = dir === 1 ? e.a : e.b;
+    const endNode = dir === 1 ? e.b : e.a;
+    const trimmed = trimPolyline(pts, this.trim(startNode), this.trim(endNode));
+    const piece = finish({
       kind: 'lane',
-      p0,
-      c1: p0.clone().lerp(p2, 1 / 3),
-      c2: p0.clone().lerp(p2, 2 / 3),
-      p2,
+      pts: new Float32Array(trimmed),
+      cum: new Float32Array(0),
       length: 0,
-      toI: next[0],
-      toJ: next[1],
-      dir: d,
-      from: d,
+      edge: edgeId,
+      dir,
+      node: endNode,
+      from: null,
+      to: null,
       offIn: 0,
       offOut: 0,
-      rural: this.isRural(i, j, d),
+      lanes: spec.lanes,
+      rural: e.cls === 'rural',
+      speed: spec.speed,
+      rank: spec.rank,
       limits: new Float32Array(0),
       limitStep: 6,
+      startDir: [1, 0],
+      endDir: [1, 0],
     });
     this.cache.set(key, piece);
     return piece;
+  }
+
+  /** The lane on the same edge in the other direction. */
+  reverse(lane: Piece): Piece {
+    return this.lane(lane.edge, lane.dir === 1 ? -1 : 1);
+  }
+
+  /** Lanes a car arriving on `lane` may leave by (a U-turn only at dead ends and cul-de-sacs). */
+  exits(lane: Piece): Piece[] {
+    const n = this.net.nodes[lane.node];
+    const out: Piece[] = [];
+    for (const e of n.edges) {
+      if (e === lane.edge) continue;
+      const edge = this.net.edges[e];
+      out.push(this.lane(e, edge.a === n.id ? 1 : -1));
+    }
+    if (!out.length) out.push(this.reverse(lane));
+    return out;
+  }
+
+  /** Lanes arriving at the same junction as `lane` (other than it). */
+  approaches(lane: Piece): Piece[] {
+    const n = this.net.nodes[lane.node];
+    const out: Piece[] = [];
+    for (const e of n.edges) {
+      if (e === lane.edge) continue;
+      const edge = this.net.edges[e];
+      out.push(this.lane(e, edge.b === n.id ? 1 : -1));
+    }
+    return out;
   }
 
   /**
-   * Path through intersection (i, j), from arriving in direction `from` to leaving in `to`,
-   * from the lane `offIn` m right of the inner lane to the one `offOut` m right of it.
-   * `to` = the opposite of `from` is a U-turn (only used at dead ends).
+   * Path through the junction at the end of `from` onto `to`, from `offIn` m right of
+   * `from`'s inner lane to `offOut` m right of `to`'s.
    */
-  turn(i: number, j: number, from: Dir, to: Dir, offIn = 0, offOut = 0): Piece {
-    const key = `t${i},${j},${from},${to},${offIn},${offOut}`;
+  turn(from: Piece, to: Piece, offIn = 0, offOut = 0): Piece {
+    const key = `t${from.edge},${from.dir},${to.edge},${to.dir},${offIn},${offOut}`;
     const hit = this.cache.get(key);
     if (hit) return hit;
-    const centre = this.node(i, j);
-    const half = this.roads.nodeHalf(i, j);
-    const fin = dirVector(from);
-    const fout = dirVector(to);
-    const p0 = centre.clone().addScaledVector(fin, -half).add(rightOf(from).multiplyScalar(LANE_OFFSET + offIn));
-    const p2 = centre.clone().addScaledVector(fout, half).add(rightOf(to).multiplyScalar(LANE_OFFSET + offOut));
-    let c1: THREE.Vector3;
-    let c2: THREE.Vector3;
-    if (from === to) {
-      c1 = p0.clone().lerp(p2, 1 / 3);
-      c2 = p0.clone().lerp(p2, 2 / 3);
-    } else if ((from + 2) % 4 === to) {
-      // U-turn: loop out across the intersection.
-      c1 = p0.clone().addScaledVector(fin, half * 1.6);
-      c2 = p2.clone().addScaledVector(fout, -half * 1.6);
-    } else {
-      // A corner: the incoming and outgoing lane lines cross at q. Control points 0.55 of
-      // the way to q make (nearly) a circular arc, and keep the heading continuous with
-      // the lanes at both ends.
-      const q = DX[from] !== 0 ? new THREE.Vector3(p2.x, 0, p0.z) : new THREE.Vector3(p0.x, 0, p2.z);
-      c1 = p0.clone().lerp(q, 0.55);
-      c2 = p2.clone().lerp(q, 0.55);
+    const [ix, iz] = from.endDir;
+    const [ox, oz] = to.startDir;
+    const fp = from.pts;
+    const p0x = fp[fp.length - 2] - iz * offIn;
+    const p0z = fp[fp.length - 1] + ix * offIn;
+    const p2x = to.pts[0] - oz * offOut;
+    const p2z = to.pts[1] + ox * offOut;
+    const gap = Math.hypot(p2x - p0x, p2z - p0z);
+    const kind = turnKind(from.endDir, to.startDir);
+    // Control points along the lanes' own directions, so the heading is continuous. For a
+    // U-turn, loop out wide enough to swing round (the cul-de-sac's circle).
+    const node = this.net.nodes[from.node];
+    const k = kind === 'uturn' ? Math.max(4, node.bulb * 1.3, 5) : Math.max(1.5, gap * 0.45);
+    const c1x = p0x + ix * k;
+    const c1z = p0z + iz * k;
+    const c2x = p2x - ox * k;
+    const c2z = p2z - oz * k;
+    const pts: number[] = [];
+    const N = 14;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const u = 1 - t;
+      const a = u * u * u;
+      const b = 3 * u * u * t;
+      const c = 3 * u * t * t;
+      const d = t * t * t;
+      pts.push(a * p0x + b * c1x + c * c2x + d * p2x, a * p0z + b * c1z + c * c2z + d * p2z);
     }
-    const piece = this.finish({
+    const piece = finish({
       kind: 'turn',
-      p0,
-      c1,
-      c2,
-      p2,
+      pts: new Float32Array(pts),
+      cum: new Float32Array(0),
       length: 0,
-      toI: i,
-      toJ: j,
-      dir: to,
+      edge: to.edge,
+      dir: to.dir,
+      node: from.node,
       from,
+      to,
       offIn,
       offOut,
-      rural: !this.roads.townNode(i, j),
+      lanes: to.lanes,
+      rural: to.rural,
+      speed: Math.min(from.speed, to.speed),
+      rank: from.rank,
       limits: new Float32Array(0),
       limitStep: 1.5,
+      startDir: [1, 0],
+      endDir: [1, 0],
     });
     this.cache.set(key, piece);
     return piece;
   }
+}
 
-  /** Measure a new piece: its length and its curvature speed limits through the warp. */
-  private finish(piece: Piece): Piece {
-    // Length: sum of chords over 24 steps (plenty for these gentle curves).
-    const a = new THREE.Vector3();
-    const b = new THREE.Vector3();
-    bezierPoint(piece, 0, a);
-    let len = 0;
-    for (let k = 1; k <= 24; k++) {
-      bezierPoint(piece, k / 24, b);
-      len += a.distanceTo(b);
-      a.copy(b);
-    }
-    piece.length = len;
-    // Curvature from the circle through three consecutive world points:
-    // κ = 2·|AB × BC| / (|AB|·|BC|·|AC|).
-    const n = Math.max(2, Math.ceil(len / piece.limitStep));
-    const world: { x: number; z: number }[] = [];
-    // Extend one sample beyond each end so the ends get a curvature too.
-    for (let k = -1; k <= n + 1; k++) {
-      const t = Math.min(1, Math.max(0, k / n));
-      bezierPoint(piece, t, a);
-      // Past the ends, carry on along the end tangent.
-      if (k < 0 || k > n) a.addScaledVector(bezierTangent(piece, t, b).normalize(), (k < 0 ? -1 : 1) * piece.limitStep);
-      const w = this.layout.warp.forward(a.x, a.z);
-      world.push({ x: w.x, z: w.z });
-    }
-    const limits = new Float32Array(n + 1);
-    for (let k = 0; k <= n; k++) {
-      const A = world[k];
-      const B = world[k + 1];
-      const C = world[k + 2];
-      const abx = B.x - A.x;
-      const abz = B.z - A.z;
-      const bcx = C.x - B.x;
-      const bcz = C.z - B.z;
-      const cross = Math.abs(abx * bcz - abz * bcx);
-      const kappa = (2 * cross) / (Math.hypot(abx, abz) * Math.hypot(bcx, bcz) * Math.hypot(C.x - A.x, C.z - A.z) + 1e-9);
-      limits[k] = Math.max(2.2, Math.sqrt(A_LAT / Math.max(kappa, 1e-6)));
-    }
-    piece.limits = limits;
-    piece.limitStep = len / n;
-    return piece;
+/** Arc lengths, end directions and curvature speed limits for a new piece. */
+function finish(p: Piece): Piece {
+  const pts = p.pts;
+  const n = pts.length / 2;
+  const cum = new Float32Array(n);
+  for (let i = 1; i < n; i++) cum[i] = cum[i - 1] + Math.hypot(pts[i * 2] - pts[i * 2 - 2], pts[i * 2 + 1] - pts[i * 2 - 1]);
+  p.cum = cum;
+  p.length = Math.max(0.1, cum[n - 1]);
+  const dir = (i0: number, i1: number): [number, number] => {
+    const dx = pts[i1 * 2] - pts[i0 * 2];
+    const dz = pts[i1 * 2 + 1] - pts[i0 * 2 + 1];
+    const l = Math.hypot(dx, dz) || 1;
+    return [dx / l, dz / l];
+  };
+  p.startDir = dir(0, Math.min(1, n - 1));
+  p.endDir = dir(Math.max(0, n - 2), n - 1);
+  // Curvature from the circle through three points `step` apart: κ = 2·|AB × BC| / (|AB|·|BC|·|AC|).
+  const steps = Math.max(1, Math.ceil(p.length / p.limitStep));
+  p.limitStep = p.length / steps;
+  const limits = new Float32Array(steps + 1);
+  const P = { x: 0, z: 0, tx: 0, tz: 0 };
+  const sample = (s: number): [number, number] => {
+    pieceAt(p, s, P);
+    // Past the ends, carry on along the end directions.
+    if (s < 0) return [P.x + P.tx * s, P.z + P.tz * s];
+    if (s > p.length) return [P.x + P.tx * (s - p.length), P.z + P.tz * (s - p.length)];
+    return [P.x, P.z];
+  };
+  for (let i = 0; i <= steps; i++) {
+    const s = i * p.limitStep;
+    const [ax, az] = sample(s - p.limitStep);
+    const [bx, bz] = sample(s);
+    const [cx, cz] = sample(s + p.limitStep);
+    const abx = bx - ax;
+    const abz = bz - az;
+    const bcx = cx - bx;
+    const bcz = cz - bz;
+    const cross = Math.abs(abx * bcz - abz * bcx);
+    const kappa = (2 * cross) / (Math.hypot(abx, abz) * Math.hypot(bcx, bcz) * Math.hypot(cx - ax, cz - az) + 1e-9);
+    limits[i] = Math.max(2.2, Math.sqrt(A_LAT / Math.max(kappa, 1e-6)));
   }
+  p.limits = limits;
+  return p;
+}
 
-  /** Directions a car arriving at (i, j) travelling in `from` may leave by (a U-turn only at dead ends). */
-  exits(i: number, j: number, from: Dir): Dir[] {
-    const back = ((from + 2) % 4) as Dir;
-    const out = DIRS.filter((d) => d !== back && this.hasRoad(i, j, d));
-    return out.length ? out : [back];
+/** Point and unit direction at distance s along a piece (clamped to its ends). */
+export function pieceAt(p: Piece, s: number, out: { x: number; z: number; tx: number; tz: number }): typeof out {
+  const cum = p.cum;
+  const n = cum.length;
+  const d = Math.max(0, Math.min(p.length, s));
+  let lo = 0;
+  let hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (cum[mid] <= d) lo = mid;
+    else hi = mid;
   }
+  const pts = p.pts;
+  const seg = cum[hi] - cum[lo] || 1;
+  const t = Math.max(0, Math.min(1, (d - cum[lo]) / seg));
+  const dx = pts[hi * 2] - pts[lo * 2];
+  const dz = pts[hi * 2 + 1] - pts[lo * 2 + 1];
+  const l = Math.hypot(dx, dz) || 1;
+  out.x = pts[lo * 2] + dx * t;
+  out.z = pts[lo * 2 + 1] + dz * t;
+  out.tx = dx / l;
+  out.tz = dz / l;
+  return out;
 }
 
-/** 'right', 'left', 'straight' or 'uturn' for a turn from `from` to `to`. */
-export function turnKind(from: Dir, to: Dir): 'right' | 'left' | 'straight' | 'uturn' {
-  if (from === to) return 'straight';
-  if ((from + 1) % 4 === to) return 'right'; // the right of +X is +Z (dir 1)
-  if ((from + 3) % 4 === to) return 'left';
-  return 'uturn';
+/** Cut `a` metres off the start and `b` off the end of a polyline (keeps at least a stub). */
+function trimPolyline(pts: number[], a: number, b: number): number[] {
+  const n = pts.length / 2;
+  const cum = [0];
+  for (let i = 1; i < n; i++) cum.push(cum[i - 1] + Math.hypot(pts[i * 2] - pts[i * 2 - 2], pts[i * 2 + 1] - pts[i * 2 - 1]));
+  const len = cum[n - 1];
+  if (a + b > len - 1) {
+    // A very short edge: keep its middle metre.
+    const m = (a / (a + b || 1)) * len;
+    a = Math.max(0, m - 0.5);
+    b = Math.max(0, len - m - 0.5);
+  }
+  const at = (s: number): [number, number] => {
+    let i = 1;
+    while (i < n - 1 && cum[i] < s) i++;
+    const t = (s - cum[i - 1]) / (cum[i] - cum[i - 1] || 1);
+    return [pts[(i - 1) * 2] + (pts[i * 2] - pts[(i - 1) * 2]) * t, pts[(i - 1) * 2 + 1] + (pts[i * 2 + 1] - pts[(i - 1) * 2 + 1]) * t];
+  };
+  const out: number[] = [...at(a)];
+  for (let i = 0; i < n; i++) if (cum[i] > a && cum[i] < len - b) out.push(pts[i * 2], pts[i * 2 + 1]);
+  out.push(...at(len - b));
+  return out;
 }
 
-export function bezierPoint(p: Piece, t: number, out: THREE.Vector3): THREE.Vector3 {
-  const u = 1 - t;
-  return out
-    .copy(p.p0)
-    .multiplyScalar(u * u * u)
-    .addScaledVector(p.c1, 3 * u * u * t)
-    .addScaledVector(p.c2, 3 * u * t * t)
-    .addScaledVector(p.p2, t * t * t);
-}
-
-/** Direction of travel along the piece at parameter t (unnormalised derivative). */
-export function bezierTangent(p: Piece, t: number, out: THREE.Vector3): THREE.Vector3 {
-  // d/dt of the cubic Bézier: 3(1−t)²(c1−p0) + 6(1−t)t(c2−c1) + 3t²(p2−c2).
-  const u = 1 - t;
-  const a = 3 * u * u;
-  const b = 6 * u * t;
-  const c = 3 * t * t;
-  return out.set(
-    a * (p.c1.x - p.p0.x) + b * (p.c2.x - p.c1.x) + c * (p.p2.x - p.c2.x),
-    0,
-    a * (p.c1.z - p.p0.z) + b * (p.c2.z - p.c1.z) + c * (p.p2.z - p.c2.z),
-  );
-}
-
-// --- Traffic lights. Each intersection alternates north–south and east–west green, with a
-// per-intersection time offset so lights along a street are staggered ("green wave").
+// --- Traffic lights. Each lit junction alternates its two phase groups, with a
+// per-junction time offset so lights along a street are staggered ("green wave").
 
 const CYCLE = 24; // s
 export type Light = 'green' | 'yellow' | 'red';
 
-export function lightState(i: number, j: number, d: Dir, time: number): Light {
-  const t = (((time + (i * 7 + j * 3)) % CYCLE) + CYCLE) % CYCLE;
-  // North–south: green 0–9, yellow 9–11.5. East–west: green 12–21, yellow 21–23.5.
-  // The half-second gaps are all-red so the intersection clears.
-  const [green, yellow] = isNorthSouth(d) ? [0, 9] : [12, 21];
+export function lightPhase(group: number, node: number, time: number): Light {
+  const t = (((time + node * 3.7) % CYCLE) + CYCLE) % CYCLE;
+  // Group 0: green 0–9, yellow 9–11.5. Group 1: green 12–21, yellow 21–23.5. The half-second
+  // gaps are all-red so the junction clears.
+  const green = group === 0 ? 0 : 12;
   if (t >= green && t < green + 9) return 'green';
-  if (t >= yellow && t < yellow + 2.5) return 'yellow';
+  if (t >= green + 9 && t < green + 11.5) return 'yellow';
   return 'red';
 }

@@ -3,6 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   WORLD_HALF,
+  buildStreets,
   generateCity,
   helipadPosition,
   spawnPoint,
@@ -13,6 +14,7 @@ import { asphaltTexture, glowTexture, grainTexture, grassTexture, helipadTexture
 import { Terrain } from './terrain';
 import { InstancePool } from './instancePool';
 import { CHUNKS, CHUNK_SIZE, LAMP_HEAD_OUT, WorldStreamer, type WorldPools } from './chunks';
+import { CAR_DIMENSIONS, carGeometry, carMaterials, paintMaterial as carPaint, wheelGeometry } from '../vehicles/carModel';
 
 // The world: shared materials and instance pools, the streamed chunks (world/chunks.ts),
 // the coarse distant terrain, and a few one-off pieces (helipad decal, world boundary).
@@ -47,6 +49,9 @@ const FAR_STEP = 32;
 export function createCity(scene: THREE.Scene, world: RAPIER.World, seed: number): City {
   const layout = generateCity(seed);
   const terrain = new Terrain(layout);
+  // The roads follow the smooth hills, and the terrain then dips under them: build the
+  // street network between the two.
+  buildStreets(layout, (x, z) => terrain.smoothHeight(x, z));
 
   // --- Materials shared by all chunks.
   const grain = grainTexture();
@@ -160,7 +165,16 @@ export function createCity(scene: THREE.Scene, world: RAPIER.World, seed: number
   const lightPools = pool(new THREE.PlaneGeometry(10, 10).rotateX(-Math.PI / 2), poolMaterial, 2000);
   lightPools.mesh.visible = false;
 
-  const pools: WorldPools = { buildings, roofs, acs, tanks, trunks, canopies, forest, lamps, lampHeads, lightPools };
+  // Parked cars in the suburbs' parking lots: a sedan body (colour per car), its windows, and
+  // its four tyres, all instanced.
+  const sedan = carGeometry('sedan');
+  const parkedBodies = pool(sedan.body, carPaint(0xffffff), 900, true);
+  const parkedGlass = pool(sedan.glass, carMaterials.glass, 900);
+  const wheelR = CAR_DIMENSIONS.sedan.wheelRadius;
+  const parkedTyres = pool(wheelGeometry(wheelR).tyre, carMaterials.tyre, 3600);
+  parkedBodies.mesh.castShadow = true;
+
+  const pools: WorldPools = { buildings, roofs, acs, tanks, trunks, canopies, forest, lamps, lampHeads, lightPools, parkedBodies, parkedGlass, parkedTyres };
   const streamer = new WorldStreamer(scene, world, layout, terrain, pools, {
     terrain: terrainMaterial,
     road: roadMaterial,
@@ -188,9 +202,7 @@ export function createCity(scene: THREE.Scene, world: RAPIER.World, seed: number
   );
   const padBlock = terrain.blockUnder(pad.x, pad.z)!;
   const padPlane = terrain.blockSurface(padBlock);
-  padMesh.quaternion
-    .setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-padPlane.gx, 1, -padPlane.gz).normalize())
-    .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), layout.warp.angle(padBlock.cx, padBlock.cz)));
+  padMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-padPlane.gx, 1, -padPlane.gz).normalize());
   padMesh.position.set(pad.x, terrain.surfaceAt(pad.x, pad.z) + 0.05, pad.z);
   padMesh.receiveShadow = true;
   scene.add(padMesh);

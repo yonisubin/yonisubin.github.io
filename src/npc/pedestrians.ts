@@ -4,11 +4,13 @@ import type { CharacterModel } from '../player/character';
 import type { CharacterLibrary } from '../player/characterLibrary';
 import { Rng } from '../world/rng';
 import { BLOCK_SIZE, type Block, type CityLayout } from '../world/layout';
+import { ROAD_SPECS } from '../world/streets';
 
 // Pedestrians: random people from the character library (each with their own skin tone,
-// hair, outfit colours and height), strolling around the
-// sidewalk of a city block (a square loop), pausing now and then, and waiting if the player
-// is standing in their way. No physics: they follow their loop exactly.
+// hair, outfit colours and height), strolling along a loop of sidewalk — round a downtown
+// block, or in the suburbs out along one side of a street and back along the other — pausing
+// now and then, and waiting if the player is standing in their way. No physics: they follow
+// their loop exactly.
 //
 // They react to the player:
 //   talk  — stop and face the player during a chat;
@@ -44,9 +46,13 @@ export type PedState = 'walk' | 'talk' | 'flee' | 'angry' | 'down';
 export interface Pedestrian {
   /** Null until this person's model has downloaded (they stay out of the world until then). */
   model: CharacterModel | null;
-  block: Block;
-  half: number; // half-size of this pedestrian's loop square
-  u: number; // distance along the loop perimeter, m
+  /** The downtown block they walk round (null on a suburban street). */
+  block: Block | null;
+  /** Their loop: a closed polyline (x, z pairs) and the distance along it at each point. */
+  path: Float32Array;
+  pathCum: Float32Array;
+  pathLength: number;
+  u: number; // distance along the loop, m
   direction: 1 | -1;
   speed: number;
   pause: number; // seconds left standing still
@@ -89,8 +95,10 @@ export class Pedestrians implements SimEntity {
     for (let k = 0; k < count; k++) {
       const ped: Pedestrian = {
         model: null,
-        block: layout.blocks[0],
-        half: 0,
+        block: null,
+        path: new Float32Array(4),
+        pathCum: new Float32Array(2),
+        pathLength: 1,
         u: 0,
         direction: 1,
         speed: 1.5,
@@ -121,13 +129,25 @@ export class Pedestrians implements SimEntity {
     const player = this.hooks.player().position;
     if (!ped.model) return;
     ped.model.reset();
-    // Town blocks within reach (the world has ~1000; only a handful are near the player).
+    // Downtown blocks and suburban streets with sidewalks within reach.
     const near = this.layout.blocks.filter((b) => Math.hypot(b.cx - player.x, b.cz - player.z) < SPAWN_MAX + BLOCK_SIZE);
-    for (let attempt = 0; attempt < 30 && near.length; attempt++) {
-      const block = this.rng.pick(near);
-      ped.block = block;
-      ped.half = BLOCK_SIZE / 2 - this.rng.range(LOOP_INSET_MIN, LOOP_INSET_MAX);
-      ped.u = this.rng.range(0, 8 * ped.half);
+    const net = this.layout.streets.net;
+    const streets = new Set<number>();
+    net.index.forEachNear(player.x, player.z, SPAWN_MAX, (e) => {
+      const edge = net.edges[e];
+      if (ROAD_SPECS[edge.cls].sidewalk > 0 && edge.length > 40) streets.add(e);
+    });
+    const streetList = [...streets];
+    for (let attempt = 0; attempt < 30 && (near.length || streetList.length); attempt++) {
+      if (near.length && (!streetList.length || this.rng.chance(near.length / (near.length + streetList.length * 0.5)))) {
+        const block = this.rng.pick(near);
+        ped.block = block;
+        this.setPath(ped, blockLoop(block.cx, block.cz, BLOCK_SIZE / 2 - this.rng.range(LOOP_INSET_MIN, LOOP_INSET_MAX)));
+      } else {
+        ped.block = null;
+        this.setPath(ped, this.streetLoop(this.rng.pick(streetList)));
+      }
+      ped.u = this.rng.range(0, ped.pathLength);
       this.loopPoint(ped, ped.u, this.tmp);
       const dist = Math.hypot(this.tmp.x - player.x, this.tmp.z - player.z);
       if (dist < minDist || dist > SPAWN_MAX) continue;
@@ -152,41 +172,80 @@ export class Pedestrians implements SimEntity {
     ped.stateTime = 0;
   }
 
+  private setPath(ped: Pedestrian, pts: number[]): void {
+    // Close the loop.
+    const closed = [...pts, pts[0], pts[1]];
+    const n = closed.length / 2;
+    const cum = new Float32Array(n);
+    for (let i = 1; i < n; i++) cum[i] = cum[i - 1] + Math.hypot(closed[i * 2] - closed[i * 2 - 2], closed[i * 2 + 1] - closed[i * 2 - 1]);
+    ped.path = new Float32Array(closed);
+    ped.pathCum = cum;
+    ped.pathLength = Math.max(1, cum[n - 1]);
+  }
+
   /**
-   * Point at distance u along the square loop around the block, starting at the (−X, −Z)
-   * corner and going along +X, then +Z, then −X, then −Z.
+   * A suburban loop: out along the sidewalk on one side of a street (at most ~160 m of it),
+   * across, and back along the other side. Kept clear of the junctions at its ends.
    */
+  private streetLoop(edgeId: number): number[] {
+    const net = this.layout.streets.net;
+    const e = net.edges[edgeId];
+    const spec = ROAD_SPECS[e.cls];
+    const off = spec.width / 2 + spec.sidewalk * 0.55;
+    const span = Math.min(160, e.length - 20);
+    const s0 = 10 + this.rng.range(0, e.length - 20 - span);
+    const pt = { x: 0, z: 0, tx: 0, tz: 0 };
+    const side = (sign: number, from: number, to: number): number[] => {
+      const out: number[] = [];
+      const steps = Math.max(2, Math.ceil(Math.abs(to - from) / 4));
+      for (let k = 0; k <= steps; k++) {
+        net.pointAt(e, from + ((to - from) * k) / steps, pt);
+        // Right of travel along the edge is (−tz, tx).
+        out.push(pt.x - pt.tz * off * sign, pt.z + pt.tx * off * sign);
+      }
+      return out;
+    };
+    return [...side(1, s0, s0 + span), ...side(-1, s0 + span, s0)];
+  }
+
+  /** Point at distance u along the pedestrian's loop. */
   private loopPoint(ped: Pedestrian, u: number, out: THREE.Vector3): THREE.Vector3 {
-    const h = ped.half;
-    const side = 2 * h;
-    const perimeter = 4 * side;
-    const t = ((u % perimeter) + perimeter) % perimeter;
-    const k = Math.floor(t / side);
-    const f = t - k * side;
-    const { cx, cz } = ped.block;
-    if (k === 0) out.set(cx - h + f, 0, cz - h);
-    else if (k === 1) out.set(cx + h, 0, cz - h + f);
-    else if (k === 2) out.set(cx + h - f, 0, cz + h);
-    else out.set(cx - h, 0, cz + h - f);
-    // The loop is a square on the grid; the road warp bends it along the real sidewalk.
-    const w = this.layout.warp.forward(out.x, out.z);
-    out.set(w.x, this.hooks.surface(w.x, w.z), w.z);
+    const len = ped.pathLength;
+    const t = ((u % len) + len) % len;
+    const cum = ped.pathCum;
+    let lo = 0;
+    let hi = cum.length - 1;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (cum[mid] <= t) lo = mid;
+      else hi = mid;
+    }
+    const f = (t - cum[lo]) / (cum[hi] - cum[lo] || 1);
+    const p = ped.path;
+    out.set(p[lo * 2] + (p[hi * 2] - p[lo * 2]) * f, 0, p[lo * 2 + 1] + (p[hi * 2 + 1] - p[lo * 2 + 1]) * f);
+    out.y = this.hooks.surface(out.x, out.z);
     return out;
   }
 
   /** Inverse of loopPoint: the u of the loop point nearest to `p`. */
-  private projectToLoop(ped: Pedestrian, p: THREE.Vector3): number {
-    const h = ped.half;
-    const x = THREE.MathUtils.clamp(p.x - ped.block.cx, -h, h);
-    const z = THREE.MathUtils.clamp(p.z - ped.block.cz, -h, h);
-    // Distance to each side of the square: 0 (−Z), 1 (+X), 2 (+Z), 3 (−X).
-    const d = [z + h, h - x, h - z, x + h];
-    const k = d.indexOf(Math.min(...d));
-    const side = 2 * h;
-    if (k === 0) return x + h;
-    if (k === 1) return side + (z + h);
-    if (k === 2) return 2 * side + (h - x);
-    return 3 * side + (h - z);
+  private projectToLoop(ped: Pedestrian, q: THREE.Vector3): number {
+    const p = ped.path;
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i + 1 < ped.pathCum.length; i++) {
+      const ax = p[i * 2];
+      const az = p[i * 2 + 1];
+      const dx = p[i * 2 + 2] - ax;
+      const dz = p[i * 2 + 3] - az;
+      const l2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((q.x - ax) * dx + (q.z - az) * dz) / l2));
+      const d = Math.hypot(q.x - ax - dx * t, q.z - az - dz * t);
+      if (d < bestD) {
+        bestD = d;
+        best = ped.pathCum[i] + Math.sqrt(l2) * t;
+      }
+    }
+    return best;
   }
 
   // ---------------------------------------------------------------- interaction API
@@ -437,7 +496,12 @@ export class Pedestrians implements SimEntity {
   }
 
   /** For tests. */
-  get debugPeds(): { pos: THREE.Vector3; block: Block; moving: number; active: boolean; state: PedState; health: number }[] {
+  get debugPeds(): { pos: THREE.Vector3; block: Block | null; moving: number; active: boolean; state: PedState; health: number }[] {
     return this.peds.map((p) => ({ pos: p.currPos, block: p.block, moving: p.moving, active: p.active, state: p.state, health: p.health }));
   }
+}
+
+/** A square loop of half-size h round (cx, cz), from the (−X, −Z) corner along +X, +Z, −X, −Z. */
+function blockLoop(cx: number, cz: number, h: number): number[] {
+  return [cx - h, cz - h, cx + h, cz - h, cx + h, cz + h, cx - h, cz + h];
 }
