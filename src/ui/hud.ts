@@ -38,6 +38,9 @@ export class Hud {
   private readonly hint: HTMLDivElement | null;
   private readonly healthFill: HTMLDivElement;
   private readonly moneyText: HTMLSpanElement;
+  private readonly starsText: HTMLDivElement;
+  private readonly bustBar: HTMLDivElement;
+  private starsKey = '';
   private readonly weaponText: HTMLDivElement;
   private readonly crosshair: HTMLDivElement;
   private readonly scope: HTMLDivElement;
@@ -92,7 +95,13 @@ export class Hud {
     this.weaponText = document.createElement('div');
     this.weaponText.style.cssText = 'opacity:0.9;font-weight:500';
     row.append(this.moneyText, this.weaponText);
-    statsPanel.append(bar, row);
+    // Wanted level: five stars, lit ones gold; they blink while the police have lost you.
+    this.starsText = document.createElement('div');
+    this.starsText.style.cssText = 'font-size:20px;letter-spacing:2px;line-height:1.1;margin-top:3px;display:none;text-shadow:0 1px 2px rgba(0,0,0,0.8)';
+    // Busted countdown (stopped next to a police car).
+    this.bustBar = document.createElement('div');
+    this.bustBar.style.cssText = 'height:6px;border-radius:3px;background:#3d7bff;margin-top:4px;display:none;width:0';
+    statsPanel.append(bar, row, this.starsText, this.bustBar);
 
     // Breath (only while swimming under water or getting it back): a blue bar under health.
     this.breathBar = document.createElement('div');
@@ -232,6 +241,21 @@ export class Hud {
   /** Red flash, stronger for bigger hits. */
   hurt(amount: number): void {
     this.flash = Math.min(1, this.flash + 0.25 + amount / 40);
+  }
+
+  /** Wanted stars (0 hides them); `evading` blinks them. `bust` is 0…1 toward being busted. */
+  setWanted(stars: number, evading: boolean, bust: number | null): void {
+    const blinkOff = evading && Math.floor(performance.now() / 400) % 2 === 1;
+    const key = `${stars}:${blinkOff}`;
+    if (key !== this.starsKey) {
+      this.starsKey = key;
+      this.starsText.style.display = stars > 0 ? '' : 'none';
+      let html = '';
+      for (let k = 0; k < 5; k++) html += `<span style="color:${k < stars && !blinkOff ? '#ffd23f' : 'rgba(255,255,255,0.28)'}">★</span>`;
+      this.starsText.innerHTML = html;
+    }
+    this.bustBar.style.display = bust === null ? 'none' : '';
+    if (bust !== null) this.bustBar.style.width = `${Math.min(100, bust * 100).toFixed(0)}%`;
   }
 
   /** Distance left on the route (m), or null to hide it. */

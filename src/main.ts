@@ -36,6 +36,8 @@ import { Smoke } from './sim/smoke';
 import { Missions } from './game/missions';
 import { Navigator } from './game/route';
 import { Autosave, clearSave, loadSave, writeSave } from './game/save';
+import { Wanted } from './game/wanted';
+import { Police } from './npc/police';
 import { DebugOverlay } from './ui/debug';
 
 // Physics runs at a fixed 60 Hz regardless of display refresh rate.
@@ -116,6 +118,9 @@ async function main(): Promise<void> {
 
   // Everything simulated each physics step besides the player.
   const entities: SimEntity[] = [stats];
+  // The wanted level (game/wanted.ts); the police (npc/police.ts) are created further down.
+  const wanted = new Wanted();
+  entities.push(wanted);
 
   // Time of day drives the sun/moon, lit windows, street lamps and vehicle lights.
   const dayNight = new DayNight(sky, city, input);
@@ -284,6 +289,8 @@ async function main(): Promise<void> {
     onFoot.knockDown();
     input.setBlocked(true);
     hud.setFade(true, 'You were knocked out');
+    wanted.clear();
+    police.reset();
     window.setTimeout(() => {
       stats.respawn();
       onFoot.standUp();
@@ -330,7 +337,18 @@ async function main(): Promise<void> {
           stats.money += amount;
           hud.toast(`Ran someone over: +$${amount}`, 2);
         },
-      })
+        // Hurting people is a crime; hurting an officer is a bigger one.
+        hurt: (ped, knockedOut) => wanted.crime(ped.cop ? 'police' : knockedOut ? 'knockout' : 'assault'),
+        cop: {
+          stars: () => wanted.stars,
+          canSee: (from, to) => police.clear(from, to),
+          shoot: (from, to, hit) => {
+            onFoot.combat?.addTracer(from, to);
+            if (hit) stats.damage(OFFICER_DAMAGE);
+          },
+          arrest: () => busted(),
+        },
+      }, touch ? 3 : 4)
     : null;
   if (pedestrians) entities.push(pedestrians);
 
@@ -352,6 +370,7 @@ async function main(): Promise<void> {
       const car = new Car(world, scene, { type: taken.type, color: taken.color, position: taken.position, yaw: taken.yaw });
       addPlayerCar(car);
       pedestrians?.alarm(taken.position, 25);
+      wanted.crime('carjack');
       hud.toast('The driver ran off!');
       player.setMode(car.mode!);
     },
@@ -369,7 +388,74 @@ async function main(): Promise<void> {
     side.y = 0;
     cash.drop(side, 10 * dropRng.int(3, 8)); // $30–80
     pedestrians?.alarm(position, 30);
+    // Wrecking a mission's target car isn't a crime (the mission asked for it).
+    if (!missions.objectives().some((o) => o.distanceTo(position) < 6)) wanted.crime('wreck');
     hud.toast('Car wrecked — the driver dropped some cash!', 2.2);
+  };
+
+  // The police. They need to know where you are, how fast you're going and in what.
+  const OFFICER_DAMAGE = 6;
+  const playerVehicle = () => [...cars, heli, ...boats].find((v) => v.mode === player.mode) ?? null;
+  const zero = new THREE.Vector3();
+  const police = new Police(world, scene, city.layout.streets.net, city.terrain, camera, pedestrians, {
+    player: () => {
+      const v = playerVehicle();
+      const lv = v?.body.linvel();
+      return {
+        position: playerPosition(),
+        velocity: lv ? new THREE.Vector3(lv.x, lv.y, lv.z) : zero,
+        onFoot: player.mode === onFoot,
+        body: v?.body ?? null,
+      };
+    },
+    stars: () => wanted.stars,
+    setSeen: (seen) => (wanted.seen = seen),
+    attacked: () => wanted.crime('police'),
+    busted: () => busted(),
+    night: () => dayNight.lighting.night,
+    shoot: (from, to, hit, damage) => {
+      onFoot.combat?.addTracer(from, to);
+      if (hit) stats.damage(damage);
+    },
+    traffic: () => traffic.positions(),
+  });
+  police.smoke = smoke;
+  entities.push(police);
+  wanted.witnessed = () => police.witnesses(playerPosition());
+  // Gunfire is a crime when someone's around to hear it (or the police see it).
+  onFoot.combat.onHit = (collider, damage) => void police.damageCollider(collider, damage);
+  onFoot.combat.onGunfire = (position) => {
+    const people = pedestrians?.debugPeds.some((p) => p.active && !p.cop && p.state !== 'down' && p.pos.distanceTo(position) < 45);
+    if (people || police.witnesses(position)) wanted.crime('gunfire');
+  };
+  wanted.onChange((stars, before) => {
+    if (stars > before && before === 0) hud.toast('The police are after you!', 2);
+    if (stars === 0 && before > 0) hud.toast('You lost the police', 2);
+  });
+
+  // Busted: wake up at the nearest police station, pay a fine, keep your weapons.
+  let bustedPending = false;
+  const busted = () => {
+    if (bustedPending || stats.dead) return;
+    bustedPending = true;
+    const stars = Math.max(1, wanted.stars);
+    input.setBlocked(true);
+    hud.setFade(true, 'BUSTED');
+    window.setTimeout(() => {
+      const where = (player.mode ?? onFoot).focus();
+      const station = places.nearestPolice(where.x, where.z);
+      const fine = Math.min(stats.money, 100 * stars);
+      stats.money -= fine;
+      wanted.clear();
+      police.reset();
+      city.streamer.loadAround(station.spawn, 450);
+      onFoot.placeAt(station.spawn, station.heading, station.heading);
+      player.setMode(onFoot);
+      input.setBlocked(false);
+      hud.setFade(false);
+      hud.toast(`Busted! Fined $${fine} at ${station.name}`, 3.5);
+      bustedPending = false;
+    }, 2500);
   };
 
   // Mission givers (fixed spots near the spawn; invulnerable, they never move).
@@ -501,7 +587,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { RAPIER, navigator, autosave, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { RAPIER, scene, navigator, autosave, wanted, police, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -517,6 +603,8 @@ async function main(): Promise<void> {
     ...boats.map((b) => ({ kind: 'boat' as const, position: b.interp.currPos })),
     ...shop.doors.map((position) => ({ kind: 'shop' as const, position })),
     ...places.hospitals.map((h) => ({ kind: 'hospital' as const, position: h.door })),
+    ...places.police.map((h) => ({ kind: 'police' as const, position: h.door })),
+    ...police.markers().map((position) => ({ kind: 'cop' as const, position })),
     ...missions.givers.filter((g) => g.marker.visible).map((g) => ({ kind: 'giver' as const, position: g.position })),
     ...missions.objectives().map((position) => ({ kind: 'objective' as const, position })),
   ];
@@ -569,6 +657,7 @@ async function main(): Promise<void> {
     minimap.route = fullMap.route = route;
     fullMap.waypoint = navigator.waypoint;
     hud.setRoute(navigator.remaining);
+    hud.setWanted(wanted.stars, wanted.evading, police.bustProgress);
     const markers = mapMarkers();
     if (navigator.waypoint) markers.push({ kind: 'waypoint', position: new THREE.Vector3(navigator.waypoint.x, 0, navigator.waypoint.z) });
     minimap.update(mode.focus(), camera.getWorldDirection(viewDir), markers, dayNight.clock);

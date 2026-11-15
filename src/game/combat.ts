@@ -34,6 +34,10 @@ export class Combat {
     depthWrite: false,
   });
   private outOfAmmoShown = 0;
+  /** A bullet hit some other solid thing (police cars check here). */
+  onHit: ((collider: RAPIER.Collider, damage: number) => void) | null = null;
+  /** A gun was fired at `position` (for the wanted level). */
+  onGunfire: ((position: THREE.Vector3) => void) | null = null;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -111,6 +115,7 @@ export class Combat {
       // Whatever solid thing the bullet hit: if it's a traffic car, it takes the damage.
       const car = this.traffic.carForCollider(wallHit.collider);
       if (car) this.traffic.damage(car, damage);
+      else this.onHit?.(wallHit.collider, damage);
     }
     const hitDist = pedHit ? pedHit.dist : wallDist;
     const end = start.clone().addScaledVector(dir, hitDist);
@@ -123,10 +128,12 @@ export class Combat {
     this.flash.visible = true;
     this.flashLife = 0.05;
     this.peds?.alarm(chest, GUN_ALARM_RADIUS);
+    this.onGunfire?.(chest);
     return { facing, melee: false };
   }
 
-  private addTracer(from: THREE.Vector3, to: THREE.Vector3): void {
+  /** A brief bullet streak (also used for shots fired at the player). */
+  addTracer(from: THREE.Vector3, to: THREE.Vector3): void {
     const geometry = new THREE.BufferGeometry().setFromPoints([from, to]);
     const line = new THREE.Line(geometry, this.tracerMaterial);
     this.scene.add(line);

@@ -59,6 +59,15 @@ const HOSPITAL_TARGETS: { name: string; x: number; z: number; zones: Zone[] }[] 
   ...VILLAGES.map((v) => ({ name: `${v.name} Clinic`, x: lineCoord(v.i), z: lineCoord(v.k), zones: ['village'] as Zone[] })),
 ];
 
+/** Police stations: where you wake up after being busted. */
+const POLICE_TARGETS: { name: string; x: number; z: number; zones: Zone[] }[] = [
+  { name: 'Central Police Station', x: 220, z: 160, zones: ['downtown'] },
+  { name: 'Northside Police', x: -520, z: -600, zones: ['suburb'] },
+  { name: 'Eastside Police', x: 700, z: 640, zones: ['suburb'] },
+  { name: 'Westside Police', x: -700, z: 260, zones: ['suburb'] },
+  { name: 'Seaside Police', x: -60, z: 1500, zones: ['beachtown'] },
+];
+
 const STORE_TARGETS: { name: string; x: number; z: number; zones: Zone[] }[] = [
   { name: 'Seaside', x: -420, z: 1520, zones: ['beachtown'] },
   { name: 'Northside', x: -320, z: -700, zones: ['suburb'] },
@@ -73,9 +82,13 @@ export interface Places {
   /** Parcels taken by hospitals and stores. */
   usedParcels: Set<Parcel>;
   hospitals: Hospital[];
+  /** Police stations (same shape as a hospital: a door, a spawn spot, parked cars). */
+  police: Hospital[];
   stores: StoreSite[];
   /** The hospital nearest to (x, z). */
   nearestHospital(x: number, z: number): Hospital;
+  /** The police station nearest to (x, z). */
+  nearestPolice(x: number, z: number): Hospital;
 }
 
 export function createPlaces(
@@ -137,17 +150,36 @@ export function createPlaces(
   const signTex = hospitalSignTexture();
   const signMaterial = new THREE.MeshStandardMaterial({ map: signTex, emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: 0.6 });
 
-  const hospitals: Hospital[] = [];
-  for (const t of HOSPITAL_TARGETS) {
-    if (!t.zones.includes('downtown')) {
-      const p = pickParcel(t.x, t.z, HOSPITAL_PARCELS);
-      if (p) hospitals.push(parcelHospital(p, t.name, hospitals.length));
-      continue;
+  const policeTex = policeSignTexture();
+  const policeSign = new THREE.MeshStandardMaterial({ map: policeTex, emissive: 0xffffff, emissiveMap: policeTex, emissiveIntensity: 0.6 });
+  /** What tells a hospital from a police station: the sign and the walls. */
+  interface Look {
+    sign: THREE.Material;
+    color: [number, number, number];
+    kind?: 'hospital';
+  }
+  const HOSPITAL_LOOK: Look = { sign: signMaterial, color: [0.78, 0.8, 0.82], kind: 'hospital' };
+  const POLICE_LOOK: Look = { sign: policeSign, color: [0.36, 0.42, 0.52] };
+
+  const build = (targets: typeof HOSPITAL_TARGETS, look: Look): Hospital[] => {
+    const out: Hospital[] = [];
+    for (const t of targets) {
+      if (!t.zones.includes('downtown')) {
+        const p = pickParcel(t.x, t.z, HOSPITAL_PARCELS);
+        if (p) out.push(parcelHospital(p, t.name, out.length, look));
+        continue;
+      }
+      const b = pick(t.x, t.z, t.zones);
+      if (b) out.push(blockHospital(b, t.name, out.length, look));
     }
-    const b = pick(t.x, t.z, t.zones);
-    if (!b) continue;
-    // A white four-storey block set back toward the north, leaving a forecourt by the
-    // southern street; the entrance faces that street (+Z).
+    return out;
+  };
+
+  /**
+   * A downtown block: a four-storey block set back toward the north, leaving a forecourt by
+   * the southern street; the entrance faces that street (+Z).
+   */
+  function blockHospital(b: Block, name: string, index: number, look: Look): Hospital {
     const metrics = STYLE_METRICS[STYLE_CONCRETE];
     const width = 42;
     const depth = 26;
@@ -156,16 +188,14 @@ export function createPlaces(
     const z = b.cz - LOT / 2 + depth / 2 + 3;
     b.park = false;
     b.lawn = false;
-    b.buildings = [
-      { x: b.cx, z, y: CURB_HEIGHT, width, depth, height, style: STYLE_CONCRETE, color: [0.78, 0.8, 0.82], seed: 7, kind: 'hospital' },
-    ];
+    b.buildings = [{ x: b.cx, z, y: CURB_HEIGHT, width, depth, height, style: STYLE_CONCRETE, color: look.color, seed: 7, kind: look.kind }];
     b.roofProps = [];
     b.trees = b.trees.filter((tr) => Math.abs(tr.z - b.cz) > LOT / 2); // keep street trees only
     const world = (x: number, z: number, lift = 0) => new THREE.Vector3(x, surface(x, z) + lift, z);
     const door = world(b.cx, z + depth / 2 + 1);
 
     // Sign over the entrance.
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.8), signMaterial);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.8), look.sign);
     const signAt = world(b.cx, z + depth / 2 + 0.08);
     sign.position.set(signAt.x, door.y + metrics.groundFloor + 0.45, signAt.z);
     scene.add(sign);
@@ -175,18 +205,20 @@ export function createPlaces(
     const roadZ = b.cz + PITCH / 2;
     const laneZ = roadZ - ROAD_WIDTH / 2 + 1.75;
     const parking: ParkingSpot[] = [
-      { x: b.cx - 9, z: laneZ, yaw: Math.PI, type: 'sedan' as const, colorIndex: hospitals.length % 9 },
-      { x: b.cx + 4, z: laneZ, yaw: Math.PI, type: hospitals.length % 2 ? ('van' as const) : ('sedan' as const), colorIndex: (hospitals.length + 4) % 9 },
+      { x: b.cx - 9, z: laneZ, yaw: Math.PI, type: 'sedan' as const, colorIndex: index % 9 },
+      { x: b.cx + 4, z: laneZ, yaw: Math.PI, type: index % 2 ? ('van' as const) : ('sedan' as const), colorIndex: (index + 4) % 9 },
     ];
-
-    hospitals.push({
-      name: t.name,
+    return {
+      name,
       spawn: world(b.cx, z + depth / 2 + 5, 1.0),
       heading: Math.PI, // facing out to the street; camera yaw π looks toward +Z
       door,
       parking,
-    });
+    };
   }
+
+  const hospitals = build(HOSPITAL_TARGETS, HOSPITAL_LOOK);
+  const police = build(POLICE_TARGETS, POLICE_LOOK);
 
   const stores: StoreSite[] = [];
   for (const t of STORE_TARGETS) {
@@ -236,7 +268,7 @@ export function createPlaces(
    * Turn a parcel's main building into a hospital (a clinic on a small parcel): white
    * concrete, set back with the parking lot (or the street) in front, two cars parked there.
    */
-  function parcelHospital(p: Parcel, name: string, index: number): Hospital {
+  function parcelHospital(p: Parcel, name: string, index: number, look: Look): Hospital {
     const { ux, uz, vx, vz } = axes(p.yaw);
     const metrics = STYLE_METRICS[STYLE_CONCRETE];
     const big = p.w > 80;
@@ -248,7 +280,7 @@ export function createPlaces(
     const back = big ? p.d / 2 - depth / 2 - 4 : -p.d / 2 + depth / 2 + 2;
     const cx = p.x + vx * back;
     const cz = p.z + vz * back;
-    p.buildings = [{ x: cx, z: cz, y: 0, yaw: p.yaw, width, depth, height, style: STYLE_CONCRETE, color: [0.78, 0.8, 0.82], seed: 7, kind: 'hospital' }];
+    p.buildings = [{ x: cx, z: cz, y: 0, yaw: p.yaw, width, depth, height, style: STYLE_CONCRETE, color: look.color, seed: 7, kind: look.kind }];
     p.trees = p.trees.filter((tr) => Math.hypot(tr.x - cx, tr.z - cz) > Math.max(width, depth) / 2 + 3);
     if (p.kind === 'school') {
       p.fields = [];
@@ -260,7 +292,7 @@ export function createPlaces(
     const dx = cx - vx * (depth / 2);
     const dz = cz - vz * (depth / 2);
     const door = new THREE.Vector3(dx, surface(dx - vx, dz - vz), dz);
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.8), signMaterial);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.8), look.sign);
     sign.position.set(dx - vx * 0.08, door.y + metrics.groundFloor + 0.45, dz - vz * 0.08);
     // A plane faces +Z; turn it to face −v.
     sign.rotation.y = Math.atan2(-vx, -vz);
@@ -288,20 +320,42 @@ export function createPlaces(
     usedBlocks: reserved,
     usedParcels,
     hospitals,
+    police,
     stores,
-    nearestHospital(x, z) {
-      let best = hospitals[0];
-      let bestDist = Infinity;
-      for (const h of hospitals) {
-        const d = Math.hypot(h.spawn.x - x, h.spawn.z - z);
-        if (d < bestDist) {
-          best = h;
-          bestDist = d;
-        }
-      }
-      return best;
-    },
+    nearestHospital: (x, z) => nearest(hospitals, x, z),
+    nearestPolice: (x, z) => nearest(police.length ? police : hospitals, x, z),
   };
+}
+
+function nearest(list: Hospital[], x: number, z: number): Hospital {
+  let best = list[0];
+  let bestDist = Infinity;
+  for (const h of list) {
+    const d = Math.hypot(h.spawn.x - x, h.spawn.z - z);
+    if (d < bestDist) {
+      best = h;
+      bestDist = d;
+    }
+  }
+  return best;
+}
+
+/** "★ POLICE" in white on navy. */
+function policeSignTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 640;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#1a3a7a';
+  ctx.fillRect(0, 0, 640, 128);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 76px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('★ POLICE', 320, 68);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 /** "✚ HOSPITAL" in white on red. */

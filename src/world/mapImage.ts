@@ -195,7 +195,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, layout: CityLayout, x: number
   }
 }
 
-export type MarkerKind = 'car' | 'heli' | 'boat' | 'traffic' | 'shop' | 'giver' | 'objective' | 'hospital' | 'waypoint';
+export type MarkerKind = 'car' | 'heli' | 'boat' | 'traffic' | 'shop' | 'giver' | 'objective' | 'hospital' | 'waypoint' | 'police' | 'cop';
 
 /**
  * A map symbol at (x, z) in world units; `px` is the size of one screen pixel in world units,
@@ -233,6 +233,34 @@ export function drawMarker(ctx: CanvasRenderingContext2D, kind: MarkerKind, x: n
       ctx.fillRect(x - 4 * px, z - 1.4 * px, 8 * px, 2.8 * px);
       ctx.fillRect(x - 1.4 * px, z - 4 * px, 2.8 * px, 8 * px);
       return;
+    case 'police': {
+      // A navy shield with a white star.
+      ctx.fillStyle = '#1a3a7a';
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5 * px;
+      ctx.beginPath();
+      ctx.moveTo(x - 6 * px, z - 6 * px);
+      ctx.lineTo(x + 6 * px, z - 6 * px);
+      ctx.lineTo(x + 6 * px, z + 1 * px);
+      ctx.quadraticCurveTo(x + 5 * px, z + 6 * px, x, z + 8 * px);
+      ctx.quadraticCurveTo(x - 5 * px, z + 6 * px, x - 6 * px, z + 1 * px);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${9 * px}px system-ui,sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('★', x, z + 0.5 * px);
+      return;
+    }
+    case 'cop': {
+      // A police car in pursuit: a dot flashing red / blue.
+      const red = Math.floor(performance.now() / 250) % 2 === 0;
+      disc(4.5, '#fff');
+      disc(3.2, red ? '#e53935' : '#1e63ff');
+      return;
+    }
     case 'traffic':
       ctx.fillStyle = '#d9d9d2';
       ctx.fillRect(x - 2.2 * px, z - 2.2 * px, 4.4 * px, 4.4 * px);

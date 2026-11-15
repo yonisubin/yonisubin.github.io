@@ -697,6 +697,71 @@ All UI is plain DOM elements styled inline. A UI framework would be a dependency
 - **New game:** the "⟲ New game" button on the full map asks to confirm, stops autosave (so the reload's `pagehide` can't write the old game back), clears the key and reloads.
 - **To add something to the save:** add a field to `SaveData`, write it in main.ts's `Autosave` callback, read it after `loadSave()`, and give it a default (`??=`) in `loadSave` so older saves still load.
 
+### 7.10 Wanted level and police (`game/wanted.ts`, `npc/police.ts`)
+
+**Wanted level (`Wanted`).** Crimes add *heat* (one star = 1.0); the stars are the whole part, up to 5.
+
+| Crime | Heat | Reported by |
+|---|---|---|
+| Hitting someone | 0.5 | `Pedestrians` `hurt` hook |
+| Knocking someone out (any way, cars included) | 1 | `Pedestrians` `hurt` hook |
+| Gunfire with people within 45 m (at most every 2 s) | 0.5 | `Combat.onGunfire` |
+| Carjacking | 1 | main.ts, carjack interaction |
+| Wrecking a traffic car | 1 | `traffic.onWreck`; not a mission's target car |
+| Hurting an officer, shooting a police car, ramming one | +1, and at least 2★ | `Combat.onHit`, `Police.checkRam` |
+
+- **Witnesses:** a crime the police can see (`Police.witnesses`) counts double, except crimes against the police themselves.
+- **Losing them:** while no police unit sees you, `unseen` runs; after 20 s you lose one star and it starts again. Below one star, leftover heat fades.
+- **Clearing:** dying and being busted clear everything. Stars are never saved.
+- **HUD:** five stars under the money that blink while the police have lost you, plus a blue bar while a bust is counting down.
+
+**Police (`Police`).** A pool of 8 cars, each kinematic like traffic, so they shove the player's car.
+- **Roles:**
+  - `patrol`: 2 cars when you're clean. They cruise to random road points 300–600 m away and act as witnesses.
+  - `pursuit`: 2 per star, up to 6. Patrols join first, and the rest spawn on a road 230–400 m away, out of view.
+  - `block`: roadblocks.
+  - `wreck`: shot to pieces.
+- **Driving:**
+  - Far away, they follow an A* route to you (`Router`, recomputed every 1.5 s, staggered).
+  - Within 45 m with line of sight, they steer straight at where you'll be in half a second.
+  - Steering is pure pursuit with the bicycle model; the maths is in the file's header.
+  - Speed is capped for cornering (v²/R ≤ 7 m/s²) and to keep a gap behind traffic (after 2 s stuck they squeeze through slowly). They never drive into the water.
+- **Closing in:**
+  - Near a moving player, the speed is capped at the player's speed along their heading plus a margin that shrinks to 5 m/s, so a ram is a nudge. A kinematic car is immovable, so a full-speed hit would land entirely on the player.
+  - If you're on foot or stopped, they brake to stop beside you, using a stopping-distance cap v = √(2·a·d).
+- **Officers:** a separate pool of 3–4 SWAT-outfit people inside `Pedestrians` (state `cop`). When a car stops within 22 m of you on foot, two get out.
+  - Up to 2★, they run at you and grab you. Being held for 1.5 s means busted.
+  - From 3★, they stop ~9 m away and shoot every 1.2–1.8 s: 6 damage, 15–50 % hit chance by distance, 60 % of that in a vehicle, with line of sight required.
+  - They never flee, and they can be knocked out.
+  - Once you're 70 m from the car, it drives on and the officers are sent away.
+- **Busted in a vehicle:** nearly stopped (< 1 m/s) with a police car within 6.5 m for 3 s.
+- **Roadblocks (4★+):** every 25 s while you drive faster than 8 m/s, two cars park nose to nose across the road 230 m ahead. `roadAhead` follows the street graph from your edge and takes the straightest road at each junction.
+- **Helicopter (5★):**
+  - **Flight:** a visual-only police helicopter circles 30 m round you, 38 m up.
+  - **Spotting:** while it's up you can't lose the stars.
+  - **Searchlight:** shown at night.
+  - **Shooting:** every 2.4 s, 30 % to hit, 7 damage.
+  - **Leaving:** it flies off when you drop below 5★.
+
+**Busted** (main.ts `busted()`):
+- the screen fades to "BUSTED";
+- you're fined $100 × stars (never below $0) and keep your weapons;
+- you wake at the nearest of 5 police stations (`places.police`, built like hospitals with a navy "★ POLICE" sign);
+- the stars clear and the police reset. The money change triggers a save.
+
+**Cost:** ~0.1 ms per physics step with 6 pursuers.
+- Each police car is its own meshes (about 18 draw calls), visible only while active.
+- The maps show pursuers and roadblocks as red/blue flashing dots, and stations as navy shields.
+
+**Tests (scratchpad `police.cjs`, `chase.cjs`):**
+- patrols at 0★;
+- 2★: 4 pursuers reach a standing player, officers get out, busted, then $200 fine at the Central station;
+- 3★ in a parked car: boxed in without damage, busted;
+- roadblock point 227 m down an arterial, on the road centre;
+- helicopter at 5★, 38 m up;
+- gunfire raises heat;
+- a star drops after 20 s unseen.
+
 ## 8. People: characters, animation, recolouring
 
 This was the most recent and most involved piece of work.
@@ -910,6 +975,9 @@ When adding a feature, the quickest check is the browser console in `npm run dev
 | Change junction rules (lights, stop signs) | `world/streets.ts` (`compact`: which junctions get lights), `world/roadGraph.ts` (`mustStop`, `lightPhase`) |
 | Change route preferences, re-route distance or arrival radius | `game/route.ts` (`Router.cost`; the 15 m arrival and 25 m off-route distances in `Navigator.update`) |
 | Change the route's look | `world/mapImage.ts` (`ROUTE_COLOR`, `drawRoute`) |
+| Tune the police (how many, speed, aggression, busting) | `npc/police.ts` constants; officers in `npc/pedestrians.ts` (`ARREST_*`, `SHOOT_*`) |
+| Change what counts as a crime, or how fast stars go | `game/wanted.ts` (`CRIMES`, `LOSE_TIME`) |
+| Move or add police stations | `game/places.ts` (`POLICE_TARGETS`) |
 | Change skin/hair/outfit palettes | `player/characterLibrary.ts` |
 | Change which clip plays for an action | `player/character.ts` (`ONE_SHOTS`, aims) |
 | Add or replace characters | `scripts/build-quaternius.mjs` (`CHARACTERS`, `OVERRIDES`), then `npm run build:quaternius` |

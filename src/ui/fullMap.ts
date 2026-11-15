@@ -97,6 +97,7 @@ export class FullMap {
     legend.innerHTML = [
       ['#ff5a3c', '▲', 'You'],
       ['#ffffff', '✚', 'Hospital'],
+      ['#6f9cff', '★', 'Police'],
       ['#f2c94c', '$', 'Guns & Ammo'],
       ['#ffd60a', '!', 'Mission'],
       ['#3d8cff', '■', 'Your cars'],

@@ -17,6 +17,10 @@ import { ROAD_SPECS } from '../world/streets';
 //   flee  — run along their loop away from danger (gunfire, a fight, a rude remark);
 //   angry — leave the loop, chase the player and punch;
 //   down  — knocked out at zero health: fall over, lie still, then sink away and respawn.
+//   cop   — a police officer (a separate small pool, only out while you're wanted, dropped
+//           off by a police car): runs at you; up to 2 stars they punch and try to arrest
+//           you (stay next to one for ARREST_TIME and you're busted), from 3 stars they keep
+//           their distance and shoot. They never flee and can be knocked out like anyone.
 //
 // Vehicles: anyone hit by a moving car (the player's cars) goes down at once, thrown a little
 // along the car's direction, and the player gets the cash they were carrying.
@@ -42,9 +46,16 @@ const GIVE_UP_DISTANCE = 30; // m: angry pedestrians stop chasing beyond this
 const DOWN_TIME = 12; // s lying on the ground before sinking away
 const HIT_RADIUS = 0.4; // m, body radius for bullets
 const BODY_HEIGHT = 1.75; // m
+// Officers.
+const ARREST_TIME = 1.5; // s within ARREST_RANGE of an officer (≤2 stars, on foot) → busted
+const ARREST_RANGE = 1.4; // m
+const SHOOT_STARS = 3; // from this many stars officers shoot
+const SHOOT_RANGE = 32; // m
+const SHOOT_STAND_OFF = 9; // m: shooting officers stop about this far away
+const COP_LOOK = 'm_swat';
 
 
-export type PedState = 'walk' | 'talk' | 'flee' | 'angry' | 'down';
+export type PedState = 'walk' | 'talk' | 'flee' | 'angry' | 'down' | 'cop';
 
 export interface Pedestrian {
   /** Null until this person's model has downloaded (they stay out of the world until then). */
@@ -69,6 +80,22 @@ export interface Pedestrian {
   health: number;
   stagger: number; // seconds of hit reaction left (stands still)
   punchCooldown: number;
+  /** A police officer (from the separate officer pool). */
+  cop: boolean;
+  /** Officers: seconds you've been held (toward an arrest); seconds to the next shot. */
+  hold: number;
+  shotTimer: number;
+}
+
+/** What officers need from the game (police and wanted level). */
+export interface CopHooks {
+  stars(): number;
+  /** Clear line of sight between two points (bullets would get through). */
+  canSee(from: THREE.Vector3, to: THREE.Vector3): boolean;
+  /** An officer fired at the player from `from`; `hit` = the shot hit (apply damage). */
+  shoot(from: THREE.Vector3, to: THREE.Vector3, hit: boolean): void;
+  /** An officer held the player long enough: busted. */
+  arrest(): void;
 }
 
 /** What pedestrians need from the rest of the game. */
@@ -85,6 +112,10 @@ export interface PedestrianHooks {
   vehicles(): { position: THREE.Vector3; forward: THREE.Vector3; speed: number; halfLength: number; halfWidth: number }[];
   /** A car ran someone over at `position` (the player takes their cash). */
   runOver(position: THREE.Vector3): void;
+  /** Someone was hurt (by the player: fists, weapons or a car). For the wanted level. */
+  hurt?(ped: Pedestrian, knockedOut: boolean): void;
+  /** Police officers' needs; without it no officers appear. */
+  cop?: CopHooks;
 }
 
 /** Slower than this (m/s) a car only nudges people; faster, it knocks them down. */
@@ -101,8 +132,11 @@ export class Pedestrians implements SimEntity {
     library: CharacterLibrary,
     count: number,
     private readonly hooks: PedestrianHooks,
+    /** Size of the officer pool (they only appear when summonCop() is called). */
+    cops = 0,
   ) {
-    for (let k = 0; k < count; k++) {
+    for (let k = 0; k < count + cops; k++) {
+      const cop = k >= count;
       const ped: Pedestrian = {
         model: null,
         block: null,
@@ -123,14 +157,19 @@ export class Pedestrians implements SimEntity {
         health: MAX_HEALTH,
         stagger: 0,
         punchCooldown: 0,
+        cop,
+        hold: 0,
+        shotTimer: 0,
       };
       this.peds.push(ped);
-      // A random person; they join the street once their model has loaded.
-      void library.create(library.randomLook(() => this.rng.float())).then((model) => {
+      // A random person (officers: the SWAT outfit); they join the street once their model
+      // has loaded. Officers wait off-stage until summoned.
+      const look = cop ? { ...library.randomLook(() => this.rng.float(), COP_LOOK), outfit: 0 } : library.randomLook(() => this.rng.float());
+      void library.create(look).then((model) => {
         ped.model = model;
         model.root.visible = false;
         scene.add(model.root);
-        this.respawn(ped, 15);
+        if (!cop) this.respawn(ped, 15);
       });
     }
   }
@@ -139,6 +178,10 @@ export class Pedestrians implements SimEntity {
     const player = this.hooks.player().position;
     if (!ped.model) return;
     ped.model.reset();
+    if (ped.cop) {
+      this.dismiss(ped);
+      return;
+    }
     // Downtown blocks and suburban streets with sidewalks within reach.
     const near = this.layout.blocks.filter((b) => Math.hypot(b.cx - player.x, b.cz - player.z) < SPAWN_MAX + BLOCK_SIZE);
     const net = this.layout.streets.net;
@@ -258,6 +301,53 @@ export class Pedestrians implements SimEntity {
     return best;
   }
 
+  // ---------------------------------------------------------------- officers
+
+  /** Put an officer on the street at (x, z) (getting out of a police car). False if none free. */
+  summonCop(x: number, z: number): boolean {
+    const ped = this.peds.find((p) => p.cop && !p.active && p.model);
+    if (!ped || !ped.model) return false;
+    ped.model.reset();
+    ped.currPos.set(x, this.hooks.surface(x, z), z);
+    ped.prevPos.copy(ped.currPos);
+    ped.active = true;
+    ped.health = MAX_HEALTH;
+    ped.stagger = 0;
+    ped.hold = 0;
+    ped.shotTimer = 1 + this.rng.float();
+    this.setState(ped, 'cop');
+    ped.model.root.visible = true;
+    return true;
+  }
+
+  /** Officers on duty (not knocked out). */
+  get copsOut(): number {
+    return this.peds.filter((p) => p.cop && p.active && p.state === 'cop').length;
+  }
+
+  /** Is an officer on duty within `radius` of `position`? (They count as police seeing you.) */
+  copNear(position: THREE.Vector3, radius: number): boolean {
+    return this.peds.some((p) => p.cop && p.active && p.state === 'cop' && p.currPos.distanceTo(position) < radius);
+  }
+
+  /** Send every officer away (busted, or the stars are gone and they're out of sight). */
+  dismissCops(onlyHidden = false, from?: THREE.Vector3): void {
+    for (const p of this.peds) {
+      if (!p.cop || !p.active) continue;
+      if (onlyHidden && from && p.currPos.distanceTo(from) < 45) continue;
+      this.dismiss(p);
+    }
+  }
+
+  private dismiss(ped: Pedestrian): void {
+    ped.active = false;
+    ped.hold = 0;
+    if (ped.model) {
+      ped.model.root.visible = false;
+      ped.model.setAim('none');
+    }
+  }
+
   // ---------------------------------------------------------------- interaction API
 
   /** The nearest pedestrian who can be talked to (walking, not hostile or down). */
@@ -355,6 +445,8 @@ export class Pedestrians implements SimEntity {
       this.setState(ped, 'down');
       ped.moving = 0;
       ped.model?.knockDown();
+      if (ped.model) ped.model.setAim('none');
+      this.hooks.hurt?.(ped, true);
       // Run over: the player gets their cash straight away (you can't pick cash up from a
       // car); otherwise it's dropped where they fell.
       if (kind === 'vehicle') this.hooks.runOver(ped.currPos);
@@ -363,6 +455,8 @@ export class Pedestrians implements SimEntity {
     }
     ped.stagger = 0.35;
     ped.model?.play('hit');
+    this.hooks.hurt?.(ped, false);
+    if (ped.cop) return; // officers carry on
     if (ped.state !== 'angry') {
       const fightBack = kind === 'melee' && ped.health > 45 && this.rng.chance(0.5);
       this.setState(ped, fightBack ? 'angry' : 'flee');
@@ -372,7 +466,7 @@ export class Pedestrians implements SimEntity {
   /** Something alarming happened at `position`: everyone nearby runs away. */
   alarm(position: THREE.Vector3, radius: number): void {
     for (const p of this.peds) {
-      if (!p.active || p.state === 'down' || p.state === 'angry' || p.state === 'flee') continue;
+      if (!p.active || p.cop || p.state === 'down' || p.state === 'angry' || p.state === 'flee') continue;
       if (p.currPos.distanceTo(position) < radius) this.setState(p, 'flee');
     }
   }
@@ -413,6 +507,7 @@ export class Pedestrians implements SimEntity {
     this.checkVehicles();
     for (const ped of this.peds) {
       if (!ped.model) continue; // still loading
+      if (ped.cop && !ped.active) continue; // waiting to be summoned
       const far = Math.hypot(ped.currPos.x - player.x, ped.currPos.z - player.z) > DESPAWN;
       if (!ped.active || (far && ped.state !== 'down')) {
         this.respawn(ped);
@@ -428,6 +523,9 @@ export class Pedestrians implements SimEntity {
       }
 
       switch (ped.state) {
+        case 'cop':
+          this.copStep(ped, player, onFoot, dt);
+          break;
         case 'down':
           ped.moving = 0;
           if (ped.stateTime > DOWN_TIME + 1.5) this.respawn(ped); // after sinking away
@@ -498,6 +596,62 @@ export class Pedestrians implements SimEntity {
     }
   }
 
+  /** An officer on duty: chase, arrest (≤2 stars) or keep a distance and shoot (3+). */
+  private copStep(ped: Pedestrian, player: THREE.Vector3, onFoot: boolean, dt: number): void {
+    const hooks = this.hooks.cop;
+    if (!hooks) return;
+    const stars = hooks.stars();
+    const dx = player.x - ped.currPos.x;
+    const dz = player.z - ped.currPos.z;
+    const dist = Math.hypot(dx, dz);
+    ped.facing = Math.atan2(-dx, -dz);
+    const shooting = stars >= SHOOT_STARS;
+    // In a vehicle you can't be grabbed: they close in to shooting range, or wait.
+    const stopAt = shooting ? SHOOT_STAND_OFF : onFoot ? ARREST_RANGE * 0.7 : 6;
+    if (stars > 0 && dist > stopAt) {
+      const step = Math.min(dist - stopAt, RUN_SPEED * dt);
+      ped.currPos.x += (dx / dist) * step;
+      ped.currPos.z += (dz / dist) * step;
+      ped.currPos.y = this.groundHeight(ped.currPos.x, ped.currPos.z);
+      ped.moving = RUN_SPEED;
+    } else {
+      ped.moving = 0;
+    }
+    if (stars === 0) return; // the police (npc/police.ts) send them away once out of sight
+    const level = Math.abs(player.y - 0.9 - ped.currPos.y) < 1.5;
+    if (!shooting) {
+      // Grab and hold: stay close to an officer long enough and you're arrested.
+      if (onFoot && dist < ARREST_RANGE && level) {
+        ped.hold += dt;
+        if (ped.punchCooldown === 0 && ped.hold < 0.2) {
+          ped.punchCooldown = PUNCH_INTERVAL;
+          ped.model?.play('punch');
+        }
+        if (ped.hold >= ARREST_TIME) {
+          ped.hold = 0;
+          hooks.arrest();
+        }
+      } else {
+        ped.hold = Math.max(0, ped.hold - dt * 2);
+      }
+      return;
+    }
+    // Shooting: every 1.2–1.8 s when in range and in sight. Closer is more accurate;
+    // a car body gives some cover.
+    ped.shotTimer -= dt;
+    if (ped.shotTimer > 0 || dist > SHOOT_RANGE) return;
+    ped.shotTimer = this.rng.range(1.2, 1.8);
+    const muzzle = this.tmp.set(ped.currPos.x, ped.currPos.y + 1.45, ped.currPos.z);
+    const target = new THREE.Vector3(player.x, player.y + (onFoot ? 0.4 : 0.3), player.z);
+    if (!hooks.canSee(muzzle, target)) return;
+    let chance = Math.max(0.15, Math.min(0.5, 0.55 - dist * 0.012));
+    if (!onFoot) chance *= 0.6;
+    const hit = this.rng.chance(chance);
+    if (!hit) target.add(new THREE.Vector3(this.rng.range(-1.5, 1.5), this.rng.range(-0.3, 1), this.rng.range(-1.5, 1.5)));
+    ped.model?.play('shoot');
+    hooks.shoot(muzzle.clone(), target, hit);
+  }
+
   private walkLoop(ped: Pedestrian, speed: number, dt: number): void {
     ped.moving = speed;
     ped.u += ped.direction * speed * dt;
@@ -528,6 +682,7 @@ export class Pedestrians implements SimEntity {
         continue;
       }
       model.setTalking(ped.state === 'talk');
+      if (ped.cop) model.setAim(ped.state === 'cop' && (this.hooks.cop?.stars() ?? 0) >= SHOOT_STARS ? 'pistol' : 'none');
       // Turn smoothly at corners rather than snapping 90°.
       let diff = ped.facing - root.rotation.y;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
@@ -539,8 +694,8 @@ export class Pedestrians implements SimEntity {
   }
 
   /** For tests. */
-  get debugPeds(): { pos: THREE.Vector3; block: Block | null; moving: number; active: boolean; state: PedState; health: number }[] {
-    return this.peds.map((p) => ({ pos: p.currPos, block: p.block, moving: p.moving, active: p.active, state: p.state, health: p.health }));
+  get debugPeds(): { pos: THREE.Vector3; block: Block | null; moving: number; active: boolean; state: PedState; health: number; cop: boolean }[] {
+    return this.peds.map((p) => ({ pos: p.currPos, block: p.block, moving: p.moving, active: p.active, state: p.state, health: p.health, cop: p.cop }));
   }
 }
 
