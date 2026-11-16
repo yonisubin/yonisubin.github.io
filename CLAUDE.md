@@ -71,7 +71,8 @@ src/
   game/            # player stats (health/money/weapons), combat, cash pickups, gun stores, missions,
                    # route.ts (A* directions on the street network: click the full map to set a destination),
                    # wanted.ts (0–5 stars from crimes, lost out of police sight), jobs.ts (taxi / ambulance / delivery shifts),
-                   # places.ts (hospitals = respawn points, extra stores), save.ts (progress in localStorage)
+                   # places.ts (hospitals = respawn points, extra stores), save.ts (progress in localStorage),
+                   # quality.ts (graphics quality Auto/High/Medium/Low: pixel ratio, shadows, streaming distances, fog, people)
   sim/             # SimEntity interface, body interpolation, exit-spot helper, smoke, sinking vehicles
   camera/          # follow camera (on foot), chase camera (vehicles)
   input/           # keyboard/touch → abstract actions

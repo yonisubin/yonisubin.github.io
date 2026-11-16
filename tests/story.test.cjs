@@ -288,4 +288,42 @@ run('story: prologue, all missions, choices, world, failure, save', async ({ pag
     return { stars: g.wanted.stars, heat: g.wanted.heat, down: goon.state };
   });
   t.ok('knocking out a goon is not a crime', goons.down === 'down' && goons.heat === 0, JSON.stringify(goons));
+
+  // --- The dialogue camera settles on the two-shot and glides there, even with uneven frame
+  // times (it used to be pulled back toward the follow camera every frame and jitter).
+  const cam = await page.evaluate(async () => {
+    const g = window.game;
+    const s = g.story;
+    const V = g.camera.position.constructor;
+    g.renderer.setAnimationLoop(null); // frames by hand, in the real order
+    s.load({ done: ['p1'], flags: {}, phone: [] });
+    const rico = s.cast.position('rico');
+    const f = s.cast.facing('rico');
+    g.city.streamer.loadAround(rico, 300);
+    // Stand in line with the street (the case where the camera used to flip sides).
+    g.onFoot.placeAt(new V(rico.x + Math.sin(f) * 2.4, g.city.terrain.surfaceAt(rico.x, rico.z) + 1, rico.z + Math.cos(f) * 2.4), 0, 0);
+    g.simulate(0.3);
+    for (let k = 0; k < 30; k++) g.player.render(1, 1 / 30); // the follow camera catches up behind you
+    const before = g.camera.position.clone();
+    void g.sceneUI.play([{ name: 'Rico', color: '#fff', model: null, text: 'Hey, cousin. Long time.' }], [], rico.clone(), f);
+    const dts = [1 / 60, 0.1, 1 / 30, 0.2, 1 / 60, 0.05, 0.15, 1 / 45];
+    const positions = [];
+    for (let k = 0; k < 80; k++) {
+      const dt = dts[k % dts.length];
+      g.simulate(dt);
+      g.player.render(1, dt); // the follow camera puts the camera back at its spot...
+      g.sceneUI.update(dt); // ...then the scene takes it over
+      positions.push(g.camera.position.clone());
+    }
+    let jump = 0;
+    for (let k = 1; k < positions.length; k++) jump = Math.max(jump, positions[k].distanceTo(positions[k - 1]));
+    const last = positions[positions.length - 1];
+    const off = last.distanceTo(g.sceneUI.from);
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
+    await new Promise((r) => setTimeout(r, 0));
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space' }));
+    await new Promise((r) => setTimeout(r, 0));
+    return { start: +before.distanceTo(g.sceneUI.from).toFixed(2), jump: +jump.toFixed(2), off: +off.toFixed(2), closed: !g.sceneUI.active };
+  });
+  t.ok('the scene camera settles on the two-shot without jumping about', cam.start > 1 && cam.start < 40 && cam.off < 0.2 && cam.jump < 1.5 && cam.closed, JSON.stringify(cam));
 }, { people: true, prologue: true });

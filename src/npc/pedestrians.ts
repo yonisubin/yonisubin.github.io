@@ -555,12 +555,27 @@ export class Pedestrians implements SimEntity {
     }
   }
 
+  /**
+   * At most this many ordinary pedestrians are out at once (graphics quality: fewer people
+   * on slow machines). The rest of the pool waits hidden; nobody is re-created.
+   */
+  setMaxActive(n: number): void {
+    this.maxActive = Math.max(0, Math.floor(n));
+  }
+  private maxActive = Infinity;
+
   fixedUpdate(dt: number): void {
     const { position: player, onFoot } = this.hooks.player();
     this.checkVehicles();
+    let civilians = 0;
     for (const ped of this.peds) {
       if (!ped.model) continue; // still loading
       if ((ped.cop || ped.goon) && !ped.active) continue; // waiting to be summoned
+      if (!ped.cop && !ped.goon && civilians++ >= this.maxActive) {
+        // Over the cap: leave quietly (someone knocked out finishes lying down first).
+        if (ped.active && ped.state !== 'down') this.dismiss(ped);
+        if (!ped.active) continue;
+      }
       const far = Math.hypot(ped.currPos.x - player.x, ped.currPos.z - player.z) > DESPAWN;
       if (!ped.active || (far && ped.state !== 'down')) {
         this.respawn(ped);

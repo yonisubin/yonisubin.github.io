@@ -49,6 +49,7 @@ import type { VehicleKind } from './story/steps';
 import { SoundDirector } from './audio/director';
 import { WATER_Y } from './world/terrain';
 import { DebugOverlay } from './ui/debug';
+import { Quality } from './game/quality';
 
 // Physics runs at a fixed 60 Hz regardless of display refresh rate.
 const PHYSICS_STEP = 1 / 60; // s
@@ -75,7 +76,9 @@ async function main(): Promise<void> {
   const model = library && look ? await library.create(look).catch(() => null) : null;
   library?.preloadAll();
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  // Antialiasing is fixed when the WebGL context is made: it comes from the saved graphics
+  // quality (off on Low), everything else is applied by `quality` below and can change live.
+  const renderer = new THREE.WebGLRenderer({ antialias: Quality.antialias() });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
@@ -689,6 +692,36 @@ async function main(): Promise<void> {
   });
   entities.push(story);
   onFoot.interactables.push(...story.interactables);
+  let qualityButton: HTMLButtonElement | null = null;
+  // Graphics quality (game/quality.ts): Auto / High / Medium / Low. Applied now and on every
+  // change: pixels drawn, sun shadows, streaming distances, fog / view distance, pedestrians.
+  const quality = new Quality(
+    (preset, pixelRatio) => {
+      renderer.setPixelRatio(pixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = preset.shadows;
+      sky.setQuality({ shadows: preset.shadows, shadowMapSize: preset.shadowMapSize, fogFar: preset.fogFar });
+      water.fogFar = preset.fogFar; // the water puts the above-water fog back every frame
+      city.streamer.setDistances(preset.stream);
+      camera.far = preset.cameraFar;
+      camera.updateProjectionMatrix();
+      pedestrians?.setMaxActive(touch ? Math.min(10, preset.pedestrians) : preset.pedestrians);
+      if (qualityButton) qualityButton.textContent = `⚙ Graphics: ${quality.label}`;
+    },
+    window.devicePixelRatio || 1,
+    touch,
+  );
+  qualityButton = fullMap.addButton(
+    `⚙ Graphics: ${quality.label}`,
+    'bottom:max(12px, env(safe-area-inset-bottom));left:max(12px, env(safe-area-inset-left))',
+    () => {
+      const before = Quality.antialias();
+      quality.cycle();
+      if (Quality.antialias() !== before) hud.toast('Antialiasing changes after a reload', 3);
+    },
+  );
+  qualityButton.title = 'Auto lowers detail when the game runs slowly. Antialiasing (off on Low) changes after a reload.';
+  debug.extra = () => `${quality.label} · ${renderer.getPixelRatio().toFixed(2)}x`;
   fullMap.addButton('✉ Messages', 'top:max(12px, env(safe-area-inset-top));left:max(12px, env(safe-area-inset-left))', () => phone.toggleLog());
   // While the prologue runs, a button to skip it.
   const skipPrologue = document.createElement('button');
@@ -772,7 +805,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { RAPIER, scene, fullMap, story, sceneUI, phone, sound, director, jobs, navigator, autosave, wanted, police, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { RAPIER, quality, scene, fullMap, story, sceneUI, phone, sound, director, jobs, navigator, autosave, wanted, police, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -832,8 +865,11 @@ async function main(): Promise<void> {
   let last = performance.now();
   renderer.setAnimationLoop((now: number) => {
     // Clamped at 0 too: the first frame's timestamp can be slightly earlier than `last`.
-    const frameTime = Math.min(Math.max(0, (now - last) / 1000), MAX_FRAME_TIME);
+    const realDt = Math.max(0, (now - last) / 1000);
+    const frameTime = Math.min(realDt, MAX_FRAME_TIME);
     last = now;
+    // Auto quality watches the real frame time (not clamped), only while the game is running.
+    quality.feed(realDt, !fullMap.isOpen && document.visibilityState === 'visible');
     accumulator += frameTime;
 
     while (accumulator >= PHYSICS_STEP) {

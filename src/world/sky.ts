@@ -30,6 +30,8 @@ export interface SkyRig {
   setTime(hours: number): Lighting;
   /** Keep the sky dome and the light's shadow area centred on `focus` (usually the player). */
   update(camera: THREE.Camera, focus: THREE.Vector3): void;
+  /** Graphics quality: sun shadows on/off and their map size, and where the fog is thickest. */
+  setQuality(q: { shadows: boolean; shadowMapSize: number; fogFar: number }): void;
 }
 
 const ENV_INTENSITY = 3.0; // tuned to match the brightness of the earlier sky-baked lighting
@@ -183,6 +185,16 @@ export function createSky(renderer: THREE.WebGLRenderer, scene: THREE.Scene): Sk
       sky.visible = daylight > 0.04;
       background.copy(fogNight);
       return { daylight, night };
+    },
+    setQuality(q) {
+      sun.castShadow = q.shadows;
+      if (sun.shadow.mapSize.x !== q.shadowMapSize) {
+        sun.shadow.mapSize.set(q.shadowMapSize, q.shadowMapSize);
+        // The old shadow texture has the old size: drop it so three.js makes a new one.
+        sun.shadow.map?.dispose();
+        sun.shadow.map = null;
+      }
+      fog.far = q.fogFar;
     },
     update(camera, focus) {
       sky.position.copy(camera.position);

@@ -41,6 +41,16 @@ export class SceneUI {
   private facing = 0;
   private readonly from = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
+  /**
+   * The scene camera's own position and look-at point. They are kept here (not read back
+   * from the camera) because the follow camera puts the camera back at its own spot every
+   * frame before we run: easing from *that* never settles and jitters with the frame time.
+   */
+  private readonly camPos = new THREE.Vector3();
+  private readonly camLook = new THREE.Vector3();
+  private camStarted = false;
+  /** Which side of the line between you the camera films from (+1 / −1), fixed per scene. */
+  private sideSign = 1;
 
   constructor(
     private readonly camera: THREE.Camera,
@@ -133,6 +143,7 @@ export class SceneUI {
     this.shown = 0;
     this.focus = focus && focus.distanceTo(this.playerFeet()) < 30 ? focus.clone() : null;
     this.facing = facing;
+    this.camStarted = false;
     this.input.setBlocked(true);
     this.onToggle(true); // before releasing the mouse, so "Click to play" doesn't pop up over us
     this.input.exitPointerLock();
@@ -240,17 +251,35 @@ export class SceneUI {
     const l = Math.hypot(dx, dz) || 1;
     dx /= l;
     dz /= l;
-    // Perpendicular to the line between you, pointing toward the street (−sin, −cos of facing).
-    let sx = -dz;
-    let sz = dx;
-    if (sx * -Math.sin(this.facing) + sz * -Math.cos(this.facing) < 0) {
-      sx = -sx;
-      sz = -sz;
-    }
+    // Perpendicular to the line between you. The side is picked once per scene, toward the
+    // street (−sin, −cos of facing): re-picking it every frame flipped the camera from side
+    // to side when you stood in line with the street (the sign test is then near zero).
+    if (!this.camStarted) this.sideSign = -dz * -Math.sin(this.facing) + dx * -Math.cos(this.facing) < 0 ? -1 : 1;
+    const sx = -dz * this.sideSign;
+    const sz = dx * this.sideSign;
     const side = 3 + l * 0.6;
     this.from.set(mx + sx * side, Math.max(p.y, f.y) + 1.9, mz + sz * side);
     this.look.set(mx, (p.y + f.y) / 2 + 1.15, mz);
-    this.camera.position.lerp(this.from, Math.min(1, frameDt * 6));
-    this.camera.lookAt(this.look);
+    if (!this.camStarted) {
+      // Start from wherever the camera is now, looking where it looks.
+      this.camStarted = true;
+      this.camPos.copy(this.camera.position);
+      // Straight ahead of the camera, as far away as the scene's middle: the view then turns
+      // smoothly from where you were looking instead of snapping.
+      const reach = this.camPos.distanceTo(this.look) || 5;
+      this.camera.getWorldDirection(this.camLook).multiplyScalar(reach).add(this.camPos);
+      // Far away (a scene right after a teleport): cut straight to the shot, don't fly there.
+      if (this.camPos.distanceTo(this.from) > 40) {
+        this.camPos.copy(this.from);
+        this.camLook.copy(this.look);
+      }
+    }
+    // Ease toward the two-shot: 1 − e^(−k·dt) is the same glide at any frame rate (a fixed
+    // fraction per frame would depend on dt), and with a cap so a long frame can't overshoot.
+    const k = 1 - Math.exp(-5 * Math.min(frameDt, 0.25));
+    this.camPos.lerp(this.from, k);
+    this.camLook.lerp(this.look, k);
+    this.camera.position.copy(this.camPos);
+    this.camera.lookAt(this.camLook);
   }
 }

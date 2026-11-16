@@ -1352,8 +1352,7 @@ a *= smoothstep(1.0, 2.6, lakeRadius(x, z)) // so is the lake shore
 | `CHUNK_CELLS` (exported) | 4 | Grid cells per chunk side. |
 | `CHUNK_SIZE` (exported) | 4 · 78 = **312 m** | Chunk side. |
 | `CHUNKS` (exported) | 52 / 4 = **13** | Chunks per world side (169 total). Chunk (0, 0) starts at `lineCoord(0)` = −2028 m. |
-| `FAR_LOAD` / `FAR_UNLOAD` | 850 m / 1000 m | Far tier hysteresis. Fog ends at 1100 m, so loaded detail reaches nearly to the fog wall. |
-| `NEAR_LOAD` / `NEAR_UNLOAD` | 400 m / 520 m | Near tier hysteresis. |
+| `STREAM_DISTANCES` (exported) | far 850 / 1000 m, near 400 / 520 m (load / unload) | The defaults (graphics quality High). Far tier: fog ends at 1100 m, so loaded detail reaches nearly to the fog wall. The streamer keeps its own copy, `dist`, which `setDistances` replaces (Medium 650/780 + 300/400, Low 480/600 + 220/300; §7.15). Type `StreamDistances`. |
 | `TERRAIN_STEP` | 6 m | Terrain sample spacing; mesh and heightfield share it. |
 | `TERRAIN_SEGMENTS` | 52 | 312 / 6; so 53 × 53 = 2809 height samples per chunk. |
 | `ROAD_Y` | 0.02 m | Asphalt ribbons above road level. |
@@ -1409,12 +1408,15 @@ Private: `TierContents { meshes, colliders, slots: [pool, slot][] }` (everything
 - Counts of chunks with each tier, and the current queue length. No caller in `src/`; useful from tests or the console (`game.city.streamer.loadedCount`).
 
 #### `update(focus: THREE.Vector3, budgetMs = 4): void`
-- Every frame (via `city.update`). For each chunk, `d` = distance from focus to the chunk's rectangle:
-  1. near loaded and `d > 520` → unload near;
-  2. far loaded and `d > 1000` → unload near (if any) then far;
-  3. far not loaded and `d < 850` → queue a far job; else far loaded, near not, and `d < 400` → queue a near job.
+- Every frame (via `city.update`). For each chunk, `d` = distance from focus to the chunk's rectangle (numbers at the High defaults):
+  1. near loaded and `d > 520` (`nearUnload`) → unload near;
+  2. far loaded and `d > 1000` (`farUnload`) → unload near (if any) then far;
+  3. far not loaded and `d < 850` (`farLoad`) → queue a far job; else far loaded, near not, and `d < 400` (`nearLoad`) → queue a near job.
 - Sorts jobs by distance, near tier first at equal distance ("what's around the player matters most"), replaces the queue, then builds jobs from the front until more than `budgetMs` has passed (the check is after each build, so **at least one job runs per frame**). Then flushes every pool (uploads changed matrices/colours once).
 - Unloading is immediate and unbudgeted (it is cheap). The queue is rebuilt from scratch every frame, so a job for a chunk that moved out of range simply disappears.
+
+#### `setDistances(d: StreamDistances): void` / `get distances`
+- Graphics quality (§7.15) sets the load / unload distances. Nothing is rebuilt at once: chunks now out of range unload on the next `update`, and the queue only takes chunks within the new distances.
 
 #### `loadAround(focus: THREE.Vector3, radius: number): void`
 - Builds, right now and without a budget, every chunk within `radius`: the far tier if `d < 850`, then the near tier if `d < 400` (in the same pass, since the far tier now exists). Flushes the pools.
@@ -1780,6 +1782,9 @@ Note on `THREE.MathUtils.smoothstep(x, min, max)`: the value comes first here, u
   - `environmentIntensity = 3.0·lerp(0.06, 1, daylight)`; hemisphere intensity `lerp(0.45, 1.5, daylight)` and colour night → day; fog colour night → day by `daylight`, then toward dusk by `0.6·low·daylight`.
   - `sky.visible = daylight > 0.04` (the scattering shader goes pitch black without a sun, so at night the navy background shows instead); background = night fog colour.
 - Returns `{ daylight, night }`. Called by `DayNight.apply()` every frame.
+
+#### `setQuality({ shadows, shadowMapSize, fogFar }): void`
+- Graphics quality (§7.15): `sun.castShadow`, the shadow map size (the old map is disposed and set to null so three.js makes one of the new size), and `fog.far`. `main.ts` also sets `renderer.shadowMap.enabled` and `water.fogFar` (the water restores the above-water fog every frame, so it keeps its own copy).
 
 #### `update(camera, focus): void`
 - Every frame (`main.ts`, after entities render): sky dome to the camera position; the light target to the focus **snapped to whole shadow-map texels** (`texel = 140/2048 ≈ 0.068 m`) to reduce shimmering shadow edges; light position = target + `lightDirection·200`.
@@ -4085,6 +4090,9 @@ Other numbers: walking speed U(1.45, 1.8) m/s; pause chance `0.03·dt` per step 
 #### `render(alpha, frameDt): void`
 - For active, loaded people: position interpolated between `prevPos` and `currPos`. Down: sink `max(0, stateTime − 12)·0.8` m and update the knocked-out pose (visibility is left as it was). Otherwise: `setTalking(state === 'talk')`; officers aim a pistol while on duty at ≥ 3 stars; turn smoothly toward `facing` (`diff·min(1, 8·frameDt)`, wrapped); hidden beyond 90 m; animated (`model.update(moving, true, frameDt)`) only within 70 m.
 
+#### `setMaxActive(n: number): void`
+- Graphics quality (§7.15): at most `n` ordinary pedestrians are out at once (officers and goons don't count). In `fixedUpdate`, civilians past the cap are dismissed (hidden, inactive; someone lying knocked out finishes first) and skipped. The pool and its models stay, so raising the cap brings people back through the normal respawn.
+
 #### `get debugPeds`
 - For tests: `{ pos, block, moving, active, state, health, cop }` per record.
 
@@ -5747,6 +5755,42 @@ Public: `station: number` (index or −1 = off; initialised from `Sound.settings
 
 ---
 
+### 7.15 `src/game/quality.ts`
+
+**Purpose.** Graphics quality: how much the game draws, so it stays playable on slow machines. Three presets (High, Medium, Low) and **Auto**, the default, which picks among them from the measured frame rate. The choice is saved in `localStorage['opencity.quality']`; the level Auto settled on in `localStorage['opencity.quality.auto']`, so the next visit starts there.
+
+**Depends on:** `world/chunks.ts` (type `StreamDistances`). · **Used by:** `main.ts` (the `apply` callback, the full map's "⚙ Graphics" button, `feed` every frame, the debug line), `tests/harness.cjs` (pins `high`), `tests/quality.test.cjs`.
+
+| Setting | High | Medium | Low |
+|---|---|---|---|
+| Pixel ratio cap (the device's own ratio is the other cap) | 2 | 1.25 | 0.75 (Auto goes on down to 0.5) |
+| Antialiasing (only at start-up) | on | on | off |
+| Sun shadows | 2048 map | 1024 map | off |
+| Far tier load / unload | 850 / 1000 m | 650 / 780 m | 480 / 600 m |
+| Near tier load / unload | 400 / 520 m | 300 / 400 m | 220 / 300 m |
+| Fog end / camera far | 1100 / 2500 m | 850 / 1800 m | 620 / 1300 m |
+| Pedestrians out (desktop; touch keeps its pool of 10) | 16 | 12 | 8 |
+
+**Why these levers.** On an older graphics card the cost is mostly pixels (a high-DPI screen at ratio 2 draws four times the pixels of ratio 1), the shadow pass (it draws the shadow casters a second time into a 2048² map) and how much world is in view. Streaming distances also cut CPU work (fewer chunks to build) and memory. In the tests, Low takes the loaded far chunks around downtown from 36 to 22.
+
+**API.**
+- `type QualityLevel = 'high' | 'medium' | 'low'`, `type QualityChoice = 'auto' | QualityLevel`, `interface QualityPreset`, `PRESETS`.
+- `new Quality(apply, devicePixelRatio, touch)`: reads the saved choice, starts Auto at its saved level (else High, or Medium on touch devices) and calls `apply(preset, pixelRatio, level)` at once.
+- `static antialias()`: from storage, for the renderer's constructor (a WebGL context's antialiasing can't change later; the menu toasts "changes after a reload").
+- `cycle()` (Auto → High → Medium → Low), `set(choice)`, `label` ("Auto (Medium)"), `level`, `preset`, `pixelRatio`.
+- `feed(frameDt, counts)`: every rendered frame, with the **unclamped** frame time; `counts` is false while the full map is open or the tab hidden.
+
+**Auto.**
+- Ignores the first 10 s (loading, shader compiles), frames over 0.5 s (a pause or a hidden tab; they also restart the window) and frames that don't count.
+- Averages FPS over 4 s windows. Below 40 → one level down. Above 58 for 3 windows in a row → one level up. At most one change per 6 s (windows inside that gap are skipped), so it doesn't bounce back and forth.
+- On Low it lowers the pixel ratio further in steps of 0.125, down to 0.5; stepping up raises it back before going to Medium.
+
+**Where the preset lands** (`main.ts` `apply`): `renderer.setPixelRatio` + `setSize`; `renderer.shadowMap.enabled`; `sky.setQuality` (§4.7); `water.fogFar`; `city.streamer.setDistances` (§4.3); `camera.far`; `pedestrians.setMaxActive` (§6.2: people over the cap are dismissed, the pool isn't re-created); and the button label.
+
+**Tests.** The harness pins `high` (headless frame rates would push Auto to Low). `tests/quality.test.cjs`: Low lowers everything and unloads far chunks, the choice survives a reload, and Auto, fed slow frames, steps High → Medium → Low → pixel ratio 0.5, ignores a 5 s frame, then climbs back.
+
+---
+
 ### 7.z Self-test
 
 1. **A player with $437 dies. How much money do they have after waking, and where do they wake?** → `floor(437 × 0.8)` = $349, at the hospital nearest to where they fell (`places.nearestHospital`), 2.5 s later, with full health and all weapons. → §7.1, §7.6, section intro.
@@ -5898,7 +5942,8 @@ flowchart LR
 
 **Purpose.** Composition root and game loop. `main()` (async, not exported) builds every object in a carefully chosen order, wires them together with closures and hook objects, restores the save, publishes `window.game`, and starts `renderer.setAnimationLoop`. It also owns a few cross-cutting gameplay rules that touch several systems at once: getting out of / bailing out of vehicles, vehicles sinking with the player in them, carjacking (and the cap on kept carjacked cars), death and busted flows, parking vehicles whose ground is not loaded, autosave wiring, the mute button and the sound director inputs. The module has no exports; it runs `main().catch(...)` on load, and on failure replaces the page body with `Failed to start: <error>`.
 
-**Depends on:** `three` (renderer, scene, camera, vectors); `@dimforge/rapier3d-compat` (`RAPIER.init`, `World`); `input/actions.ts` (`Input`); `input/touch.ts` (`TouchControls`, `isTouchDevice`); `player/state.ts` (`PlayerStateMachine`); `player/onFoot.ts` (`OnFootMode`, `STAND_HEIGHT`, `Interactable`); `player/characterLibrary.ts` (`CharacterLibrary`); `ui/characterPicker.ts` (`CharacterPicker`, `hasSavedLook`, `loadLook`); `player/car.ts` (`Car`, `DrivingMode`); `player/heli.ts` (`FlyingMode`, `Helicopter`); `player/boat.ts` (`Boat`, `BoatMode`); `vehicles/boatModel.ts` (`BOAT_DIMENSIONS`, `BoatType`); `world/layout.ts` (`LAKE`, `helipadPosition`, `parkingSpots`); `world/city.ts` (`createCity`); `world/mapImage.ts` (`createWorldMap`); `ui/fullMap.ts` (`FullMap`); `world/water.ts` (`Water`); `game/places.ts` (`createPlaces`); `world/sky.ts` (`createSky`); `vehicles/carModel.ts` (`CAR_DIMENSIONS`, `PAINT_COLORS`); `sim/entity.ts` (`SimEntity` type); `npc/traffic.ts` (`Traffic`); `npc/pedestrians.ts` (`Pedestrians`); `ui/hud.ts` (`Hud`); `ui/minimap.ts` (`Minimap`, `Marker`); `world/dayNight.ts` (`DayNight`); `sim/vehicleLight.ts` (`VehicleLight`); `game/stats.ts` (`PlayerStats`); `game/pickups.ts` (`Cash`); `game/shop.ts` (`Shop`); `game/combat.ts` (`Combat`); `ui/dialogue.ts` (`Dialogue`); `world/rng.ts` (`Rng`); `sim/smoke.ts` (`Smoke`); `game/missions.ts` (`Missions`); `game/route.ts` (`Navigator`); `game/save.ts` (`Autosave`, `clearSave`, `loadSave`, `writeSave`); `game/wanted.ts` (`Wanted`); `npc/police.ts` (`Police`); `game/jobs.ts` (`Jobs`, `JobKind`); `audio/sound.ts` (`Sound`); `audio/director.ts` (`SoundDirector`); `world/terrain.ts` (`WATER_Y`); `ui/debug.ts` (`DebugOverlay`).
+**Depends on:** `three` (renderer, scene, camera, vectors); `@dimforge/rapier3d-compat` (`RAPIER.init`, `World`); `input/actions.ts` (`Input`); `input/touch.ts` (`TouchControls`, `isTouchDevice`); `player/state.ts` (`PlayerStateMachine`); `player/onFoot.ts` (`OnFootMode`, `STAND_HEIGHT`, `Interactable`); `player/characterLibrary.ts` (`CharacterLibrary`); `ui/characterPicker.ts` (`CharacterPicker`, `hasSavedLook`, `loadLook`); `player/car.ts` (`Car`, `DrivingMode`); `player/heli.ts` (`FlyingMode`, `Helicopter`); `player/boat.ts` (`Boat`, `BoatMode`); `vehicles/boatModel.ts` (`BOAT_DIMENSIONS`, `BoatType`); `world/layout.ts` (`LAKE`, `helipadPosition`, `parkingSpots`); `world/city.ts` (`createCity`); `world/mapImage.ts` (`createWorldMap`); `ui/fullMap.ts` (`FullMap`); `world/water.ts` (`Water`); `game/places.ts` (`createPlaces`); `world/sky.ts` (`createSky`); `vehicles/carModel.ts` (`CAR_DIMENSIONS`, `PAINT_COLORS`); `sim/entity.ts` (`SimEntity` type); `npc/traffic.ts` (`Traffic`); `npc/pedestrians.ts` (`Pedestrians`); `ui/hud.ts` (`Hud`); `ui/minimap.ts` (`Minimap`, `Marker`); `world/dayNight.ts` (`DayNight`); `sim/vehicleLight.ts` (`VehicleLight`); `game/stats.ts` (`PlayerStats`); `game/pickups.ts` (`Cash`); `game/shop.ts` (`Shop`); `game/combat.ts` (`Combat`); `ui/dialogue.ts` (`Dialogue`); `world/rng.ts` (`Rng`); `sim/smoke.ts` (`Smoke`); `game/missions.ts` (`Missions`); `game/route.ts` (`Navigator`); `game/save.ts` (`Autosave`, `clearSave`, `loadSave`, `writeSave`); `game/wanted.ts` (`Wanted`); `npc/police.ts` (`Police`); `game/jobs.ts` (`Jobs`, `JobKind`); `audio/sound.ts` (`Sound`); `audio/director.ts` (`SoundDirector`); `world/terrain.ts` (`WATER_Y`); `ui/debug.ts` (`DebugOverlay`); `game/quality.ts` (`Quality`).
+**Graphics quality** (§7.15): the renderer's `antialias` comes from `Quality.antialias()`; the `Quality` object is created once pedestrians, the streamer, sky and water exist, applies its preset at once and on every change, gets a "⚙ Graphics" button on the full map (bottom-left), and is fed the real (unclamped) frame time each frame while the map is closed and the tab visible. `window.game.quality` exposes it.
 **Used by:** `index.html` (`<script type="module" src="/src/main.ts">`); the tests in `tests/` through `window.game`.
 
 **Key constants.**
@@ -6493,7 +6538,7 @@ Public fields:
 #### `constructor(renderer: THREE.WebGLRenderer, input: Input)` — creates and appends the readout.
 #### `update(frameDt: number): void`
 - Called once per frame **after** `renderer.render` (because `renderer.info` resets at the start of each render, reading it after gives this frame's counts).
-- `consumePressed('toggleDebug')` toggles `display`. Accumulates frames and time; every ≥ 0.5 s writes `"<fps> fps\n<calls> draw calls\n<k>k triangles"` with `fps = round(frames / elapsed)`, triangles in thousands, then resets the counters. Counting continues while hidden.
+- `consumePressed('toggleDebug')` toggles `display`. Accumulates frames and time; every ≥ 0.5 s writes `"<fps> fps\n<calls> draw calls\n<k>k triangles\n<extra>"`, where `extra()` (a public field, default empty) is set by `main.ts` to the graphics quality and pixel ratio, e.g. `Auto (Medium) · 1.25x` with `fps = round(frames / elapsed)`, triangles in thousands, then resets the counters. Counting continues while hidden.
 
 **Decisions.** Milestone 2 asked for an FPS/draw-call overlay; draw calls are the main performance budget (instance pools, ~200 calls typical, DEVELOPER_GUIDE §9).
 
@@ -7159,7 +7204,9 @@ sequenceDiagram
 - **Two-shot camera** (when the speaker is within 30 m):
   - The camera sits beside the line between you and the speaker, `3 + 0.6·d` m out, 1.9 m above the higher of your feet, looking at the midpoint 1.15 m up.
   - **Of the two sides, it takes the street side** (where the speaker faces): behind characters there are walls and signs. The first version picked a side at random and ended up behind the garage sign.
-  - It is lerped at `min(1, 6·dt)` per frame, and `update()` runs after the picker in the frame.
+  - **The scene keeps its own camera state** (`camPos`, `camLook`), starting from where the camera is when the scene opens, eases them toward the two-shot with `k = 1 − e^(−5·dt)` (dt capped at 0.25 s) and copies them onto the camera. If the camera starts more than 40 m from the shot (a scene right after a teleport) it cuts straight there instead of flying across the map. `update()` runs after the follow camera in the frame.
+  - **The side is picked once per scene** (`sideSign`), not every frame.
+  - **Bug fixed (reported as "the camera goes crazy" when talking):** the first version eased `camera.position` itself by `min(1, 6·dt)`. But the follow camera puts the camera back at its own spot every frame before the scene runs, so the camera never settled: it hung somewhere between the two spots, by an amount that changed with each frame's `dt` (jittery on slow machines). And re-picking the side every frame flipped it from side to side when you stood in line with the street. `tests/story.test.cjs` now feeds uneven frame times in the real frame order and checks the camera settles (< 0.2 m off) without jumping.
 - **Bug found by the story test:** Space didn't advance a scene that ended in a choice, because it only advanced while a line was still typing. The rule is now "advance unless the choices are showing".
 
 **`Phone`**: calls and texts.

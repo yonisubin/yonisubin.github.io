@@ -59,7 +59,8 @@ export class Water {
   private readonly uniforms = { uTime: { value: 0 } };
   private time = 0;
   private readonly fogNear: number;
-  private readonly fogFar: number;
+  /** The fog's far distance above water (graphics quality changes it). */
+  fogFar: number;
   private readonly underwaterFog = new THREE.Color(0x0d3b4f);
   underwater = false;
 

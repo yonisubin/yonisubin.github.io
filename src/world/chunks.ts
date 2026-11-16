@@ -32,10 +32,9 @@ import { smoothstep } from './noise';
 export const CHUNK_CELLS = 4;
 export const CHUNK_SIZE = CHUNK_CELLS * PITCH; // 312 m
 export const CHUNKS = CELLS / CHUNK_CELLS; // 13
-const FAR_LOAD = 850;
-const FAR_UNLOAD = 1000;
-const NEAR_LOAD = 400;
-const NEAR_UNLOAD = 520;
+/** Default streaming distances (m, from the player to a chunk's edge); see setDistances(). */
+export const STREAM_DISTANCES = { farLoad: 850, farUnload: 1000, nearLoad: 400, nearUnload: 520 };
+export type StreamDistances = typeof STREAM_DISTANCES;
 /** Terrain sample spacing inside a chunk (mesh and collider share it). */
 const TERRAIN_STEP = 6;
 const TERRAIN_SEGMENTS = Math.round(CHUNK_SIZE / TERRAIN_STEP); // 52
@@ -190,6 +189,18 @@ export class WorldStreamer {
     return { far, near, queued: this.queue.length };
   }
 
+  /** How far chunks load and unload (graphics quality lowers them on slow machines). */
+  private dist: StreamDistances = { ...STREAM_DISTANCES };
+
+  /** Change the streaming distances; chunks now out of range unload on the next update(). */
+  setDistances(d: StreamDistances): void {
+    this.dist = { ...d };
+  }
+
+  get distances(): StreamDistances {
+    return this.dist;
+  }
+
   /**
    * Call every frame with the player's position. Unloads far-away chunks at once and builds
    * queued ones, nearest first, for up to `budgetMs` milliseconds (at least one job).
@@ -198,13 +209,13 @@ export class WorldStreamer {
     const jobs: (Job & { d: number })[] = [];
     for (const c of this.chunks) {
       const d = this.distance(c, focus.x, focus.z);
-      if (c.near && d > NEAR_UNLOAD) this.unload(c, 'near');
-      if (c.far && d > FAR_UNLOAD) {
+      if (c.near && d > this.dist.nearUnload) this.unload(c, 'near');
+      if (c.far && d > this.dist.farUnload) {
         if (c.near) this.unload(c, 'near');
         this.unload(c, 'far');
       }
-      if (!c.far && d < FAR_LOAD) jobs.push({ chunk: c, tier: 'far', d });
-      else if (c.far && !c.near && d < NEAR_LOAD) jobs.push({ chunk: c, tier: 'near', d });
+      if (!c.far && d < this.dist.farLoad) jobs.push({ chunk: c, tier: 'far', d });
+      else if (c.far && !c.near && d < this.dist.nearLoad) jobs.push({ chunk: c, tier: 'near', d });
     }
     // Near-tier jobs first among equals: what's around the player matters most.
     jobs.sort((a, b) => a.d - b.d || (a.tier === 'near' ? -1 : 1));
@@ -224,8 +235,8 @@ export class WorldStreamer {
     for (const c of this.chunks) {
       const d = this.distance(c, focus.x, focus.z);
       if (d > radius) continue;
-      if (!c.far && d < FAR_LOAD) this.buildFar(c);
-      if (c.far && !c.near && d < NEAR_LOAD) this.buildNear(c);
+      if (!c.far && d < this.dist.farLoad) this.buildFar(c);
+      if (c.far && !c.near && d < this.dist.nearLoad) this.buildNear(c);
     }
     this.flushPools();
   }

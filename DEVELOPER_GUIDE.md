@@ -985,6 +985,7 @@ Each one-shot is retimed so it lasts as long as the gameplay action.
 - **Maps:** one 0.5 px/m picture plus vector detail drawn only for what's on screen.
 - **Fixed lights:** a fixed set of lights (the shared vehicle light), because changing the number of lights recompiles shaders.
 - **Dispose** chunk geometries when unloading, and release their pool slots and colliders.
+- **Graphics quality** (`game/quality.ts`, "⚙ Graphics" on the full map): Auto (default) / High / Medium / Low. Low draws at pixel ratio 0.75 without antialiasing or sun shadows, loads the world to 480 m instead of 850 m (36 → 22 far chunks downtown), pulls the fog in to 620 m and keeps 8 pedestrians out. Auto starts at the level it last found, steps down below 40 FPS (averaged over 4 s) and back up above 58 FPS, and on Low lowers the pixel ratio to 0.5. Prompted by a slow older desktop. Tests pin High, because headless frame rates would push Auto to Low.
 
 ---
 

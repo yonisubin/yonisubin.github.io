@@ -9,6 +9,8 @@ export class DebugOverlay {
   private readonly el: HTMLDivElement;
   private frames = 0;
   private elapsed = 0;
+  /** An extra line for the readout (e.g. the graphics quality). */
+  extra: () => string = () => '';
 
   constructor(
     private readonly renderer: THREE.WebGLRenderer,
@@ -41,7 +43,7 @@ export class DebugOverlay {
     if (this.elapsed < REFRESH_INTERVAL) return;
     const info = this.renderer.info.render;
     const fps = Math.round(this.frames / this.elapsed);
-    this.el.textContent = `${fps} fps\n${info.calls} draw calls\n${(info.triangles / 1000).toFixed(0)}k triangles`;
+    this.el.textContent = `${fps} fps\n${info.calls} draw calls\n${(info.triangles / 1000).toFixed(0)}k triangles\n${this.extra()}`;
     this.frames = 0;
     this.elapsed = 0;
   }

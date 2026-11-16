@@ -13,6 +13,9 @@ function seedStorage(prologue) {
   localStorage.setItem('city.look.v1', JSON.stringify({ id: 'm_casual', skin: 3, hair: 0, outfit: 2, height: 1.78 }));
   // No story prologue popping up during unrelated checks (story.test.cjs asks for it).
   if (!prologue) localStorage.setItem('opencity.noPrologue', '1');
+  // Graphics quality: High, not Auto (headless frame rates would push Auto down to Low and
+  // change what the checks see). Only if nothing is set, so a test can change it and reload.
+  if (!localStorage.getItem('opencity.quality')) localStorage.setItem('opencity.quality', 'high');
 }
 
 /**
