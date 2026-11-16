@@ -27,7 +27,7 @@ env:
   # The branch previewed at /preview/ (e.g. yonisubin.github.io/preview/). Change it to
   # preview another branch; if it doesn't exist, there's simply no preview. Pushing to the
   # preview branch doesn't deploy by itself: re-run this workflow (Actions → Deploy → Run).
-  PREVIEW_BRANCH: feature/police-sound-save-jobs
+  PREVIEW_BRANCH: feature/story-mode
 
 jobs:
   build-preview:
