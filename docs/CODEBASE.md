@@ -6585,8 +6585,9 @@ flowchart LR
 | `build:characters` | `node scripts/build-characters.mjs` | Optional Mixamo FBX → GLB pipeline. |
 | `build:quaternius` | `node scripts/build-quaternius.mjs` | Fetch and convert the Quaternius characters. |
 | `test` | `node tests/run.mjs` | Headless game checks against `dist/` (needs Playwright; it does **not** build, so run `npm run build` first or it tests whatever `dist/` holds). |
+| `dev:civ`, `build:civ`, `preview:civ`, `typecheck:civ`, `test:civ` | `vite … --config civilization/vite.config.ts`, `node civilization/tests/run.mjs` | The same for the second game, Hexborne, in `civilization/` (§9.10). |
 
-**Dependencies** (runtime, bundled): `@dimforge/rapier3d-compat ^0.21.0` (physics; the *compat* build embeds the WASM as base64 so Vite needs no WASM loader config), `three ^0.187.0` (rendering).
+**Dependencies** (runtime, bundled): `@dimforge/rapier3d-compat ^0.21.0` (physics; the *compat* build embeds the WASM as base64 so Vite needs no WASM loader config), `three ^0.187.0` (rendering). `pixi.js 8.22.0`, `zod 4.6.7` and `zustand 5.0.16` (exact versions) are used only by Hexborne in `civilization/` (§9.10); the city game never imports them, so its bundle is unchanged.
 
 **devDependencies**: `@gltf-transform/core`, `/extensions`, `/functions` `^4.5.1` (glTF processing in the art scripts), `@types/three ^0.187.0`, `fbx2gltf ^0.9.7-p1` (FBX converter binary, Mixamo script only), `meshoptimizer ^1.3.0` (mesh compression), `sharp ^0.35.5` (texture resizing/WebP, Mixamo script), `typescript ^7.0.2`, `vite ^8.3.8`.
 
@@ -6828,6 +6829,18 @@ No `sound.ctx` before a click; after a mouse click the context is `running`; an 
 - `simulate()` instead of waiting → deterministic, fast under a 4 fps software renderer.
 - One Node process per file and one browser per file → a crash or a hung page can't poison other files.
 - "no page errors" is a check in every file → any console error fails the run.
+
+---
+
+### 9.10 `civilization/` (Hexborne, the second game)
+
+**Purpose.** A separate hex-based, turn-based strategy game served at `/civilization/`. It shares only `node_modules` with the city game; its own `CLAUDE.md` (the design spec plus project rules), `README.md` and `tests/README.md` document it. Layout: `src/data` (rules as JSON, validated with zod), `src/core` (pure deterministic simulation: `applyAction`, `endTurn`), `src/mapgen`, `src/ai` (computer players, run in a Web Worker), `src/render` (PixiJS map), `src/ui` (DOM HUD + Zustand store), `src/save` (IndexedDB).
+
+**Build and deploy.** `npm run build:civ` → `civilization/dist` (base `/civilization/`); the deploy workflow's `build-civilization` job builds it and the `build` job copies it to `dist/civilization` (§9.5). `npm run test:civ` serves that build on port 4174 and runs `civilization/tests/*.test.cjs` the same way `tests/` works for the city game.
+
+**Decisions.**
+- Its own folder, Vite config and tsconfig, never importing from `src/` → either game can change without breaking the other.
+- Its own CI job with `continue-on-error` → a broken Hexborne build can't stop the city game from deploying.
 
 ---
 

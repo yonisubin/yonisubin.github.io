@@ -1,0 +1,8 @@
+[
+  { "id": "duel", "name": "Duel", "width": 40, "height": 24, "civs": 2, "cityStates": 4, "techCostPerCityPct": 7.5, "barbarianCamps": 2 },
+  { "id": "tiny", "name": "Tiny", "width": 56, "height": 36, "civs": 4, "cityStates": 8, "techCostPerCityPct": 6.5, "barbarianCamps": 4 },
+  { "id": "small", "name": "Small", "width": 66, "height": 42, "civs": 6, "cityStates": 12, "techCostPerCityPct": 5.5, "barbarianCamps": 6 },
+  { "id": "standard", "name": "Standard", "width": 80, "height": 52, "civs": 8, "cityStates": 16, "techCostPerCityPct": 5, "barbarianCamps": 8 },
+  { "id": "large", "name": "Large", "width": 104, "height": 64, "civs": 10, "cityStates": 20, "techCostPerCityPct": 4, "barbarianCamps": 10 },
+  { "id": "huge", "name": "Huge", "width": 128, "height": 80, "civs": 12, "cityStates": 24, "techCostPerCityPct": 3, "barbarianCamps": 12 }
+]

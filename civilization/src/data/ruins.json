@@ -1,0 +1,10 @@
+[
+  { "id": "ruin_gold", "name": "Buried treasure", "kind": "gold", "amount": 60, "weight": 3 },
+  { "id": "ruin_tech", "name": "Forgotten knowledge", "kind": "tech", "weight": 2 },
+  { "id": "ruin_pop", "name": "Lost tribe joins you", "kind": "population", "amount": 1, "weight": 2 },
+  { "id": "ruin_culture", "name": "Ancient carvings", "kind": "culture", "amount": 20, "weight": 2 },
+  { "id": "ruin_map", "name": "Old map", "kind": "map", "amount": 6, "weight": 2 },
+  { "id": "ruin_unit", "name": "Survivors take up arms", "kind": "unit", "unit": "warrior", "weight": 2 },
+  { "id": "ruin_upgrade", "name": "Ancestral weapons", "kind": "upgrade", "weight": 1 },
+  { "id": "ruin_camps", "name": "Raider tracks", "kind": "camps", "amount": 12, "weight": 1 }
+]

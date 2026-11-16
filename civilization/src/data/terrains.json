@@ -1,0 +1,11 @@
+[
+  { "id": "grassland", "name": "Grassland", "yields": { "food": 2 }, "move": 1, "defense": 0, "water": false, "color": "#6c9a48" },
+  { "id": "plains", "name": "Plains", "yields": { "food": 1, "production": 1 }, "move": 1, "defense": 0, "water": false, "color": "#b2a35a" },
+  { "id": "desert", "name": "Desert", "yields": {}, "move": 1, "defense": 0, "water": false, "color": "#dccb8c" },
+  { "id": "tundra", "name": "Tundra", "yields": { "food": 1 }, "move": 1, "defense": 0, "water": false, "color": "#8f927a" },
+  { "id": "snow", "name": "Snow", "yields": {}, "move": 1, "defense": 0, "water": false, "color": "#e8eef0" },
+  { "id": "coast", "name": "Coast", "yields": { "food": 1, "gold": 1 }, "move": 1, "defense": 0, "water": true, "color": "#3f84ad" },
+  { "id": "ocean", "name": "Ocean", "yields": { "food": 1, "gold": 1 }, "move": 1, "defense": 0, "water": true, "color": "#244f7d" },
+  { "id": "lake", "name": "Lake", "yields": { "food": 2, "gold": 1 }, "move": 1, "defense": 0, "water": true, "freshWater": true, "color": "#4f9cc0" },
+  { "id": "mountain", "name": "Mountain", "yields": {}, "move": 3, "defense": 25, "water": false, "impassable": true, "color": "#8a8580" }
+]

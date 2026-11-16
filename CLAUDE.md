@@ -95,7 +95,7 @@ public/
 
 ## Second game: `civilization/`
 
-A separate, independent game lives in `civilization/` and is served at `/civilization/` (see `civilization/README.md`). It has its own `index.html`, `src/`, `tsconfig.json` and `vite.config.ts` (`base: '/civilization/'`) and shares only the root `node_modules`. Commands: `npm run dev:civ`, `npm run typecheck:civ`, `npm run build:civ`. Never import between `src/` and `civilization/src/`; its `localStorage` keys must start with `civ:`. The deploy workflow builds it in its own `continue-on-error` job, so it can never block the main game's deploy. Everything else in this file (milestones, architecture rules) is about the open-world game.
+A separate, independent game, **Hexborne** (a turn-based hex strategy game), lives in `civilization/` and is served at `/civilization/`. It has its own `CLAUDE.md` (its rules and design spec — read it when working there), `index.html`, `src/`, `tsconfig.json` and `vite.config.ts` (`base: '/civilization/'`) and shares only the root `node_modules`; `pixi.js`, `zod` and `zustand` in `package.json` are its dependencies. Commands: `npm run dev:civ`, `npm run typecheck:civ`, `npm run build:civ`, `npm run test:civ`. Never import between `src/` and `civilization/src/`; its `localStorage` keys start with `civ:` and its saves use IndexedDB `hexborne`. The deploy workflow builds it in its own `continue-on-error` job, so it can never block the main game's deploy. Everything else in this file (milestones, architecture rules) is about the open-world game.
 
 ## Deployment (GitHub Pages)
 

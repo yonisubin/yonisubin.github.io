@@ -1,0 +1,62 @@
+[
+  {
+    "id": "verdant", "name": "Verdant Concord", "adjective": "Verdant",
+    "leader": { "name": "Aelis Thornwood", "title": "Mother of the Concord",
+      "personality": { "aggression": 3, "expansion": 7, "wonders": 6, "science": 5, "culture": 6, "gold": 4, "religion": 5, "diplomacy": 7, "naval": 3, "cityStateInterest": 6, "loyalty": 7, "forgiveness": 7, "boldness": 3 } },
+    "ability": { "name": "Riverwise", "description": "+1 food on every river tile.", "effects": [{ "type": "tile_yield", "where": "river", "yield": "food", "amount": 1 }] },
+    "startBias": ["river", "grassland"],
+    "cityNames": ["Willowmere", "Fernhollow", "Mossbridge", "Reedwater", "Thistledown", "Brackenford", "Lindenreach", "Alderglen", "Rushmoor", "Oakcradle", "Sedgewick", "Hazelrun", "Briarvale", "Elmstead", "Clovermark", "Ashbourne"],
+    "colors": { "primary": "#2e8b57", "secondary": "#f0e6a0" },
+    "lines": { "greeting": "The rivers carried word of you. Walk softly on our banks.", "war": "You have poisoned the well. The Concord will answer.", "peace": "Let the floodwaters settle. We accept.", "defeat": "Roots outlast the storm... but not this one." }
+  },
+  {
+    "id": "iron", "name": "Iron Marches", "adjective": "Marcher",
+    "leader": { "name": "Kharsk Dunmor", "title": "Warlord of the Marches",
+      "personality": { "aggression": 9, "expansion": 6, "wonders": 3, "science": 4, "culture": 3, "gold": 4, "religion": 3, "diplomacy": 3, "naval": 3, "cityStateInterest": 3, "loyalty": 4, "forgiveness": 2, "boldness": 9 } },
+    "ability": { "name": "Siegeborn", "description": "+25% combat strength when attacking cities.", "effects": [{ "type": "combat", "when": "vs_city", "percent": 25 }] },
+    "startBias": ["hills", "plains"],
+    "cityNames": ["Anvilgate", "Scarhold", "Brunmark", "Kettlecrag", "Ironmoot", "Gravelspur", "Hammerfall", "Cinderkeep", "Slagton", "Rustmere", "Pikewall", "Blackforge", "Grimstead", "Ashenford", "Stoneyard", "Forgecall"],
+    "colors": { "primary": "#8b2e2e", "secondary": "#d0d0d0" },
+    "lines": { "greeting": "We measure neighbours by the strength of their walls. Yours look thin.", "war": "The Marches march. Ready your gates.", "peace": "A pause, then. Sharpen your blades as we sharpen ours.", "defeat": "Iron rusts. Remember that it was once a blade." }
+  },
+  {
+    "id": "sunwake", "name": "Sunwake Dominion", "adjective": "Sunwake",
+    "leader": { "name": "Tavi Orun", "title": "Empress of the Dunes",
+      "personality": { "aggression": 5, "expansion": 6, "wonders": 5, "science": 5, "culture": 4, "gold": 9, "religion": 4, "diplomacy": 6, "naval": 4, "cityStateInterest": 7, "loyalty": 5, "forgiveness": 5, "boldness": 6 } },
+    "ability": { "name": "Caravan Roads", "description": "+2 gold for each city connected to the capital.", "effects": [{ "type": "connection_gold", "amount": 2 }] },
+    "startBias": ["desert", "plains"],
+    "cityNames": ["Qasir Ambar", "Saffronreach", "Dunehaven", "Mirage Well", "Solmara", "Copperwind", "Tamarisk", "Zahrun", "Glasssand", "Emberoasis", "Kalimbe", "Sirocco Gate", "Brightmarket", "Ombre", "Nazirah", "Sunspire"],
+    "colors": { "primary": "#d4a017", "secondary": "#5a2d0c" },
+    "lines": { "greeting": "Every road leads to a market. May ours meet.", "war": "Trade has failed. Then the dunes shall swallow you.", "peace": "Gold flows better than blood. Agreed.", "defeat": "The sands remember every empire. Even ours." }
+  },
+  {
+    "id": "starlit", "name": "Starlit Assembly", "adjective": "Starlit",
+    "leader": { "name": "Velis Amaro", "title": "Archon of the Assembly",
+      "personality": { "aggression": 3, "expansion": 5, "wonders": 7, "science": 9, "culture": 6, "gold": 5, "religion": 3, "diplomacy": 6, "naval": 5, "cityStateInterest": 5, "loyalty": 6, "forgiveness": 6, "boldness": 4 } },
+    "ability": { "name": "Lantern Halls", "description": "+15% science in every city.", "effects": [{ "type": "city_percent", "yield": "science", "percent": 15 }] },
+    "startBias": ["grassland", "coast"],
+    "cityNames": ["Lumen", "Astraea", "Halcyon", "Meridian", "Vesper", "Orrery", "Calyx", "Aurelle", "Zenith Hall", "Nocturne", "Parallax", "Quillon", "Selene Bay", "Corona", "Equinox", "Lodestar"],
+    "colors": { "primary": "#3b5bdb", "secondary": "#e7f0ff" },
+    "lines": { "greeting": "We have charted many stars. You are a new one.", "war": "Our calculations leave no alternative.", "peace": "A rational outcome. The Assembly concurs.", "defeat": "The lamps go out one by one." }
+  },
+  {
+    "id": "frostfang", "name": "Frostfang Clans", "adjective": "Frostfang",
+    "leader": { "name": "Ruun Ashvar", "title": "High Jarl of the Clans",
+      "personality": { "aggression": 7, "expansion": 5, "wonders": 4, "science": 4, "culture": 5, "gold": 4, "religion": 6, "diplomacy": 4, "naval": 6, "cityStateInterest": 4, "loyalty": 7, "forgiveness": 3, "boldness": 8 } },
+    "ability": { "name": "Winter-Hardened", "description": "+1 production on tundra and snow; +15% combat in rough terrain.", "effects": [{ "type": "tile_yield", "where": "tundra_snow", "yield": "production", "amount": 1 }, { "type": "combat", "when": "rough", "percent": 15 }] },
+    "startBias": ["tundra", "forest"],
+    "cityNames": ["Hrimgard", "Wolfden", "Skarnheim", "Frostholt", "Ulvmark", "Kaldvik", "Snaerhall", "Bjornstead", "Isfjord", "Ravnskar", "Hoarfell", "Tindrholm", "Grimwater", "Sleetmoor", "Varg", "Northmere"],
+    "colors": { "primary": "#7fb3d5", "secondary": "#1b2631" },
+    "lines": { "greeting": "You came through the snow. That earns you a seat by the fire.", "war": "The horn sounds. Come and meet the cold.", "peace": "The thaw comes. We will not stand in its way.", "defeat": "Sing of us. That is all that is left." }
+  },
+  {
+    "id": "mesa", "name": "Mesa Kingdoms", "adjective": "Mesan",
+    "leader": { "name": "Atl Oronco", "title": "King of the High Terraces",
+      "personality": { "aggression": 5, "expansion": 5, "wonders": 7, "science": 5, "culture": 6, "gold": 5, "religion": 6, "diplomacy": 5, "naval": 2, "cityStateInterest": 4, "loyalty": 6, "forgiveness": 4, "boldness": 5 } },
+    "ability": { "name": "Terrace Builders", "description": "+1 food on every hills tile.", "effects": [{ "type": "tile_yield", "where": "hills", "yield": "food", "amount": 1 }] },
+    "startBias": ["hills", "mountain"],
+    "cityNames": ["Tlacocha", "Huayra", "Condorpeak", "Sumaq", "Intipata", "Qorihuasi", "Mallkuyoc", "Rumiwasi", "Pachallaqta", "Yanacocha", "Tukuypa", "Cielomar", "Altaterra", "Kuntur", "Ayllu Grande", "Wakaypata"],
+    "colors": { "primary": "#c0632b", "secondary": "#2b8a8a" },
+    "lines": { "greeting": "From our terraces we saw you coming for days.", "war": "The mountains will close around you.", "peace": "Come down from your anger. We will too.", "defeat": "The terraces fall silent." }
+  }
+]

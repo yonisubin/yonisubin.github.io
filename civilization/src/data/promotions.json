@@ -1,0 +1,21 @@
+[
+  { "id": "shock_1", "name": "Shock I", "classes": ["melee", "mounted", "recon"], "combat": [{ "when": "open", "percent": 15 }], "description": "+15% combat in open terrain." },
+  { "id": "shock_2", "name": "Shock II", "classes": ["melee", "mounted", "recon"], "requires": ["shock_1"], "combat": [{ "when": "open", "percent": 15 }], "description": "+15% more combat in open terrain." },
+  { "id": "shock_3", "name": "Shock III", "classes": ["melee", "mounted"], "requires": ["shock_2"], "combat": [{ "when": "open", "percent": 15 }], "description": "+15% more combat in open terrain." },
+  { "id": "drill_1", "name": "Drill I", "classes": ["melee", "mounted", "recon"], "combat": [{ "when": "rough", "percent": 15 }], "description": "+15% combat in rough terrain (hills, forest, jungle, marsh)." },
+  { "id": "drill_2", "name": "Drill II", "classes": ["melee", "mounted", "recon"], "requires": ["drill_1"], "combat": [{ "when": "rough", "percent": 15 }], "description": "+15% more combat in rough terrain." },
+  { "id": "drill_3", "name": "Drill III", "classes": ["melee", "mounted"], "requires": ["drill_2"], "combat": [{ "when": "rough", "percent": 15 }], "description": "+15% more combat in rough terrain." },
+  { "id": "cover_1", "name": "Cover I", "classes": ["melee", "ranged", "recon"], "combat": [{ "when": "vs_ranged", "percent": 33 }], "description": "+33% defence against ranged attacks." },
+  { "id": "cover_2", "name": "Cover II", "classes": ["melee", "ranged"], "requires": ["cover_1"], "combat": [{ "when": "vs_ranged", "percent": 33 }], "description": "+33% more defence against ranged attacks." },
+  { "id": "accuracy_1", "name": "Accuracy I", "classes": ["ranged", "siege"], "combat": [{ "when": "open", "percent": 15 }], "description": "+15% ranged strength against targets in open terrain." },
+  { "id": "accuracy_2", "name": "Accuracy II", "classes": ["ranged", "siege"], "requires": ["accuracy_1"], "combat": [{ "when": "open", "percent": 15 }], "description": "+15% more against targets in open terrain." },
+  { "id": "barrage_1", "name": "Barrage I", "classes": ["ranged", "siege"], "combat": [{ "when": "rough", "percent": 15 }], "description": "+15% ranged strength against targets in rough terrain." },
+  { "id": "barrage_2", "name": "Barrage II", "classes": ["ranged", "siege"], "requires": ["barrage_1"], "combat": [{ "when": "rough", "percent": 15 }], "description": "+15% more against targets in rough terrain." },
+  { "id": "siegecraft", "name": "Siegecraft", "classes": ["melee", "siege", "ranged"], "requires": [], "combat": [{ "when": "vs_city", "percent": 20 }], "description": "+20% combat against cities." },
+  { "id": "charge", "name": "Charge", "classes": ["mounted"], "combat": [{ "when": "vs_wounded", "percent": 33 }], "description": "+33% combat against wounded units." },
+  { "id": "range", "name": "Long Reach", "classes": ["ranged", "siege"], "requires": ["accuracy_2"], "range": 1, "description": "+1 range." },
+  { "id": "march", "name": "March", "classes": ["melee", "mounted", "ranged", "siege", "recon"], "requires": ["drill_2"], "healAlways": true, "description": "Heals every turn, even after moving or fighting." },
+  { "id": "medic", "name": "Field Medic", "classes": ["melee", "mounted", "ranged", "siege", "recon"], "medic": 10, "description": "This unit and neighbouring friendly units heal 10 HP more per turn." },
+  { "id": "mobility", "name": "Mobility", "classes": ["melee", "mounted", "recon"], "requires": ["shock_2"], "moves": 1, "description": "+1 movement." },
+  { "id": "sentry", "name": "Sentry", "classes": ["recon", "melee", "ranged"], "sight": 1, "description": "+1 sight." }
+]

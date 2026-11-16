@@ -1,0 +1,153 @@
+{
+  "moveScale": 6,
+  "roadMove": 2,
+  "hills": {
+    "yields": {
+      "production": 2
+    },
+    "move": 2,
+    "defense": 25,
+    "sight": 1
+  },
+  "riverGold": 1,
+  "riverAttackPct": -20,
+  "cityTileMin": {
+    "food": 2,
+    "production": 1,
+    "gold": 1
+  },
+  "minCityDistance": 4,
+  "workRadius": 3,
+  "ownRadius": 5,
+  "foodPerCitizen": 2,
+  "growth": {
+    "base": 15,
+    "linear": 6,
+    "exponent": 1.8
+  },
+  "sciencePerCitizen": 1,
+  "unemployedProduction": 1,
+  "border": {
+    "base": 20,
+    "perTile": 10,
+    "exponent": 1.1
+  },
+  "tileBuy": {
+    "base": 40,
+    "perDistance": 15,
+    "perBought": 5
+  },
+  "buy": {
+    "multiplier": 4.5,
+    "exponent": 0.9,
+    "buildingPct": 133
+  },
+  "overflowCap": 1.0,
+  "connectionGold": {
+    "base": 1,
+    "perPop": 0.5
+  },
+  "unitUpkeep": {
+    "freeUnits": 5,
+    "freePerCity": 1,
+    "base": 1,
+    "perTurns": 100
+  },
+  "roadMaintenance": 1,
+  "happiness": {
+    "perCity": 3,
+    "perCitizen": 1,
+    "occupiedPerCitizen": 0.5,
+    "puppetCityPct": 50,
+    "luxury": 4,
+    "unhappyGrowthPct": 25,
+    "veryUnhappy": -10,
+    "veryUnhappyCombatPct": -33,
+    "revolt": -20,
+    "revoltEveryTurns": 4
+  },
+  "combat": {
+    "baseDamage": 30,
+    "exponent": 0.8,
+    "randomPct": 20,
+    "hpWeight": 0.5,
+    "flankingPct": 10,
+    "fortifyPct": 25,
+    "fortifyTwoTurnsPct": 50,
+    "maxHp": 100,
+    "openTerrainPct": 0
+  },
+  "city": {
+    "baseStrength": 8,
+    "perPop": 0.5,
+    "capitalBonus": 2.5,
+    "hillsPct": 25,
+    "garrisonShare": 0.2,
+    "hp": 200,
+    "healPerTurn": 20,
+    "range": 2,
+    "resistanceTurnsPerPop": 1,
+    "razeVsAnnexDistance": 12,
+    "capturePopLossPct": 25
+  },
+  "heal": {
+    "enemy": 10,
+    "neutral": 15,
+    "friendly": 20,
+    "city": 25,
+    "promotion": 50
+  },
+  "xp": {
+    "attack": 5,
+    "defend": 4,
+    "rangedAttack": 2,
+    "vsBarbarianMax": 30,
+    "thresholds": [
+      10,
+      30,
+      60,
+      100,
+      150,
+      210,
+      280,
+      360
+    ]
+  },
+  "barbarians": {
+    "spawnEveryTurns": 10,
+    "newCampChancePct": 25,
+    "campDistanceFromCity": 5,
+    "campReward": 25,
+    "campRewardPerEra": 15,
+    "maxUnitsPerCamp": 2,
+    "aggroRadius": 7,
+    "firstSpawnTurn": 12
+  },
+  "ruinsPerLandTiles": 45,
+  "startUnits": [
+    "settler",
+    "warrior",
+    "worker",
+    "scout"
+  ],
+  "techPlayersMetDiscountPct": 20,
+  "score": {
+    "perCity": 8,
+    "perCitizen": 4,
+    "perLandTile": 1,
+    "perTech": 4,
+    "perBuilding": 1
+  },
+  "peaceTurns": 10,
+  "autosaveEveryTurns": 5,
+  "work": {
+    "roadTurns": 3,
+    "repairTurns": 3,
+    "removeTurns": {
+      "forest": 4,
+      "jungle": 6,
+      "marsh": 5
+    }
+  },
+  "upgradeGoldPerProduction": 2
+}

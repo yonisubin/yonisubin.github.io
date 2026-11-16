@@ -1,0 +1,6 @@
+[
+  { "id": "quick", "name": "Quick", "costPct": 67, "maxTurns": 330, "yearsPerTurn": [[50, 60], [100, 30], [180, 15], [330, 5]] },
+  { "id": "standard", "name": "Standard", "costPct": 100, "maxTurns": 500, "yearsPerTurn": [[75, 40], [135, 25], [220, 20], [325, 10], [500, 2]] },
+  { "id": "epic", "name": "Epic", "costPct": 150, "maxTurns": 750, "yearsPerTurn": [[140, 25], [230, 15], [360, 10], [500, 5], [750, 1]] },
+  { "id": "marathon", "name": "Marathon", "costPct": 300, "maxTurns": 1500, "yearsPerTurn": [[100, 15], [400, 10], [800, 5], [1150, 2], [1500, 1]] }
+]

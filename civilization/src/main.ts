@@ -1,70 +1,174 @@
-// Placeholder for the second game: draws a seeded hex map so the page shows something
-// while the real game is built. Replace freely.
+// Hexborne entry point: sets up PixiJS, the map view, HUD and input, and redraws whenever the
+// UI store changes. Exposes window.hexborne for automated tests.
+import { Application } from 'pixi.js';
+import { D } from './data';
+import { applyAction, newGame, type NewGameOptions } from './core/game';
+import { distance, neighbor, tileCenter, within } from './core/hex';
+import { playerCities, playerUnits } from './core/query';
+import type { Action, GameState } from './core/state';
+import { claimableTiles, tileBuyCost } from './core/systems/cities';
+import { canAttack } from './core/systems/combat';
+import { findPath, reachable } from './core/systems/movement';
+import { runEndTurn } from './ai';
+import { HEX, MapView, type Overlay } from './render/mapView';
+import { Minimap } from './render/minimap';
+import { bump, set, store, ui } from './ui/store';
+import { installHudEvents, refreshSaves, renderHud } from './ui/hud';
+import { installInput } from './ui/input';
+import { endTurn, startGame } from './ui/controller';
+import { saveGame, loadGame } from './save/db';
+import { damage } from './core/systems/combat';
+import { growthNeeded } from './core/systems/yields';
+import { foundCity } from './core/systems/cities';
+import { createUnit } from './core/systems/units';
+import { recomputeAllVisibility } from './core/systems/visibility';
+import { setWar } from './core/game';
+import './style.css';
 
-// Anything this game saves in localStorage must use this prefix: the open-world game at the
-// site root shares the same origin (yonisubin.github.io) and therefore the same storage.
-export const STORAGE_PREFIX = 'civ:';
+async function main(): Promise<void> {
+  const app = new Application();
+  await app.init({ resizeTo: window, background: '#0b0e14', antialias: true, autoDensity: true, resolution: Math.min(2, window.devicePixelRatio || 1) });
+  document.getElementById('map')!.appendChild(app.canvas);
+  const view = new MapView(app);
+  const minimap = new Minimap(document.getElementById('minimap') as HTMLCanvasElement, (fx, fy) => {
+    view.cam.x = fx * view.worldW;
+    view.cam.y = fy * view.worldH;
+    view.applyCamera();
+    schedule();
+  });
+  installInput(view, app.canvas, document.getElementById('tooltip')!);
+  installHudEvents((tile) => {
+    view.centerOn(tile);
+    schedule();
+  });
 
-const canvas = document.getElementById('map') as HTMLCanvasElement;
-const ctx = canvas.getContext('2d')!;
-
-/** Small seeded PRNG (mulberry32) so the map is the same on every load. */
-function rng(seed: number): () => number {
-  return () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-const TERRAIN = [
-  { name: 'ocean', color: '#2b5d8a' },
-  { name: 'coast', color: '#4a86b0' },
-  { name: 'grass', color: '#6f9e4c' },
-  { name: 'plains', color: '#b7a75a' },
-  { name: 'forest', color: '#3f6b38' },
-  { name: 'hills', color: '#8a7a5a' },
-  { name: 'mountain', color: '#9a9a9a' },
-];
-
-function draw(): void {
-  const dpr = window.devicePixelRatio || 1;
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  canvas.width = Math.round(w * dpr);
-  canvas.height = Math.round(h * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.fillStyle = '#10141c';
-  ctx.fillRect(0, 0, w, h);
-
-  // Pointy-top hexes: width = √3·r, rows are 1.5·r apart, odd rows shift half a hex.
-  const r = 28;
-  const hw = Math.sqrt(3) * r;
-  const cols = Math.ceil(w / hw) + 1;
-  const rows = Math.ceil(h / (1.5 * r)) + 1;
-  const rand = rng(1234);
-  // Blob of land: distance from the centre plus noise decides the terrain band.
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const cx = col * hw + (row % 2 ? hw / 2 : 0);
-      const cy = row * 1.5 * r;
-      const d = Math.hypot((cx - w / 2) / (w / 2), (cy - h / 2) / (h / 2));
-      const v = 1 - d + (rand() - 0.5) * 0.5;
-      const t = v < 0.15 ? 0 : v < 0.25 ? 1 : 2 + Math.floor(rand() * (v > 0.6 ? 5 : 3));
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const a = Math.PI / 6 + (i * Math.PI) / 3;
-        ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
-      }
-      ctx.closePath();
-      ctx.fillStyle = TERRAIN[t].color;
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
-      ctx.stroke();
-    }
+  let lastGame: GameState | null = null;
+  let lastKey = '';
+  let pending = false;
+  function schedule(): void {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(redraw);
   }
+  function redraw(): void {
+    pending = false;
+    const st = ui();
+    renderHud();
+    const s = st.game;
+    app.canvas.style.visibility = s && !st.setup ? 'visible' : 'hidden';
+    if (!s || st.setup) return;
+    if (s !== lastGame) {
+      const fresh = !lastGame || lastGame.settings.seed !== s.settings.seed || lastGame.human !== s.human;
+      view.setGame(s);
+      if (fresh || !lastGame) centerStart(s);
+      lastGame = s;
+      lastKey = '';
+    }
+    const ov = overlay(s);
+    const key = `${st.rev}|${st.selUnit}|${st.selCity}|${st.lens}|${ov.path.length}|${ov.path[ov.path.length - 1]}|${ov.pathTurns}`;
+    view.update(s, s.human, ov, key !== lastKey);
+    lastKey = key;
+    const { width, height } = app.screen;
+    minimap.draw(s, s.human, { x: view.cam.x / view.worldW, y: view.cam.y / view.worldH, w: width / view.cam.zoom / view.worldW, h: height / view.cam.zoom / view.worldH }, st.rev);
+  }
+  function centerStart(s: GameState): void {
+    const p = Math.max(0, s.human);
+    const c = playerCities(s, p)[0];
+    const u = playerUnits(s, p)[0];
+    view.centerOn(c ? c.tile : u ? u.tile : 0);
+  }
+  function overlay(s: GameState): Overlay {
+    const st = ui();
+    const ov: Overlay = { selectedTile: -1, reachable: new Map(), attackable: [], path: [], pathTurns: 0, city: st.selCity, showYields: st.lens, hover: st.hover, buyable: new Map() };
+    const u = st.selUnit !== null ? s.units[st.selUnit] : undefined;
+    if (u) {
+      ov.selectedTile = u.tile;
+      if (u.owner === s.human) {
+        ov.reachable = reachable(s, u);
+        for (const t of within(s.map, u.tile, Math.max(1, D.units.get(u.type)!.range))) if (t !== u.tile && !canAttack(s, u, t)) ov.attackable.push(t);
+        if (st.hover >= 0 && st.hover !== u.tile && distance(s.map, u.tile, st.hover) < 30) {
+          const path = findPath(s, u, st.hover);
+          if (path) {
+            ov.path = path.path;
+            ov.pathTurns = path.turns;
+          }
+        } else if (u.path.length) {
+          ov.path = u.path;
+        }
+      }
+    }
+    if (st.selCity !== null && s.cities[st.selCity]) {
+      const c = s.cities[st.selCity];
+      ov.selectedTile = c.tile;
+      if (c.owner === s.human) for (const t of claimableTiles(s, c)) ov.buyable.set(t, tileBuyCost(s, c, t));
+    }
+    return ov;
+  }
+  store.subscribe(schedule);
+  window.addEventListener('resize', schedule);
+  app.ticker.add(() => {
+    // Keep the minimap rectangle in step with camera moves (pan/zoom don't touch the store).
+    const s = ui().game;
+    if (s && !ui().setup) {
+      const { width, height } = app.screen;
+      minimap.draw(s, s.human, { x: view.cam.x / view.worldW, y: view.cam.y / view.worldH, w: width / view.cam.zoom / view.worldW, h: height / view.cam.zoom / view.worldH }, ui().rev);
+    }
+  });
+
+  await refreshSaves();
+  schedule();
+
+  // ---- Test hooks ----
+  const api = {
+    D,
+    store,
+    view,
+    get state(): GameState | null {
+      return ui().game;
+    },
+    /** Start a game immediately (options as in newGame). */
+    start(o: NewGameOptions = {}) {
+      startGame(o);
+      return ui().game!;
+    },
+    /** Apply an action as the human player. */
+    act(a: Action) {
+      const s = ui().game!;
+      const r = applyAction(s, s.human, a);
+      bump();
+      return r;
+    },
+    /** End the turn synchronously on the main thread (AI included). */
+    endTurnSync() {
+      const s = ui().game!;
+      runEndTurn(s);
+      bump();
+      return s.turn;
+    },
+    /** End the turn the way the button does (AI in the worker). */
+    endTurn: (force = true) => endTurn(force),
+    /** Headless AI-only game for `turns` turns; returns the state. */
+    simulate(turns: number, o: NewGameOptions = {}) {
+      const s = newGame({ ...o, spectator: true });
+      for (let t = 0; t < turns && !s.winner; t++) runEndTurn(s);
+      return s;
+    },
+    save: (name: string) => saveGame(name, ui().game!),
+    load: (name: string) => loadGame(name),
+    centerOn: (tile: number) => view.centerOn(tile),
+    tileCenter: (tile: number) => {
+      const s = ui().game!;
+      const p = tileCenter(s.map, tile, HEX);
+      return { x: view.world.x + p.x * view.cam.zoom, y: view.world.y + p.y * view.cam.zoom };
+    },
+    set,
+    /** Core functions for formula and rule checks. */
+    core: { neighbor, distance, findPath, damage, growthNeeded, foundCity, createUnit, recomputeAllVisibility, setWar, newGame, runEndTurn },
+  };
+  (window as unknown as { hexborne: typeof api }).hexborne = api;
 }
 
-draw();
-window.addEventListener('resize', draw);
+main().catch((e) => {
+  console.error(e);
+  document.body.innerHTML = `<pre style="color:#f88;padding:20px;white-space:pre-wrap">Hexborne failed to start:\n${String(e instanceof Error ? e.stack : e)}</pre>`;
+});
