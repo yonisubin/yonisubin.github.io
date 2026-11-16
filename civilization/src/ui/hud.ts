@@ -45,7 +45,7 @@ import { opinion } from '../core/systems/diplomacy';
 import { influence, relation } from '../core/systems/citystates';
 import { MAP_TYPES, type MapType } from '../mapgen/generate';
 import { drawEndgame, endgameHtml, hallOfFameHtml, recordHallOfFame } from './endgame';
-import { turnStartedAt } from './controller';
+import { beginSeat, turnStartedAt } from './controller';
 import { act, endTurn, endTurnLabel, load, nextUnit, quickSave, selectCity, selectUnit, startGame, toast } from './controller';
 import { set, store, ui } from './store';
 
@@ -88,6 +88,8 @@ export function renderHud(): void {
   const s = st.game;
   show($('setup'), st.setup);
   show($('game-ui'), !st.setup && !!s);
+  show($('pass'), !st.setup && !!s && st.passTo !== null);
+  if (s && !st.setup && st.passTo !== null) renderPass(s, st.passTo);
   if (st.setup || !s) {
     renderSetup();
     return;
@@ -102,6 +104,24 @@ export function renderHud(): void {
   const t = $('toast');
   show(t, !!st.toast);
   if (st.toast) setHtml(t, esc(st.toast));
+}
+
+// ---- Hotseat: pass the device ----
+
+function renderPass(s: GameState, seat: number): void {
+  const pl = s.players[seat];
+  const props = s.diplomacy.proposals.filter((x) => x.deal.b === seat).length;
+  const news = pl.notifications.filter((n) => n.turn >= s.turn - 1).length;
+  setHtml(
+    $('pass'),
+    `<div class="pass-card" style="border-color:${pl.color}">
+      <div class="sub">Turn ${s.turn} · ${esc(yearOf(s))}</div>
+      <h2><span class="dot" style="background:${pl.color}"></span> ${esc(pl.nick ?? pl.leader)}</h2>
+      <p>${esc(pl.leader)} of the ${esc(pl.name)} — your turn.</p>
+      <p class="sub">Everyone else, look away. ${news ? `${news} new notification${news > 1 ? 's' : ''}.` : ''} ${props ? `<b>${props} proposal${props > 1 ? 's' : ''} waiting.</b>` : ''}</p>
+      <button class="primary big" data-a="begin-seat">Begin turn</button>
+    </div>`,
+  );
 }
 
 // ---- Top bar ----
@@ -659,7 +679,7 @@ function relations(s: GameState): string {
           : `<button data-a="war" data-p="${q.id}" ${since < D.rules.peaceTurns ? 'disabled title="Peace treaty in force"' : ''}>Declare war</button>`;
       const op = q.alive ? opinion(s, q.id, p) : null;
       return `<tr><td><span class="dot" style="background:${q.color}"></span><button class="link" data-a="leader" data-p="${q.id}"><b>${esc(q.name)}</b></button><div class="sub">${esc(q.leader)} — ${esc(f.ability.name)}: ${esc(f.ability.description)}</div></td>
-        <td>${score(s, q.id)}</td><td>${Math.round(militaryStrength(s, q.id))}</td><td class="${war ? 'bad' : ''}">${war ? 'War' : op ? op.stance : 'Peace'}</td><td>${btn}</td></tr>`;
+        <td>${score(s, q.id)}</td><td>${Math.round(militaryStrength(s, q.id))}</td><td class="${war ? 'bad' : ''}">${war ? 'War' : q.isHuman ? esc(q.nick ?? 'Player') : op ? op.stance : 'Peace'}</td><td>${btn}</td></tr>`;
     })
     .join('');
   return `<div class="dialog"><div class="row head"><h2>Relations</h2><button class="x" data-a="panel" data-p="none">✕</button></div>
@@ -728,6 +748,13 @@ function renderSetup(): void {
       <label>Turn limit<input id="o-maxturns" type="number" min="50" max="1500" placeholder="by pace"></label>
     </div>
     <div class="row">Victories: ${['domination', 'science', 'culture', 'diplomatic', 'time'].map((v) => `<label class="check"><input type="checkbox" id="o-v-${v}" checked> ${v}</label>`).join(' ')}</div>
+    <details><summary>Hotseat (several players on this device)</summary>
+      <p class="sub">Each named seat is a human player; leave a name empty for no seat. Players take their turns one after another and pass the device.</p>
+      <div class="grid seats">
+        <label>Your name<input id="o-name1" placeholder="Player 1"></label><span></span>
+        ${[2, 3, 4, 5, 6].map((i) => `<label>Player ${i}<input id="o-name${i}" placeholder="(no seat)"></label><label>Civilization<select id="o-faction${i}"><option value="random">Random</option>${opt(factions, '')}</select></label>`).join('')}
+      </div>
+    </details>
     <details><summary>Advanced setup</summary><div class="grid">
       <label>Civilizations<input id="o-civs" type="number" min="2" max="${D.factions.size}" placeholder="by size"></label>
       <label>City-states<input id="o-cs" type="number" min="0" max="${D.cityStates.size}" placeholder="by size"></label>
@@ -791,7 +818,9 @@ function readSetup() {
   const v = (id: string) => (document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null)?.value ?? '';
   const c = (id: string) => (document.getElementById(id) as HTMLInputElement | null)?.checked ?? true;
   const c2 = (id: string) => (document.getElementById(id) as HTMLInputElement | null)?.checked ?? false;
+  const others = [2, 3, 4, 5, 6].filter((i) => v(`o-name${i}`).trim()).map((i) => ({ faction: v(`o-faction${i}`) || 'random', name: v(`o-name${i}`).trim() }));
   return {
+    humans: others.length ? [{ faction: v('o-faction') || 'random', name: v('o-name1').trim() || 'Player 1' }, ...others] : undefined,
     faction: v('o-faction') || 'random',
     mapType: (v('o-map') || 'continents') as MapType | 'random',
     mapSize: v('o-size') || 'tiny',
@@ -898,6 +927,14 @@ export function installHudEvents(centerOn: (tile: number) => void): void {
       case 'play-now':
         startGame({});
         return;
+      case 'begin-seat':
+        beginSeat();
+        if (s && s.human >= 0) {
+          const cap = playerCities(s, s.human)[0];
+          const u = playerUnits(s, s.human)[0];
+          centerOn(cap ? cap.tile : u ? u.tile : 0);
+        }
+        return;
       case 'start':
         startGame(readSetup());
         return;
@@ -998,7 +1035,7 @@ export function installHudEvents(centerOn: (tile: number) => void): void {
         if (confirm(`Declare war on the ${s.players[Number(target.dataset.p)].name}?`)) act({ type: 'declareWar', target: Number(target.dataset.p) });
         break;
       case 'peace':
-        if (act({ type: 'makePeace', target: Number(target.dataset.p) })) toast('Peace!');
+        if (act({ type: 'makePeace', target: Number(target.dataset.p) })) toast(s.diplomacy.war[s.human][Number(target.dataset.p)] ? 'Peace offer sent.' : 'Peace!');
         break;
       case 'save': {
         const name = (document.getElementById('save-name') as HTMLInputElement).value.trim() || `Turn ${s.turn}`;

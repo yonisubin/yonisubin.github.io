@@ -167,6 +167,8 @@ export interface Player {
   color: string;
   color2: string;
   isHuman: boolean;
+  /** Name of the person playing this seat (hotseat / online), if any. */
+  nick?: string;
   isBarbarian: boolean;
   /** A city-state (single city, never expands); its data is in `minor`. */
   isMinor: boolean;
@@ -284,7 +286,7 @@ export interface Proposal {
   from: number;
   turn: number;
   /** "deal", a friendship offer, or a demand (refusing it angers them). */
-  kind: 'deal' | 'friendship' | 'demand';
+  kind: 'deal' | 'friendship' | 'demand' | 'peace';
   text: string;
 }
 
@@ -425,6 +427,11 @@ export interface Settings {
   quickMovement: boolean;
   /** Advisor hints. */
   tutorial: boolean;
+  /**
+   * How several humans take their turns: one after another (sequential), all at once
+   * (simultaneous, online only) or simultaneous except between humans at war (hybrid).
+   */
+  turnMode: 'sequential' | 'simultaneous' | 'hybrid';
 }
 
 export interface GameState {
@@ -457,8 +464,13 @@ export interface GameState {
   wonders: Record<string, number>;
   /** Bumped whenever a player's effects change (policies, wonders...), to refresh caches. */
   modGen: number;
-  /** The human player id (0 normally; -1 in spectator games). */
+  /**
+   * The human player whose view and actions this device shows (0 normally; -1 in spectator
+   * games). In hotseat games it moves from seat to seat during a turn.
+   */
   human: number;
+  /** An online game: each human plays on their own device (see src/net). */
+  online?: boolean;
 }
 
 export type Action =

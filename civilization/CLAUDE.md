@@ -60,6 +60,8 @@ Phase 12: the World Congress / United Nations (`core/systems/congress.ts`, `data
 
 Phase 13: 16 map types (`mapgen/generate.ts` scripts + `mapgen/earth.ts` outlines) and every advanced setup option (`core/options.ts` defaults): world age, temperature, rainfall, sea level, resources (sparse … legendary start, strategic balance), civilization and city-state counts, starting era, victory toggles, turn limit, raging barbarians, no razing, One-City Challenge, complete kills, policy/promotion saving, start bias off, always war/peace, turn timer, quick combat/movement, advisor hints.
 
+Phase 14 (hotseat): several humans on one device (`humans` in `NewGameOptions`; setup screen "Hotseat"). `s.human` is the seat whose turn it is; ending a seat's turn passes to the next (`nextSeat`, core/game.ts) behind a cover screen (`ui().passTo`), and after the last seat the AI moves. Human↔human proposals (deals, friendship, peace) wait for the other seat's answer.
+
 Extension points for later phases: `EFFECT_SOURCES`, `TILE_HOOKS`, `CITY_HOOKS`, `HAPPINESS_HOOKS`, `GOLD_HOOKS`, `COMBAT_HOOKS`, `GP_USE_HOOKS`/`GP_DO_HOOKS`, `EFFECT_TEXT`, and `VICTORY_CHECKS` (core/game.ts), `SCORE_HOOKS` (core/systems/economy.ts), `MIGRATIONS` (core/migrate.ts, fills new fields in old saves), `VICTORY_ROWS` (ui/hud.ts).
 
 Deliberate simplifications so far (say so before changing them):

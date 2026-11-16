@@ -32,6 +32,8 @@ export interface UIState {
   panelUnit: number;
   /** Draft World Congress votes (before casting). */
   votes: number[] | null;
+  /** Hotseat: the screen is covered until this seat's player clicks "Begin" (null: no cover). */
+  passTo: number | null;
 }
 
 export const store = createStore<UIState>()(() => ({
@@ -56,6 +58,7 @@ export const store = createStore<UIState>()(() => ({
   prophetMode: 'found',
   panelUnit: -1,
   votes: null,
+  passTo: null,
 }));
 
 export const ui = () => store.getState();

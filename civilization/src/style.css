@@ -172,3 +172,10 @@ button.link { background: none; border: none; padding: 0; color: var(--text); te
 .tenets { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); margin-bottom: 12px; }
 td .bar { height: 4px; background: #2a2f3c; border-radius: 3px; overflow: hidden; margin-top: 2px; }
 td .bar i { display: block; height: 100%; background: var(--cult); }
+
+/* Hotseat: pass the device */
+#pass { position: fixed; inset: 0; display: grid; place-items: center; z-index: 45;
+  background: radial-gradient(ellipse at 50% 30%, #23304a 0%, #0b0e14 70%), #0b0e14; }
+.pass-card { width: min(420px, calc(100% - 32px)); background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 22px; text-align: center; }
+.pass-card h2 { margin: 6px 0; font-family: Georgia, serif; }
+.grid.seats { grid-template-columns: 1fr 1fr; }

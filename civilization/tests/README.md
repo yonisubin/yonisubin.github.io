@@ -25,6 +25,7 @@ Playwright is not a dependency; install it once if needed:
 | `phase11.test.cjs` | great works and theming, influence levels, culture victory, ideology choice and tenet tiers, public opinion and switching, archaeology |
 | `phase12.test.cjs` | World Congress founding, delegates, proposals and votes, resolutions in force, the UN and diplomatic victory, spies stealing technology |
 | `phase13.test.cjs` | all 16 map types generate playable worlds (Terra, Highlands, Ice Age, Earth checks), and the advanced options take effect |
+| `phase14.test.cjs` | hotseat: seats, the pass-the-device cover, turn order (AI after the last seat), human↔human peace, saves keep seats |
 | `ui.test.cjs` | Play now, B founds a city, End Turn prompts for research then production, the turn runs in the worker, tooltips, tech tree |
 
 `window.flatten(state, tile, radius)` (installed by `harness.cjs`) turns an area into empty

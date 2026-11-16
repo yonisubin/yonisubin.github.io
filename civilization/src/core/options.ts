@@ -4,7 +4,7 @@ import type { Settings } from './state';
 export const DEFAULT_OPTIONS: Pick<
   Settings,
   | 'worldAge' | 'temperature' | 'rainfall' | 'seaLevel' | 'resources' | 'startEra' | 'raging' | 'noRazing' | 'oneCity' | 'completeKills'
-  | 'policySaving' | 'promotionSaving' | 'noStartBias' | 'alwaysWar' | 'alwaysPeace' | 'turnTimer' | 'quickCombat' | 'quickMovement' | 'tutorial'
+  | 'policySaving' | 'promotionSaving' | 'noStartBias' | 'alwaysWar' | 'alwaysPeace' | 'turnTimer' | 'quickCombat' | 'quickMovement' | 'tutorial' | 'turnMode'
 > = {
   worldAge: 4,
   temperature: 'temperate',
@@ -25,4 +25,5 @@ export const DEFAULT_OPTIONS: Pick<
   quickCombat: false,
   quickMovement: false,
   tutorial: true,
+  turnMode: 'sequential',
 };

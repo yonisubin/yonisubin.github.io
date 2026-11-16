@@ -55,6 +55,11 @@ export interface NewGameOptions extends Partial<Omit<Settings, 'mapType'>> {
   civs?: number;
   /** Number of city-states (default from map size). */
   cityStates?: number;
+  /**
+   * Hotseat / multiplayer: one entry per human seat (faction id or 'random', and a name). When
+   * given, it replaces `faction`; seats take player ids 0, 1, 2...
+   */
+  humans?: { faction?: string; name?: string }[];
 }
 
 export function newDiplomacy(P: number): GameState['diplomacy'] {
@@ -95,7 +100,8 @@ export function newGame(o: NewGameOptions = {}): GameState {
     maxTurns: o.maxTurns ?? get(D.pace, o.pace ?? 'standard').maxTurns,
   };
   const size = get(D.mapSizes, settings.mapSize);
-  const civs = Math.max(2, Math.min(o.civs ?? size.civs, D.factions.size));
+  const seats = settings.spectator ? [] : o.humans?.length ? o.humans.slice(0, D.factions.size) : [{ faction: o.faction }];
+  const civs = Math.max(2, seats.length, Math.min(o.civs ?? size.civs, D.factions.size));
   const holder = { rng: hashSeed(settings.seed) };
   const map = generateMap(holder, {
     type: settings.mapType,
@@ -112,10 +118,15 @@ export function newGame(o: NewGameOptions = {}): GameState {
     resources: settings.resources,
   });
 
-  // Factions: the human's choice first, the rest shuffled; then match factions to starts by bias.
-  let factionIds = shuffle(holder, [...D.factions.keys()]);
-  const humanFaction = o.faction && o.faction !== 'random' && D.factions.has(o.faction) ? o.faction : factionIds[0];
-  factionIds = [humanFaction, ...factionIds.filter((f) => f !== humanFaction)].slice(0, civs);
+  // Factions: the humans' choices first (random seats get unused ones), the rest shuffled; then
+  // match factions to starts by bias.
+  const pool = shuffle(holder, [...D.factions.keys()]);
+  const chosen = seats.map((x) => (x.faction && x.faction !== 'random' && D.factions.has(x.faction) ? x.faction : ''));
+  const free = pool.filter((f) => !chosen.includes(f));
+  const humanFactions = chosen.map((f) => f || free.shift()!);
+  // Two seats that picked the same faction: the later one gets a free one.
+  for (let i = 1; i < humanFactions.length; i++) if (humanFactions.indexOf(humanFactions[i]) < i) humanFactions[i] = free.shift()!;
+  const factionIds = [...humanFactions, ...pool.filter((f) => !humanFactions.includes(f))].slice(0, civs);
   const starts = settings.noStartBias ? map.starts.slice(0, factionIds.length) : assignStarts(map, factionIds);
 
   const n = map.w * map.h;
@@ -166,7 +177,7 @@ export function newGame(o: NewGameOptions = {}): GameState {
   });
   const players: Player[] = factionIds.map((fid, i) => {
     const f = get(D.factions, fid);
-    return { ...base(i), name: f.name, faction: fid, leader: `${f.leader.title} ${f.leader.name}`, color: f.colors.primary, color2: f.colors.secondary, isHuman: i === 0 && !settings.spectator };
+    return { ...base(i), name: f.name, faction: fid, leader: `${f.leader.title} ${f.leader.name}`, color: f.colors.primary, color2: f.colors.secondary, isHuman: i < seats.length, ...(seats[i]?.name ? { nick: seats[i].name } : {}) };
   });
   // City-states.
   const csDefs = shuffle(holder, [...D.cityStates.values()]).slice(0, map.minorStarts.length);
@@ -506,6 +517,10 @@ export function applyAction(s: GameState, p: number, a: Action): ActionResult {
           declareFriendship(s, prop.from, p);
           return OK;
         }
+        if (prop.kind === 'peace') {
+          if (s.diplomacy.war[p][prop.from]) setWar(s, prop.from, p, false);
+          return OK;
+        }
         const why = dealProblem(s, prop.deal);
         if (why) return fail(why);
         executeDeal(s, prop.deal, setWar);
@@ -665,7 +680,14 @@ export function applyAction(s: GameState, p: number, a: Action): ActionResult {
       if (!s.diplomacy.war[p]?.[q]) return fail('not at war');
       if (s.settings.alwaysWar && !s.players[q].isMinor) return fail('this world is always at war (Always war)');
       const other = s.players[q];
-      if (!other.isHuman && !aiAcceptsPeace(s, q, p)) return fail(`${other.leader} refuses to make peace.`);
+      if (other.isHuman && !other.isMinor) {
+        // Another human decides on their own turn.
+        if (s.diplomacy.proposals.some((x) => x.kind === 'peace' && x.from === p && x.deal.b === q)) return fail('your peace offer is already waiting for an answer');
+        s.diplomacy.proposals.push({ deal: { a: p, b: q, items: [] }, from: p, turn: s.turn, kind: 'peace', text: `The ${pl.name} offer peace.` });
+        notify(s, q, `The ${pl.name} offer peace.`, 'info');
+        return OK;
+      }
+      if (!aiAcceptsPeace(s, q, p)) return fail(`${other.leader} refuses to make peace.`);
       setWar(s, p, q, false);
       return OK;
     }
@@ -884,11 +906,25 @@ export function checkVictory(s: GameState): void {
 }
 
 /** Is it safe to say the human has nothing left to do (for the End Turn button)? */
-/** Always war: every AI civilization that has met the human is at war with them. */
+/** Always war: every AI civilization that has met a human is at war with them. */
 function applyAlwaysWar(s: GameState): void {
-  if (!s.settings.alwaysWar || s.human < 0) return;
-  for (const q of s.players[s.human].met) if (!s.players[q].isMinor && !s.diplomacy.war[s.human][q]) setWar(s, q, s.human, true);
+  if (!s.settings.alwaysWar) return;
+  for (const h of humanSeats(s))
+    for (const q of s.players[h].met) if (!s.players[q].isMinor && !s.players[q].isHuman && !s.diplomacy.war[h][q]) setWar(s, q, h, true);
 }
+
+/** Human seats still in the game, in turn order. */
+export function humanSeats(s: GameState): number[] {
+  return s.players.filter((p) => p.isHuman && p.alive && !p.isMinor).map((p) => p.id);
+}
+
+/** The human seat that moves after `p` this turn (-1: everyone has moved). */
+export function nextSeat(s: GameState, p: number): number {
+  return humanSeats(s).find((q) => q > p) ?? -1;
+}
+
+/** Several humans share this game (hotseat or online). */
+export const isMultiplayer = (s: GameState) => s.players.filter((p) => p.isHuman).length > 1;
 
 /** Citadels hurt enemy units next to them at the start of their owner's turn. */
 function citadelDamage(s: GameState, p: number): void {

@@ -58,6 +58,7 @@ async function main(): Promise<void> {
   });
 
   let lastGame: GameState | null = null;
+  let lastHuman = -2;
   let lastKey = '';
   let pending = false;
   function schedule(): void {
@@ -70,10 +71,13 @@ async function main(): Promise<void> {
     const st = ui();
     renderHud();
     const s = st.game;
-    app.canvas.style.visibility = s && !st.setup ? 'visible' : 'hidden';
-    if (!s || st.setup) return;
-    if (s !== lastGame) {
-      const fresh = !lastGame || lastGame.settings.seed !== s.settings.seed || lastGame.human !== s.human;
+    // Hidden while a hotseat player passes the device (no peeking at someone else's map).
+    app.canvas.style.visibility = s && !st.setup && st.passTo === null ? 'visible' : 'hidden';
+    if (!s || st.setup || st.passTo !== null) return;
+    if (s !== lastGame || s.human !== lastHuman) {
+      const seatChanged = s.human !== lastHuman;
+      lastHuman = s.human;
+      const fresh = !lastGame || lastGame.settings.seed !== s.settings.seed || seatChanged;
       view.setGame(s);
       if (fresh || !lastGame) centerStart(s);
       lastGame = s;

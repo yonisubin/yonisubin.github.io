@@ -74,15 +74,15 @@ export function leaderHtml(s: GameState, q: number): string {
     <div class="leader">${portrait(other.faction, other.color, other.color2)}
       <div><div class="sub">${esc(other.name)} · ${esc(f.ability.name)}: ${esc(f.ability.description)}</div>
       <p class="quote">“${esc(line)}”</p>
-      <div>Mood: <b>${op.stance}</b> (${op.total > 0 ? '+' : ''}${op.total}) · score ${score(s, q)} · military ${Math.round(militaryStrength(s, q))}</div>
+      <div>${other.isHuman ? `Played by <b>${esc(other.nick ?? 'another player')}</b>` : `Mood: <b>${op.stance}</b> (${op.total > 0 ? '+' : ''}${op.total})`} · score ${score(s, q)} · military ${Math.round(militaryStrength(s, q))}</div>
       <div class="note">${treaties.join(' · ')}</div></div></div>
-    <details><summary>Why they feel this way</summary><table>${parts || '<tr><td class="sub">Nothing in particular.</td></tr>'}</table></details>
+    ${other.isHuman ? '<p class="sub">Offers to another player wait for their answer on their turn.</p>' : `<details><summary>Why they feel this way</summary><table>${parts || '<tr><td class="sub">Nothing in particular.</td></tr>'}</table></details>`}
     <div class="row">
       <button class="primary" data-a="open-trade" data-p="${q}">${war ? 'Negotiate peace' : 'Trade'}</button>
       ${war ? '' : areFriends(s, p, q) ? '' : `<button data-a="friendship" data-p="${q}">Declare friendship</button>`}
       ${war || denounced(s, p, q) ? '' : `<button data-a="denounce" data-p="${q}">Denounce</button>`}
       ${war ? `<button data-a="peace" data-p="${q}">Ask for peace</button>` : `<button data-a="war" data-p="${q}" ${since < D.rules.peaceTurns ? 'disabled title="Peace treaty in force"' : ''}>Declare war</button>`}
-      <button data-a="demand" data-p="${q}" title="Ask for gold or a resource with nothing in return">Make a demand</button>
+      ${other.isHuman ? '' : `<button data-a="demand" data-p="${q}" title="Ask for gold or a resource with nothing in return">Make a demand</button>`}
     </div></div>`;
 }
 

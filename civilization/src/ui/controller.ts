@@ -1,7 +1,7 @@
 // Glue between the UI and the core: player actions, ending the turn (AI in a Web Worker),
 // selection, new games, saves.
 import { D } from '../data';
-import { applyAction, newGame, nextRequiredAction, type NewGameOptions } from '../core/game';
+import { applyAction, humanSeats, isMultiplayer, newGame, nextRequiredAction, nextSeat, type NewGameOptions } from '../core/game';
 import { playerUnits } from '../core/query';
 import type { Action, GameState } from '../core/state';
 import { runEndTurn } from '../ai';
@@ -108,8 +108,15 @@ export async function endTurn(force = false): Promise<void> {
     if (n.kind === 'ideology') return set({ panel: 'culture' });
     if (n.kind === 'congress') return set({ panel: 'congress' });
   }
+  // Hotseat: the next human seat moves before the AI does.
+  if (isHotseat(s)) {
+    const nxt = nextSeat(s, s.human);
+    if (nxt >= 0) return passSeat(s, nxt);
+  }
   set({ busy: true, selUnit: null, cityAttack: false });
   const done = (next: GameState) => {
+    // Back to the first seat still in the game for the new turn.
+    if (isHotseat(next)) next.human = humanSeats(next)[0] ?? next.human;
     set({ game: next, busy: false });
     bump();
     afterTurn(next);
@@ -152,13 +159,35 @@ export const turnStartedAt = () => startedAt;
 setInterval(() => {
   const st = ui();
   const s = st.game;
-  if (!s || st.setup || st.busy || s.winner || s.settings.turnTimer <= 0) return;
+  if (!s || st.setup || st.busy || st.passTo !== null || s.winner || s.settings.turnTimer <= 0) return;
   bump();
   if (Date.now() - startedAt >= s.settings.turnTimer * 1000) endTurn(true);
 }, 1000);
 
+/** Several humans take turns on this device. */
+export const isHotseat = (s: GameState) => isMultiplayer(s) && !s.online;
+
+/** Hand the device to another seat: cover the screen until they click "Begin". */
+function passSeat(s: GameState, seat: number): void {
+  s.human = seat;
+  startedAt = Date.now();
+  set({ passTo: seat, selUnit: null, selCity: null, panel: 'none', cityAttack: false, targeting: null, votes: null, tradeDeal: null });
+  bump();
+}
+
+/** The seat's player is at the screen: show their empire. */
+export function beginSeat(): void {
+  set({ passTo: null });
+  startedAt = Date.now();
+  bump();
+  nextUnit();
+}
+
 function afterTurn(s: GameState): void {
   startedAt = Date.now();
+  // Hotseat: the winner's seat sees the end screen.
+  if (isHotseat(s) && s.winner && s.players[s.winner.player].isHuman) s.human = s.winner.player;
+  if (isHotseat(s) && !s.winner) set({ passTo: s.human, selUnit: null, selCity: null, panel: 'none' });
   if (s.turn % D.rules.autosaveEveryTurns === 0) saveGame('Autosave', s).catch(() => {});
   try {
     localStorage.setItem('civ:lastSave', 'Autosave');
@@ -171,9 +200,9 @@ function afterTurn(s: GameState): void {
 export function startGame(o: NewGameOptions): void {
   const s = newGame(o);
   startedAt = Date.now();
-  set({ game: s, setup: false, panel: 'none', selCity: null, selUnit: null, endClosed: false, endTab: 'summary', replayTurn: 0 });
+  set({ game: s, setup: false, panel: 'none', selCity: null, selUnit: null, endClosed: false, endTab: 'summary', replayTurn: 0, passTo: isHotseat(s) ? s.human : null });
   bump();
-  nextUnit();
+  if (!isHotseat(s)) nextUnit();
   saveGame('Autosave', s).catch(() => {});
 }
 
@@ -193,7 +222,7 @@ export async function load(name: string): Promise<boolean> {
       toast(`No save called “${name}”.`);
       return false;
     }
-    set({ game: s, setup: false, panel: 'none', selCity: null, selUnit: null, busy: false, endClosed: false, endTab: 'summary', replayTurn: 0 });
+    set({ game: s, setup: false, panel: 'none', selCity: null, selUnit: null, busy: false, endClosed: false, endTab: 'summary', replayTurn: 0, passTo: isHotseat(s) && !s.winner ? s.human : null });
     bump();
     toast(`Loaded “${name}” (turn ${s.turn}).`);
     return true;
