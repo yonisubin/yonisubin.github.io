@@ -13,7 +13,8 @@ import { runEndTurn } from './ai';
 import { HEX, MapView, type Overlay } from './render/mapView';
 import { Minimap } from './render/minimap';
 import { bump, set, store, ui } from './ui/store';
-import { installHudEvents, refreshSaves, renderHud } from './ui/hud';
+import { effectText, installHudEvents, refreshSaves, renderHud } from './ui/hud';
+import { pediaHtml } from './ui/pedia';
 import { installInput } from './ui/input';
 import { act as uiAct, endTurn, startGame } from './ui/controller';
 import * as netSession from './net/session';
@@ -160,6 +161,8 @@ async function main(): Promise<void> {
     },
     /** Apply an action the way the interface does (through the network in online games). */
     play: (a: Action) => uiAct(a),
+    /** An encyclopedia article as HTML (category, entry id). */
+    pedia: (cat: string, id: string, query = '') => pediaHtml(cat, id, query, effectText),
     /** Online play (src/net/session.ts). */
     net: { ...netSession, info: () => ui().net },
     /** End the turn synchronously on the main thread (AI included). */

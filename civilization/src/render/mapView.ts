@@ -82,6 +82,14 @@ export class MapView {
   worldW = 0;
   worldH = 0;
   private s: GameState | null = null;
+  // Animations: units slide from their last tile (offset decaying to zero), and damage floats up.
+  private effects: Container[] = [];
+  private unitNodes = new Map<number, Container[]>();
+  private slides = new Map<number, { dx: number; dy: number; t0: number; dur: number }>();
+  private floaters: { nodes: Text[]; t0: number; y: number }[] = [];
+  private prevUnits = new Map<number, { tile: number; hp: number; civ: boolean }>();
+  private prevCities = new Map<number, number>();
+  private animViewer = -2;
 
   constructor(app: Application) {
     this.app = app;
@@ -98,9 +106,89 @@ export class MapView {
       const txt = new Container();
       this.textLayers.push(txt);
       c.addChild(txt);
+      const fx = new Container();
+      this.effects.push(fx);
+      c.addChild(fx);
       this.copies.push(c);
       this.world.addChild(c);
     }
+    app.ticker.add(() => this.tick());
+  }
+
+  /** Advance slides and floaters (every frame). */
+  private tick(): void {
+    const now = performance.now();
+    for (const [id, a] of this.slides) {
+      const p = Math.min(1, (now - a.t0) / a.dur);
+      const e = 1 - (1 - p) * (1 - p); // ease out
+      for (const n of this.unitNodes.get(id) ?? []) n.position.set(a.dx * (1 - e), a.dy * (1 - e));
+      if (p >= 1) this.slides.delete(id);
+    }
+    this.floaters = this.floaters.filter((f) => {
+      const p = (now - f.t0) / 1000;
+      for (const n of f.nodes) {
+        n.y = f.y - 26 * p;
+        n.alpha = Math.max(0, 1 - p * p);
+      }
+      if (p < 1) return true;
+      for (const n of f.nodes) n.destroy();
+      return false;
+    });
+  }
+
+  private floater(x: number, y: number, text: string, color: number): void {
+    const nodes = this.effects.map((fx) => {
+      const t = new Text({ text, style: { fontFamily: 'system-ui, sans-serif', fontSize: 15, fontWeight: '800', fill: color, stroke: { color: 0x000000, width: 4 } } });
+      t.anchor.set(0.5);
+      t.position.set(x, y);
+      fx.addChild(t);
+      return t;
+    });
+    this.floaters.push({ nodes, t0: performance.now(), y });
+  }
+
+  /**
+   * Compare units and cities with the last drawing: start slides for units that moved and
+   * damage floaters for hits (unless the game uses quick movement / quick combat).
+   */
+  private prepareAnims(s: GameState, viewer: number): void {
+    const m = s.map;
+    const seen = (i: number) => viewer < 0 || s.players[viewer].visible[i] === 1;
+    const fresh = this.animViewer !== viewer || !this.prevUnits.size;
+    this.animViewer = viewer;
+    const now = performance.now();
+    const next = new Map<number, { tile: number; hp: number; civ: boolean }>();
+    for (const u of allUnits(s)) {
+      next.set(u.id, { tile: u.tile, hp: u.hp, civ: isCivilian(u) });
+      const was = this.prevUnits.get(u.id);
+      if (fresh || !was) continue;
+      if (was.tile !== u.tile && !s.settings.quickMovement && seen(u.tile) && seen(was.tile)) {
+        const a = tileCenter(m, was.tile, HEX), b = tileCenter(m, u.tile, HEX);
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const dist = Math.hypot(dx, dy);
+        // Skip jumps across the map edge (wrap) or very long ones (rebasing aircraft).
+        if (dist < HEX * 12) this.slides.set(u.id, { dx, dy, t0: now, dur: Math.min(520, 180 + dist * 2.2) });
+      }
+      if (u.hp < was.hp && !s.settings.quickCombat && seen(u.tile)) {
+        const c = tileCenter(m, u.tile, HEX);
+        this.floater(c.x, c.y - 16, `−${was.hp - u.hp}`, 0xff5a4a);
+      }
+    }
+    if (!fresh && !s.settings.quickCombat)
+      for (const [id, was] of this.prevUnits)
+        if (!next.has(id) && !was.civ && seen(was.tile)) {
+          const c = tileCenter(m, was.tile, HEX);
+          this.floater(c.x, c.y - 10, '✖', 0xff5a4a);
+        }
+    for (const c of allCities(s)) {
+      const was = this.prevCities.get(c.id);
+      if (!fresh && was !== undefined && c.hp < was && !s.settings.quickCombat && seen(c.tile)) {
+        const p = tileCenter(m, c.tile, HEX);
+        this.floater(p.x, p.y - 20, `−${Math.round(was - c.hp)}`, 0xffa040);
+      }
+    }
+    this.prevUnits = next;
+    this.prevCities = new Map(allCities(s).map((c) => [c.id, c.hp]));
   }
 
   setGame(s: GameState): void {
@@ -109,6 +197,12 @@ export class MapView {
     this.worldH = (s.map.h * 1.5 + 0.5) * HEX;
     this.copies.forEach((c, k) => (c.x = (k - 1) * this.worldW));
     this.terrainSig = this.bordersSig = this.fogSig = '';
+    // A new game or another hotseat seat: nothing to animate from.
+    this.prevUnits.clear();
+    this.prevCities.clear();
+    this.slides.clear();
+    for (const f of this.floaters) for (const n of f.nodes) n.destroy();
+    this.floaters = [];
   }
 
   /** Redraw what changed. `viewer`: player whose fog applies (-1: see everything). */
@@ -131,7 +225,11 @@ export class MapView {
     }
     this.drawOverlay(s, ov);
     // Units, banners and text are rebuilt only when the game or selection changed (not on hover).
-    if (full) for (let k = 0; k < 3; k++) this.drawDynamic(s, viewer, k, ov);
+    if (full) {
+      this.prepareAnims(s, viewer);
+      this.unitNodes.clear();
+      for (let k = 0; k < 3; k++) this.drawDynamic(s, viewer, k, ov);
+    }
     this.applyCamera();
   }
 
@@ -544,6 +642,16 @@ export class MapView {
       const r = civ ? 9.5 : 12;
       const col = hexToNum(pl.color), col2 = hexToNum(pl.color2);
       const done = (viewer < 0 || u.owner === viewer) && u.moves <= 0;
+      // Each unit is its own node so it can slide (see tick()).
+      const node = new Container();
+      const g = new Graphics();
+      node.addChild(g);
+      dyn.addChild(node);
+      const nodes = this.unitNodes.get(u.id) ?? [];
+      nodes.push(node);
+      this.unitNodes.set(u.id, nodes);
+      const slide = this.slides.get(u.id);
+      if (slide) node.position.set(slide.dx, slide.dy);
       const alpha = done ? 0.7 : 1;
       // Embarked land units ride in a little hull.
       if (unitDef(u).domain === 'land' && get(D.terrains, m.tiles[u.tile].terrain).water) g.poly([ux - r - 4, uy + 2, ux + r + 4, uy + 2, ux + r, uy + r + 4, ux - r, uy + r + 4]).fill(0x6a4a2a).stroke({ width: 1, color: 0x2a1a0a });
@@ -561,7 +669,7 @@ export class MapView {
       glyph.anchor.set(0.5);
       glyph.position.set(ux, uy);
       glyph.alpha = alpha;
-      dyn.addChild(glyph);
+      node.addChild(glyph);
     }
     // Yields lens.
     if (ov.showYields) {

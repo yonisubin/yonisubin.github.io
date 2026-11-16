@@ -2,7 +2,8 @@
 // selection, new games, saves.
 import { D } from '../data';
 import { applyAction, humanSeats, isMultiplayer, newGame, nextRequiredAction, nextSeat, type NewGameOptions } from '../core/game';
-import { playerUnits } from '../core/query';
+import { eraOf, playerUnits, unitDef } from '../core/query';
+import { musicOn, play, setMusicEra, startMusic, type Sfx } from '../audio/sound';
 import type { Action, GameState } from '../core/state';
 import { runEndTurn } from '../ai';
 import { loadGame, saveGame } from '../save/db';
@@ -38,14 +39,40 @@ export function toast(msg: string): void {
 export function act(a: Action): boolean {
   const s = game();
   if (ui().busy) return false;
-  if (online()) return netAct(a);
+  const sfx = soundFor(s, a);
+  if (online()) {
+    const ok = netAct(a);
+    if (ok) play(sfx);
+    return ok;
+  }
   const res = applyAction(s, s.human, a);
+  if (res.ok) play(sfx);
   if (!res.ok && res.error) toast(res.error);
   // A unit that died or was consumed can't stay selected.
   const sel = ui().selUnit;
   if (sel !== null && !s.units[sel]) set({ selUnit: null });
   bump();
   return res.ok;
+}
+
+/** The sound an action makes. */
+function soundFor(s: GameState, a: Action): Sfx {
+  switch (a.type) {
+    case 'move':
+      return 'step';
+    case 'attack': {
+      const u = s.units[a.unit];
+      return u && unitDef(u).range > 0 ? 'shot' : 'melee';
+    }
+    case 'found':
+      return 'found';
+    case 'produce':
+    case 'buy':
+    case 'build':
+      return 'build';
+    default:
+      return 'click';
+  }
 }
 
 export function selectUnit(id: number | null): void {
@@ -216,8 +243,32 @@ export function beginSeat(): void {
   nextUnit();
 }
 
+/** What the human had last turn, to pick the sounds of the new one. */
+let lastTechs = -1;
+let lastWinner = false;
+
+function turnSounds(s: GameState): void {
+  if (s.human < 0) return;
+  const pl = s.players[s.human];
+  if (s.winner && !lastWinner) play(s.winner.player === s.human ? 'victory' : 'defeat');
+  else if (lastTechs >= 0 && pl.techs.length > lastTechs) play('tech');
+  else if (pl.notifications.some((n) => n.turn === s.turn - 1 && n.kind === 'bad')) play('bad');
+  else play('turn');
+  lastTechs = pl.techs.length;
+  lastWinner = !!s.winner;
+  setMusicEra(eraOf(pl));
+}
+
+/** Start the music if the player turned it on (after a click, so the browser allows audio). */
+function music(s: GameState): void {
+  lastTechs = s.human >= 0 ? s.players[s.human].techs.length : -1;
+  lastWinner = !!s.winner;
+  if (musicOn()) startMusic(s.human >= 0 ? eraOf(s.players[s.human]) : 0);
+}
+
 function afterTurn(s: GameState): void {
   startedAt = Date.now();
+  turnSounds(s);
   // Hotseat: the winner's seat sees the end screen.
   if (isHotseat(s) && s.winner && s.players[s.winner.player].isHuman) s.human = s.winner.player;
   if (isHotseat(s) && !s.winner) set({ passTo: s.human, selUnit: null, selCity: null, panel: 'none' });
@@ -235,6 +286,7 @@ export function startGame(o: NewGameOptions): void {
   startedAt = Date.now();
   set({ game: s, setup: false, panel: 'none', selCity: null, selUnit: null, endClosed: false, endTab: 'summary', replayTurn: 0, passTo: isHotseat(s) ? s.human : null });
   bump();
+  music(s);
   if (!isHotseat(s)) nextUnit();
   saveGame('Autosave', s).catch(() => {});
 }
@@ -257,6 +309,7 @@ export async function load(name: string): Promise<boolean> {
     }
     set({ game: s, setup: false, panel: 'none', selCity: null, selUnit: null, busy: false, endClosed: false, endTab: 'summary', replayTurn: 0, passTo: isHotseat(s) && !s.winner ? s.human : null });
     bump();
+    music(s);
     toast(`Loaded “${name}” (turn ${s.turn}).`);
     return true;
   } catch (e) {

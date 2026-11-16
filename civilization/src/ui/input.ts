@@ -180,6 +180,10 @@ export function installInput(view: MapView, canvas: HTMLCanvasElement, tooltip: 
       case 't':
         set({ panel: st.panel === 'tech' ? 'none' : 'tech' });
         break;
+      case 'F1':
+        e.preventDefault();
+        set({ panel: st.panel === 'pedia' ? 'none' : 'pedia' });
+        break;
       case 'y':
         set({ lens: !st.lens });
         break;

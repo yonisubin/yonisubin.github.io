@@ -28,6 +28,7 @@ civilization/src/
   core/        # pure simulation: state.ts (GameState), hex.ts, rng.ts, game.ts (applyAction / endTurn)
     systems/   # one file per system (yields, cities, research, units, movement, combat, ...)
   mapgen/      # world generation (continents, pangaea)
+  audio/       # sound.ts: synthesised effects and music (Web Audio)
   ai/          # AI players + barbarians; worker.ts runs end-of-turn off the main thread
   render/      # PixiJS map view (terrain, fog, units, cities, overlays, camera)
   ui/          # DOM panels driven by a Zustand store (top bar, unit/city panels, tech tree, ...)
@@ -66,6 +67,8 @@ Phase 13: 16 map types (`mapgen/generate.ts` scripts + `mapgen/earth.ts` outline
 Phase 14 (hotseat): several humans on one device (`humans` in `NewGameOptions`; setup screen "Hotseat"). `s.human` is the seat whose turn it is; ending a seat's turn passes to the next (`nextSeat`, core/game.ts) behind a cover screen (`ui().passTo`), and after the last seat the AI moves. Human↔human proposals (deals, friendship, peace) wait for the other seat's answer.
 
 Phase 14 (online): `server/server.mjs` is a dependency-free WebSocket relay (rooms by code; also serves `dist/` at /civilization/), `npm run server:civ`. `src/net/session.ts`: lobby (seats, civilization pick, ready, chat), the host's browser is authoritative — guests send actions, the host validates and broadcasts them in order, everyone applies them (a digest after each catches drift → full resync), and at the end of a turn the host runs the AI and sends the new state. Turn modes `settings.turnMode`: sequential, simultaneous, hybrid. Dropped players rejoin by name.
+
+Phase 15 (polish): unit slides and damage floaters (`render/mapView.ts` `prepareAnims`/`tick`, off with Quick movement / Quick combat), synthesised sound effects and era music (`audio/sound.ts`; `civ:mute`, `civ:music`), the encyclopedia generated from the data plus original articles (`ui/pedia.ts`, F1 or Menu), advisor hints (`ui/hints.ts`, setup option, dismissed ones in `civ:hints`), and a late-tech cost pass (eras 3–7 cheaper, so a Quick game's leader nears the end of the tree by turn 300).
 
 Extension points for later phases: `EFFECT_SOURCES`, `TILE_HOOKS`, `CITY_HOOKS`, `HAPPINESS_HOOKS`, `GOLD_HOOKS`, `COMBAT_HOOKS`, `GP_USE_HOOKS`/`GP_DO_HOOKS`, `EFFECT_TEXT`, and `VICTORY_CHECKS` (core/game.ts), `SCORE_HOOKS` (core/systems/economy.ts), `MIGRATIONS` (core/migrate.ts, fills new fields in old saves), `VICTORY_ROWS` (ui/hud.ts).
 

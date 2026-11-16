@@ -48,6 +48,9 @@ import { drawEndgame, endgameHtml, hallOfFameHtml, recordHallOfFame } from './en
 import { beginSeat, turnStartedAt } from './controller';
 import { act, endTurn, endTurnLabel, load, nextUnit, quickSave, selectCity, selectUnit, startGame, toast } from './controller';
 import { set, store, ui } from './store';
+import { musicOn, setMusic, setSfx, sfxOn } from '../audio/sound';
+import { pediaHtml } from './pedia';
+import { currentHint, dismissHint } from './hints';
 import { chat, connect, defaultServer, disconnect, net, pick, startOnline, waitingLabel } from '../net/session';
 
 export const MAP_NAMES: Record<string, string> = {
@@ -99,12 +102,22 @@ export function renderHud(): void {
   renderUnit(s);
   renderCity(s);
   renderNotes(s);
+  renderHint(s);
   renderEndTurn(s);
   renderModal(s);
   show($('busy'), st.busy);
   const t = $('toast');
   show(t, !!st.toast);
   if (st.toast) setHtml(t, esc(st.toast));
+}
+
+// ---- Advisor hints ----
+
+function renderHint(s: GameState): void {
+  const st = ui();
+  const h = st.passTo === null && st.panel === 'none' ? currentHint(s) : null;
+  show($('hint'), !!h);
+  if (h) setHtml($('hint'), `<div class="sub">Advisor</div><div>${esc(h.text)}</div><div class="row"><button data-a="hint-ok" data-h="${h.id}">Got it</button><button class="link" data-a="hints-off">Turn hints off</button></div>`);
 }
 
 // ---- Online: lobby and chat ----
@@ -468,6 +481,7 @@ function renderModal(s: GameState): void {
   } else if (st.panel === 'tech') html = techTree(s);
   else if (st.panel === 'relations') html = relations(s);
   else if (st.panel === 'menu') html = menu(s);
+  else if (st.panel === 'pedia') html = pediaHtml(st.pediaCat, st.pediaId, st.pediaQuery, effectText);
   else if (st.panel === 'chat') html = `<div class="dialog"><div class="row head"><h2>Chat · room ${esc(st.net?.room ?? '')}</h2><button class="x" data-a="panel" data-p="none">✕</button></div>${chatHtml()}</div>`;
   else if (st.panel === 'help') html = help();
   else if (st.panel === 'victory') html = victoryPanel(s);
@@ -738,6 +752,7 @@ function menu(s: GameState): string {
   return `<div class="dialog"><div class="row head"><h2>Menu</h2><button class="x" data-a="panel" data-p="none">✕</button></div>
     <div class="row"><input id="save-name" placeholder="Save name" value="Turn ${s.turn}"><button class="primary" data-a="save">Save</button>
     <button data-a="quick-save" title="Ctrl+S">Quick save</button><button data-a="quick-load" title="Ctrl+L">Quick load</button></div>
+    <div class="row"><button data-a="toggle-sfx">Sound effects: ${sfxOn() ? 'on' : 'off'}</button><button data-a="toggle-music">Music: ${musicOn() ? 'on' : 'off'}</button><button data-a="panel" data-p="pedia">Encyclopedia</button></div>
     <table>${list || '<tr><td class="sub">No saves yet.</td></tr>'}</table>
     <div class="row"><button data-a="panel" data-p="help">Controls</button>${s.winner ? '<button data-a="summary">Game summary</button>' : ''}<button data-a="new-game">New game</button></div></div>`;
 }
@@ -749,7 +764,7 @@ function help(): string {
   <tr><td>Drag / WASD / arrows</td><td>Pan the map · wheel or +/− to zoom</td></tr>
   <tr><td>Enter</td><td>End turn · <b>.</b> next unit · <b>Space</b> skip · <b>F</b> fortify · <b>S</b> sleep · <b>E</b> explore</td></tr>
   <tr><td>B</td><td>Found a city · <b>R</b> road · <b>M</b> mine · <b>I</b> farm · <b>P</b> pillage</td></tr>
-  <tr><td>T</td><td>Tech tree · <b>Y</b> yield icons · <b>H</b> go to capital · <b>Esc</b> close</td></tr>
+  <tr><td>T</td><td>Tech tree · <b>Y</b> yield icons · <b>H</b> go to capital · <b>F1</b> encyclopedia · <b>Esc</b> close</td></tr>
   <tr><td>Ctrl+S / Ctrl+L</td><td>Quick save / quick load</td></tr>
   </table>
   <p class="sub">Cities grow from food, build with production and expand borders with culture. Keep your empire happy with luxuries (improve them with Workers), Shrines and Colosseums. Win by holding every other civilization's original capital, or have the best score at the turn limit.</p></div>`;
@@ -1125,6 +1140,25 @@ export function installHudEvents(centerOn: (tile: number) => void): void {
       case 'quick-load':
         load('Quicksave');
         break;
+      case 'hint-ok':
+        dismissHint(target.dataset.h!);
+        set({ rev: st.rev + 1 });
+        break;
+      case 'hints-off':
+        s.settings.tutorial = false;
+        set({ rev: st.rev + 1 });
+        break;
+      case 'pedia':
+        set({ panel: 'pedia', pediaCat: target.dataset.c || st.pediaCat, pediaId: target.dataset.i ?? '', pediaQuery: target.dataset.c && target.closest('.tabs') ? '' : st.pediaQuery });
+        break;
+      case 'toggle-sfx':
+        setSfx(!sfxOn());
+        set({ rev: st.rev + 1 });
+        break;
+      case 'toggle-music':
+        setMusic(!musicOn(), s.human >= 0 ? eraOf(s.players[s.human]) : 0);
+        set({ rev: st.rev + 1 });
+        break;
       case 'new-game':
         set({ setup: true, panel: 'none' });
         refreshSaves();
@@ -1333,6 +1367,17 @@ export function installHudEvents(centerOn: (tile: number) => void): void {
   document.addEventListener('input', (e) => {
     const t = e.target as HTMLInputElement;
     if (t.id === 'replay-turn') set({ replayTurn: Number(t.value) });
+    if (t.id === 'pedia-q') {
+      set({ pediaQuery: t.value, pediaId: '' });
+      // The panel re-renders: put the cursor back in the search box.
+      requestAnimationFrame(() => {
+        const i = document.getElementById('pedia-q') as HTMLInputElement | null;
+        if (i && document.activeElement !== i) {
+          i.focus();
+          i.setSelectionRange(i.value.length, i.value.length);
+        }
+      });
+    }
   });
   document.addEventListener('change', (e) => {
     const t = e.target as HTMLInputElement;

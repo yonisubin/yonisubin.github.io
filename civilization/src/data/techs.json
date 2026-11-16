@@ -313,7 +313,7 @@
   "id": "astronomy",
   "name": "Astronomy",
   "era": 3,
-  "cost": 780,
+  "cost": 625,
   "prereqs": [
    "compass",
    "education"
@@ -324,7 +324,7 @@
   "id": "acoustics",
   "name": "Acoustics",
   "era": 3,
-  "cost": 780,
+  "cost": 625,
   "prereqs": [
    "education"
   ]
@@ -333,7 +333,7 @@
   "id": "banking",
   "name": "Banking",
   "era": 3,
-  "cost": 780,
+  "cost": 625,
   "prereqs": [
    "chivalry"
   ],
@@ -343,7 +343,7 @@
   "id": "printing_press",
   "name": "Printing Press",
   "era": 3,
-  "cost": 780,
+  "cost": 625,
   "prereqs": [
    "machinery",
    "theology"
@@ -353,7 +353,7 @@
   "id": "gunpowder",
   "name": "Gunpowder",
   "era": 3,
-  "cost": 780,
+  "cost": 625,
   "prereqs": [
    "physics",
    "steel"
@@ -363,7 +363,7 @@
   "id": "navigation",
   "name": "Navigation",
   "era": 3,
-  "cost": 1150,
+  "cost": 920,
   "prereqs": [
    "astronomy"
   ]
@@ -372,7 +372,7 @@
   "id": "architecture",
   "name": "Architecture",
   "era": 3,
-  "cost": 1150,
+  "cost": 920,
   "prereqs": [
    "printing_press",
    "banking"
@@ -382,7 +382,7 @@
   "id": "economics",
   "name": "Economics",
   "era": 3,
-  "cost": 1150,
+  "cost": 920,
   "prereqs": [
    "banking",
    "printing_press"
@@ -399,7 +399,7 @@
   "id": "metallurgy",
   "name": "Metallurgy",
   "era": 3,
-  "cost": 1150,
+  "cost": 920,
   "prereqs": [
    "gunpowder"
   ]
@@ -408,7 +408,7 @@
   "id": "chemistry",
   "name": "Chemistry",
   "era": 3,
-  "cost": 1150,
+  "cost": 920,
   "prereqs": [
    "gunpowder"
   ],
@@ -424,7 +424,7 @@
   "id": "archaeology",
   "name": "Archaeology",
   "era": 4,
-  "cost": 1600,
+  "cost": 1090,
   "prereqs": [
    "navigation",
    "acoustics"
@@ -434,7 +434,7 @@
   "id": "scientific_theory",
   "name": "Scientific Theory",
   "era": 4,
-  "cost": 1600,
+  "cost": 1090,
   "prereqs": [
    "acoustics",
    "economics"
@@ -444,7 +444,7 @@
   "id": "industrialization",
   "name": "Industrialization",
   "era": 4,
-  "cost": 1600,
+  "cost": 1090,
   "prereqs": [
    "economics",
    "metallurgy"
@@ -454,7 +454,7 @@
   "id": "rifling",
   "name": "Rifling",
   "era": 4,
-  "cost": 1600,
+  "cost": 1090,
   "prereqs": [
    "metallurgy",
    "navigation"
@@ -464,7 +464,7 @@
   "id": "military_science",
   "name": "Military Science",
   "era": 4,
-  "cost": 1600,
+  "cost": 1090,
   "prereqs": [
    "chemistry",
    "economics"
@@ -474,7 +474,7 @@
   "id": "fertilizer",
   "name": "Fertilizer",
   "era": 4,
-  "cost": 1600,
+  "cost": 1090,
   "prereqs": [
    "chemistry",
    "architecture"
@@ -491,7 +491,7 @@
   "id": "biology",
   "name": "Biology",
   "era": 4,
-  "cost": 2200,
+  "cost": 1495,
   "prereqs": [
    "archaeology",
    "scientific_theory"
@@ -501,7 +501,7 @@
   "id": "electricity",
   "name": "Electricity",
   "era": 4,
-  "cost": 2200,
+  "cost": 1495,
   "prereqs": [
    "scientific_theory",
    "metallurgy"
@@ -511,7 +511,7 @@
   "id": "steam_power",
   "name": "Steam Power",
   "era": 4,
-  "cost": 2200,
+  "cost": 1495,
   "prereqs": [
    "industrialization",
    "scientific_theory"
@@ -521,7 +521,7 @@
   "id": "dynamite",
   "name": "Dynamite",
   "era": 4,
-  "cost": 2200,
+  "cost": 1495,
   "prereqs": [
    "fertilizer",
    "rifling"
@@ -531,7 +531,7 @@
   "id": "refrigeration",
   "name": "Refrigeration",
   "era": 5,
-  "cost": 2600,
+  "cost": 1510,
   "prereqs": [
    "electricity",
    "fertilizer"
@@ -541,7 +541,7 @@
   "id": "radio",
   "name": "Radio",
   "era": 5,
-  "cost": 2600,
+  "cost": 1510,
   "prereqs": [
    "electricity"
   ]
@@ -550,7 +550,7 @@
   "id": "replaceable_parts",
   "name": "Replaceable Parts",
   "era": 5,
-  "cost": 2600,
+  "cost": 1510,
   "prereqs": [
    "electricity",
    "steam_power",
@@ -561,7 +561,7 @@
   "id": "flight",
   "name": "Flight",
   "era": 5,
-  "cost": 2600,
+  "cost": 1510,
   "prereqs": [
    "steam_power",
    "electricity"
@@ -571,7 +571,7 @@
   "id": "railroad",
   "name": "Railroad",
   "era": 5,
-  "cost": 2600,
+  "cost": 1510,
   "prereqs": [
    "steam_power",
    "dynamite"
@@ -581,7 +581,7 @@
   "id": "plastics",
   "name": "Plastics",
   "era": 5,
-  "cost": 3100,
+  "cost": 1800,
   "prereqs": [
    "refrigeration",
    "biology"
@@ -591,7 +591,7 @@
   "id": "electronics",
   "name": "Electronics",
   "era": 5,
-  "cost": 3100,
+  "cost": 1800,
   "prereqs": [
    "radio",
    "replaceable_parts"
@@ -601,7 +601,7 @@
   "id": "ballistics",
   "name": "Ballistics",
   "era": 5,
-  "cost": 3100,
+  "cost": 1800,
   "prereqs": [
    "replaceable_parts",
    "railroad"
@@ -611,7 +611,7 @@
   "id": "combustion",
   "name": "Combustion",
   "era": 5,
-  "cost": 3100,
+  "cost": 1800,
   "prereqs": [
    "railroad",
    "dynamite"
@@ -622,7 +622,7 @@
   "id": "penicillin",
   "name": "Penicillin",
   "era": 6,
-  "cost": 3600,
+  "cost": 1870,
   "prereqs": [
    "plastics",
    "electronics"
@@ -632,7 +632,7 @@
   "id": "atomic_theory",
   "name": "Atomic Theory",
   "era": 6,
-  "cost": 3600,
+  "cost": 1870,
   "prereqs": [
    "electronics",
    "combustion"
@@ -642,7 +642,7 @@
   "id": "radar",
   "name": "Radar",
   "era": 6,
-  "cost": 3600,
+  "cost": 1870,
   "prereqs": [
    "flight",
    "electronics"
@@ -652,7 +652,7 @@
   "id": "combined_arms",
   "name": "Combined Arms",
   "era": 6,
-  "cost": 3600,
+  "cost": 1870,
   "prereqs": [
    "combustion",
    "ballistics"
@@ -662,7 +662,7 @@
   "id": "ecology",
   "name": "Ecology",
   "era": 6,
-  "cost": 4100,
+  "cost": 2130,
   "prereqs": [
    "penicillin",
    "plastics"
@@ -672,7 +672,7 @@
   "id": "nuclear_fission",
   "name": "Nuclear Fission",
   "era": 6,
-  "cost": 4100,
+  "cost": 2130,
   "prereqs": [
    "atomic_theory",
    "combined_arms"
@@ -682,7 +682,7 @@
   "id": "rocketry",
   "name": "Rocketry",
   "era": 6,
-  "cost": 4100,
+  "cost": 2130,
   "prereqs": [
    "radar",
    "ballistics"
@@ -692,7 +692,7 @@
   "id": "computers",
   "name": "Computers",
   "era": 6,
-  "cost": 4100,
+  "cost": 2130,
   "prereqs": [
    "radar",
    "atomic_theory"
@@ -702,7 +702,7 @@
   "id": "telecommunications",
   "name": "Telecommunications",
   "era": 7,
-  "cost": 4700,
+  "cost": 2115,
   "prereqs": [
    "computers"
   ],
@@ -712,7 +712,7 @@
   "id": "mobile_tactics",
   "name": "Mobile Tactics",
   "era": 7,
-  "cost": 4700,
+  "cost": 2115,
   "prereqs": [
    "computers",
    "nuclear_fission"
@@ -722,7 +722,7 @@
   "id": "advanced_ballistics",
   "name": "Advanced Ballistics",
   "era": 7,
-  "cost": 4700,
+  "cost": 2115,
   "prereqs": [
    "rocketry",
    "nuclear_fission"
@@ -732,7 +732,7 @@
   "id": "satellites",
   "name": "Satellites",
   "era": 7,
-  "cost": 4700,
+  "cost": 2115,
   "prereqs": [
    "rocketry",
    "ecology"
@@ -743,7 +743,7 @@
   "id": "robotics",
   "name": "Robotics",
   "era": 7,
-  "cost": 5300,
+  "cost": 2385,
   "prereqs": [
    "computers",
    "rocketry"
@@ -753,7 +753,7 @@
   "id": "lasers",
   "name": "Lasers",
   "era": 7,
-  "cost": 5300,
+  "cost": 2385,
   "prereqs": [
    "computers",
    "nuclear_fission"
@@ -763,7 +763,7 @@
   "id": "globalization",
   "name": "Globalization",
   "era": 7,
-  "cost": 5300,
+  "cost": 2385,
   "prereqs": [
    "telecommunications",
    "ecology"
@@ -774,7 +774,7 @@
   "id": "particle_physics",
   "name": "Particle Physics",
   "era": 7,
-  "cost": 5900,
+  "cost": 2655,
   "prereqs": [
    "satellites",
    "robotics"
@@ -784,7 +784,7 @@
   "id": "nuclear_fusion",
   "name": "Nuclear Fusion",
   "era": 7,
-  "cost": 5900,
+  "cost": 2655,
   "prereqs": [
    "lasers",
    "particle_physics"
@@ -794,7 +794,7 @@
   "id": "nanotechnology",
   "name": "Nanotechnology",
   "era": 7,
-  "cost": 5900,
+  "cost": 2655,
   "prereqs": [
    "particle_physics",
    "robotics"
@@ -804,7 +804,7 @@
   "id": "stealth",
   "name": "Stealth",
   "era": 7,
-  "cost": 5900,
+  "cost": 2655,
   "prereqs": [
    "lasers",
    "robotics"
@@ -814,7 +814,7 @@
   "id": "future_tech",
   "name": "Future Tech",
   "era": 7,
-  "cost": 6500,
+  "cost": 2925,
   "prereqs": [
    "globalization",
    "nuclear_fusion",

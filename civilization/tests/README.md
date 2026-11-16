@@ -26,6 +26,7 @@ Playwright is not a dependency; install it once if needed:
 | `phase12.test.cjs` | World Congress founding, delegates, proposals and votes, resolutions in force, the UN and diplomatic victory, spies stealing technology |
 | `phase13.test.cjs` | all 16 map types generate playable worlds (Terra, Highlands, Ice Age, Earth checks), and the advanced options take effect |
 | `net.test.cjs` | online: relay server, lobby, ready-up, chat, simultaneous and sequential turns across two browsers with matching states, a player dropping out |
+| `phase15.test.cjs` | every encyclopedia entry has an article, advisor hints, sound settings, unit slides and damage numbers (and the quick switches), late-game tech pace |
 | `phase14.test.cjs` | hotseat: seats, the pass-the-device cover, turn order (AI after the last seat), human↔human peace, saves keep seats |
 | `ui.test.cjs` | Play now, B founds a city, End Turn prompts for research then production, the turn runs in the worker, tooltips, tech tree |
 

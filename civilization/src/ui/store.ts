@@ -4,7 +4,7 @@ import { createStore } from 'zustand/vanilla';
 import type { Deal, GameState } from '../core/state';
 import type { NetUI } from '../net/session';
 
-export type Panel = 'none' | 'chat' | 'tech' | 'relations' | 'menu' | 'help' | 'victory' | 'policies' | 'leader' | 'trade' | 'citystate' | 'religion' | 'prophet' | 'routes' | 'culture' | 'congress' | 'spies';
+export type Panel = 'none' | 'chat' | 'pedia' | 'tech' | 'relations' | 'menu' | 'help' | 'victory' | 'policies' | 'leader' | 'trade' | 'citystate' | 'religion' | 'prophet' | 'routes' | 'culture' | 'congress' | 'spies';
 
 export interface UIState {
   game: GameState | null;
@@ -37,6 +37,10 @@ export interface UIState {
   passTo: number | null;
   /** Online game / lobby (null: not connected). */
   net: NetUI | null;
+  /** Encyclopedia: category, entry and search text. */
+  pediaCat: string;
+  pediaId: string;
+  pediaQuery: string;
 }
 
 export const store = createStore<UIState>()(() => ({
@@ -63,6 +67,9 @@ export const store = createStore<UIState>()(() => ({
   votes: null,
   passTo: null,
   net: null,
+  pediaCat: 'concepts',
+  pediaId: '',
+  pediaQuery: '',
 }));
 
 export const ui = () => store.getState();
