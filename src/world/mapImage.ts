@@ -195,7 +195,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, layout: CityLayout, x: number
   }
 }
 
-export type MarkerKind = 'car' | 'heli' | 'boat' | 'traffic' | 'shop' | 'giver' | 'objective' | 'hospital' | 'waypoint' | 'police' | 'cop';
+export type MarkerKind = 'car' | 'heli' | 'boat' | 'traffic' | 'shop' | 'giver' | 'objective' | 'hospital' | 'waypoint' | 'police' | 'cop' | 'story';
 
 /**
  * A map symbol at (x, z) in world units; `px` is the size of one screen pixel in world units,
@@ -225,6 +225,15 @@ export function drawMarker(ctx: CanvasRenderingContext2D, kind: MarkerKind, x: n
     case 'giver':
       disc(6, '#ffd60a');
       letter('!', 10);
+      return;
+    case 'story':
+      // A gold star in a dark disc: a story character with a mission for you.
+      disc(7, '#1c1c1e');
+      ctx.fillStyle = '#ffcf33';
+      ctx.font = `bold ${12 * px}px system-ui,sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('★', x, z + 0.5 * px);
       return;
     case 'hospital':
       // White disc with a red cross.

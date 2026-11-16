@@ -57,7 +57,9 @@ run('sound: start, driving + radio, cleanup, hidden tab, mute', async ({ page },
   });
   t.ok('a hidden tab suspends the audio, showing it resumes', hidden.whileHidden === 'suspended' && hidden.back === 'running', JSON.stringify(hidden));
   await page.keyboard.press('KeyN');
-  await page.waitForTimeout(1200);
+  // The key is handled on the next rendered frame (a few per second headless): wait for it.
+  await page.waitForFunction(() => window.game.sound.muted, null, { timeout: 30000 });
+  await page.waitForTimeout(600);
   const muted = await page.evaluate(() => ({ muted: window.game.sound.muted, level: window.__level(), saved: JSON.parse(localStorage.getItem('opencity.audio')).muted }));
   t.ok('N mutes (silence) and the setting is saved', muted.muted && muted.level < 0.0005 && muted.saved, JSON.stringify(muted));
 });

@@ -51,6 +51,8 @@ export interface JobHooks {
   /** Height you'd stand at. */
   surface(x: number, z: number): number;
   toast(text: string, seconds?: number): void;
+  /** Something else going on that rules out starting a shift (a reason), or null. */
+  blocked?(): string | null;
 }
 
 export class Jobs {
@@ -99,6 +101,11 @@ export class Jobs {
     const v = this.hooks.vehicle();
     if (!v?.kind) {
       this.hooks.toast('Get in a taxi, an ambulance or a van to work a shift', 2.5);
+      return;
+    }
+    const blocked = this.hooks.blocked?.();
+    if (blocked) {
+      this.hooks.toast(blocked, 2.5);
       return;
     }
     this.kind = v.kind;

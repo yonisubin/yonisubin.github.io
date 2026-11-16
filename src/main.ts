@@ -40,6 +40,12 @@ import { Wanted } from './game/wanted';
 import { Police } from './npc/police';
 import { Jobs, type JobKind } from './game/jobs';
 import { Sound } from './audio/sound';
+import { SceneUI } from './ui/scene';
+import { Phone } from './ui/phone';
+import { StoryDirector } from './story/director';
+import { resolvePlaces } from './story/places';
+import { CHARACTERS, MISSIONS, PROPS, discount } from './story/script';
+import type { VehicleKind } from './story/steps';
 import { SoundDirector } from './audio/director';
 import { WATER_Y } from './world/terrain';
 import { DebugOverlay } from './ui/debug';
@@ -322,6 +328,7 @@ async function main(): Promise<void> {
     hud.hurt(amount);
     // In a vehicle, damage is (almost always) a crash.
     if (player.mode && player.mode !== onFoot && amount >= 3) sound.crash(null, amount / 40);
+    if (player.mode && player.mode !== onFoot && amount >= 5) story.noteCrash();
     if (player.mode === onFoot) onFoot.hurt();
   });
   stats.onDeath(() => {
@@ -333,6 +340,7 @@ async function main(): Promise<void> {
     wanted.clear();
     police.reset();
     jobs.end('you were knocked out');
+    story.playerDown('You were knocked out');
     window.setTimeout(() => {
       stats.respawn();
       onFoot.standUp();
@@ -381,7 +389,8 @@ async function main(): Promise<void> {
         },
         // Hurting people is a crime; hurting an officer is a bigger one.
         hurt: (ped, knockedOut) => {
-          wanted.crime(ped.cop ? 'police' : knockedOut ? 'knockout' : 'assault');
+          // Thugs in a story mission started it: hurting them isn't a crime.
+          if (!ped.goon) wanted.crime(ped.cop ? 'police' : knockedOut ? 'knockout' : 'assault');
           if (knockedOut) sound.oof(ped.currPos);
         },
         cop: {
@@ -394,7 +403,8 @@ async function main(): Promise<void> {
           },
           arrest: () => busted(),
         },
-      }, touch ? 3 : 4)
+        goonDown: () => story.noteGoonDown(),
+      }, touch ? 3 : 4, 4)
     : null;
   if (pedestrians) entities.push(pedestrians);
 
@@ -491,6 +501,8 @@ async function main(): Promise<void> {
     hospital: (x, z) => places.nearestHospital(x, z).door,
     surface,
     toast: (text, seconds) => hud.toast(text, seconds),
+    // A story mission may ask for a taxi fare; otherwise no shifts during one.
+    blocked: () => (story.active && story.debugStep?.kind !== 'fare' ? 'Finish the story mission first' : null),
   });
   entities.push({ fixedUpdate: (dt) => jobs.fixedUpdate(dt), afterStep: () => {}, render: () => {} });
   wanted.witnessed = () => police.witnesses(playerPosition());
@@ -516,6 +528,7 @@ async function main(): Promise<void> {
     input.setBlocked(true);
     hud.setFade(true, 'BUSTED');
     jobs.end('busted');
+    story.playerDown('You were busted');
     window.setTimeout(() => {
       bustedPending = false;
       // Shot dead during the fade: the hospital respawn (stats.onDeath) takes over.
@@ -558,6 +571,7 @@ async function main(): Promise<void> {
       isSwimming: () => player.mode === onFoot && onFoot.swimming,
       isOnFoot: () => player.mode === onFoot,
       ground: (x, z) => city.terrain.heightAt(x, z),
+      blocked: () => story.active !== null,
     },
   );
   entities.push(missions);
@@ -604,6 +618,90 @@ async function main(): Promise<void> {
     : null;
   if (picker && !hasSavedLook()) picker.open();
 
+  // Story mode (story/): characters, missions, dialogue scenes, the phone, the world
+  // changing as it goes. Places are resolved now that every building and vehicle exists.
+  const sceneUI = new SceneUI(camera, input, () => onFoot.feet(new THREE.Vector3()), touch, (open) => hud.hideClickToPlay(open));
+  const phone = new Phone(() => sound.chime());
+  const lakeBoat = boats.find((b) => Math.hypot(b.interp.currPos.x - LAKE.x, b.interp.currPos.z - LAKE.z) < 700) ?? boats[0];
+  const storyPlaces = resolvePlaces({
+    layout: city.layout,
+    terrain: city.terrain,
+    spawn: city.spawn,
+    helipad: heliStart,
+    police: places.police.map((p) => p.spawn),
+    storeDoors: shop.doors,
+    lakeBoat: lakeBoat.interp.currPos,
+    water: (x, z) => water.surfaceAt(x, z),
+  });
+  const vehicleKindOf = (): VehicleKind | null => {
+    const car = cars.find((c) => c.mode === player.mode);
+    if (car) return car.type === 'taxi' ? 'taxi' : 'car';
+    if (player.mode === flying) return 'heli';
+    if (boats.some((b) => b.mode === player.mode)) return 'boat';
+    return null;
+  };
+  const story = new StoryDirector({
+    scene,
+    library,
+    places: storyPlaces,
+    characters: CHARACTERS,
+    missions: MISSIONS,
+    props: PROPS,
+    playerPos: () => playerPosition(),
+    mode: () => {
+      const k = vehicleKindOf();
+      return k === null ? 'foot' : k === 'taxi' ? 'car' : k;
+    },
+    vehicle: vehicleKindOf,
+    speed: () => {
+      const v = playerVehicle()?.body.linvel();
+      return v ? Math.hypot(v.x, v.z) : 0;
+    },
+    nearestVehicle: (kind) => {
+      const from = playerPosition();
+      const list =
+        kind === 'heli'
+          ? [heli.interp.currPos]
+          : kind === 'boat'
+            ? boats.map((b) => b.interp.currPos)
+            : cars.filter((c) => !c.gone && (kind === 'car' || c.type === 'taxi')).map((c) => c.interp.currPos);
+      let best: THREE.Vector3 | null = null;
+      for (const p of list) if (!best || p.distanceTo(from) < best.distanceTo(from)) best = p;
+      return best;
+    },
+    traffic,
+    wanted,
+    peds: pedestrians,
+    stats,
+    terrain: city.terrain,
+    net: city.layout.streets.net,
+    router: navigator.router,
+    water: (x, z) => water.surfaceAt(x, z),
+    faresDone: () => jobs.record.taxi?.done ?? 0,
+    endJob: () => jobs.end(),
+    pay: (amount) => (stats.money += amount),
+    navigator,
+    sceneUI,
+    phoneUI: phone,
+    notify: (text, seconds) => hud.toast(text, seconds),
+    busy: () => (missions.active ? 'the current mission' : jobs.active ? 'your shift (press J)' : null),
+    onChange: (state) => (stats.priceFactor = discount(state) ? 0.85 : 1),
+  });
+  entities.push(story);
+  onFoot.interactables.push(...story.interactables);
+  fullMap.addButton('✉ Messages', 'top:max(12px, env(safe-area-inset-top));left:max(12px, env(safe-area-inset-left))', () => phone.toggleLog());
+  // While the prologue runs, a button to skip it.
+  const skipPrologue = document.createElement('button');
+  skipPrologue.textContent = 'Skip prologue ⏭';
+  skipPrologue.style.cssText =
+    'position:fixed;z-index:21;right:max(12px, env(safe-area-inset-right));bottom:max(150px, calc(env(safe-area-inset-bottom) + 150px));padding:7px 12px;border:0;border-radius:10px;background:rgba(0,0,0,0.55);color:#fff;font:600 13px system-ui,sans-serif;cursor:pointer;display:none';
+  skipPrologue.addEventListener('pointerdown', (e) => e.stopPropagation());
+  skipPrologue.addEventListener('click', (e) => {
+    e.stopPropagation();
+    story.skipPrologue();
+  });
+  document.body.appendChild(skipPrologue);
+
   // Saved progress (game/save.ts): restore it now, then keep saving as you play.
   const saved = loadSave();
   if (saved) {
@@ -616,6 +714,11 @@ async function main(): Promise<void> {
     city.streamer.loadAround(spot, 450);
     onFoot.placeAt(spot, heading, heading);
     if (saved.waypoint) navigator.setWaypoint(saved.waypoint.x, saved.waypoint.z);
+    if (saved.story) story.load(saved.story);
+  } else if (localStorage.getItem('opencity.noPrologue') !== '1') {
+    // A brand-new game starts with the story's prologue. (Automated tests set
+    // opencity.noPrologue so a scene can't pop up in the middle of an unrelated check.)
+    story.startPrologue();
   }
   const autosave = new Autosave(() => {
     if (stats.dead) return; // mid-respawn: wait for the hospital
@@ -634,6 +737,7 @@ async function main(): Promise<void> {
       player: { x, z, heading: onFoot.facingYaw },
       hours: dayNight.hours,
       waypoint: navigator.waypoint && navigator.owner === 'user' ? { x: navigator.waypoint.x, z: navigator.waypoint.z } : null,
+      story: story.toJSON(),
     });
   });
   fullMap.onNewGame = () => {
@@ -668,7 +772,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { RAPIER, scene, fullMap, sound, director, jobs, navigator, autosave, wanted, police, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { RAPIER, scene, fullMap, story, sceneUI, phone, sound, director, jobs, navigator, autosave, wanted, police, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -760,6 +864,12 @@ async function main(): Promise<void> {
     smoke.update(frameTime);
     dialogue?.update(frameTime, mode.focus());
     picker?.update(frameTime); // after the player's camera: it takes over the view while open
+    story.render(frameTime);
+    sceneUI.update(frameTime); // also takes the camera over (a two-shot) while a scene plays
+    phone.update(frameTime);
+    if (!fullMap.isOpen && phone.logIsOpen) phone.toggleLog(false);
+    const showSkip = story.inPrologue && story.active !== null ? '' : 'none';
+    if (skipPrologue.style.display !== showSkip) skipPrologue.style.display = showSkip;
     // Directions: roads when driving or walking, a straight line in the air or on the water.
     const here = mode.focus();
     navigator.update(frameTime, here.x, here.z, mode === onFoot ? 'walk' : mode.name === 'Driving' ? 'drive' : 'direct');
@@ -815,6 +925,9 @@ async function main(): Promise<void> {
       c.beacons.blue.color.setHex(on && !flashOn ? 0x2050ff : 0x111a55);
     }
     const markers = mapMarkers();
+    const storyMarks = story.markers();
+    for (const position of storyMarks.stars) markers.push({ kind: 'story', position });
+    if (storyMarks.objective) markers.push({ kind: 'objective', position: storyMarks.objective });
     if (navigator.waypoint) markers.push({ kind: 'waypoint', position: new THREE.Vector3(navigator.waypoint.x, 0, navigator.waypoint.z) });
     minimap.update(mode.focus(), camera.getWorldDirection(viewDir), markers, dayNight.clock);
     fullMap.update(mode.focus(), viewDir, markers);

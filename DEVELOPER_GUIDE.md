@@ -836,6 +836,19 @@ All UI is plain DOM elements styled inline. A UI framework would be a dependency
 
 **To add a sound:** add a method to `Sound`, using `oneShot(at, volume, build)` (`at` = null for non-positional), and call it where the event happens in main.ts. Continuous sounds belong in `SoundDirector`.
 
+### 7.13 Story mode (`story/`, `ui/scene.ts`, `ui/phone.ts`)
+
+"Kane County" is a crime-rise campaign: 16 missions (a 3-mission prologue, three acts and a finale), 7 characters, dialogue scenes with choices, phone calls and texts, and a world that changes with the story. The full reference is `docs/CODEBASE.md` §10; here is the why.
+
+- **The story is data.** `story/script.ts` holds the characters, missions (lists of steps), lines, choices, phone messages and props. Conditions are plain TypeScript functions (`done('m4')`, `flag('hank', 'warned')`), so typos are type errors and there is no mini-language to learn. Adding story means editing that one file.
+- **Steps are the building blocks.** About 20 kinds (`goto`, `drive`, `jack`, `wreck`, `follow`, `gates`, `rings`, `buoys`, `goons`, `fare`, `scene`, …) in `story/steps.ts`. Steps only see the game through the `StoryCtx` interface, so they never import `main.ts` and can be driven by the tests.
+- **One activity at a time.** Story missions, side missions and job shifts block each other (`blocked()` hooks), except that a story `fare` step needs a taxi shift.
+- **The prologue teaches the game.** It starts by itself on a new game (walk to the garage with the route line, drive, a taxi fare, the gun store) and can be skipped. Existing saves are untouched: Rico's ★ simply appears. Tests turn the auto-start off with `localStorage['opencity.noPrologue']`.
+- **Choices matter.** Warning or scaring Hank decides whether m12 exists and how his farm looks; Jules quits or stays; the ending is clean or rich. Each shows in later lines, phone messages and props.
+- **Scenes** take the input-block counter, release the mouse and frame the two people with a camera on the street side (behind characters there are walls and signs: the first version filmed Rico through the garage sign).
+- **Goons** are a third pool in `npc/pedestrians.ts`: hostile, never flee, and hurting them is not a crime.
+- **What's saved:** missions done, flags and the phone log. A mission in progress is not saved; you start it again from its giver.
+
 ## 8. People: characters, animation, recolouring
 
 This was the most recent and most involved piece of work.
@@ -1087,6 +1100,8 @@ A whole-repo audit found 20 issues (and 7 smaller ones). They were fixed with a 
 | Change which clip plays for an action | `player/character.ts` (`ONE_SHOTS`, aims) |
 | Add or replace characters | `scripts/build-quaternius.mjs` (`CHARACTERS`, `OVERRIDES`), then `npm run build:quaternius` |
 | Change chat lines | `ui/dialogue.ts` |
+| Write story: missions, lines, choices, phone messages, signs | `story/script.ts` (data only); a new kind of mission step goes in `story/steps.ts` |
+| Move a story place | `story/places.ts` (`APPROX` points) |
 | Add a new player mode | implement `PlayerMode` (`player/state.ts`) and switch to it with `player.setMode()` |
 | Add a new simulated thing | implement `SimEntity` (`sim/entity.ts`) and push it into `entities` in `main.ts` |
 

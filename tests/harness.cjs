@@ -9,12 +9,15 @@ const { chromium } = require('playwright');
 const URL = process.env.GAME_URL || 'http://localhost:4173/';
 
 /** A saved look, so the character picker doesn't open on first visit and block input. */
-function seedStorage() {
+function seedStorage(prologue) {
   localStorage.setItem('city.look.v1', JSON.stringify({ id: 'm_casual', skin: 3, hair: 0, outfit: 2, height: 1.78 }));
+  // No story prologue popping up during unrelated checks (story.test.cjs asks for it).
+  if (!prologue) localStorage.setItem('opencity.noPrologue', '1');
 }
 
 /**
- * Open the game. Options: `people` (wait until every pedestrian model has loaded),
+ * Open the game. Options: `people` (wait until every pedestrian model has loaded), `prologue`
+ * (let a new game start the story's prologue, as it does for players),
  * `viewport`, `context` (extra Playwright context options), `args` (extra browser args).
  */
 async function openGame(options = {}) {
@@ -25,7 +28,7 @@ async function openGame(options = {}) {
   // browser keeps Node alive, and the test would hang instead of failing.
   try {
     const context = await browser.newContext({ viewport: options.viewport ?? { width: 640, height: 400 }, ...(options.context ?? {}) });
-    await context.addInitScript(seedStorage);
+    await context.addInitScript(seedStorage, !!options.prologue);
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));

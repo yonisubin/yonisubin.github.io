@@ -10,6 +10,7 @@ import type { PlayerStats } from './stats';
 import { BLOCK_SIZE, MID, VILLAGES, WORLD_HALF, lineCoord, type Block, type Building, type CityLayout, type Zone } from '../world/layout';
 import { ROAD_SPECS, type StreetEdge } from '../world/streets';
 import { WATER_Y } from '../world/terrain';
+import { GATE_RADIUS, RING_RADIUS, arrowMesh, beaconMesh, buoyMesh, flagMesh, gateMesh, packageMesh, ringMesh } from './objectives';
 
 // Missions, handed out by three characters who stand at fixed spots with a "!" over their
 // heads. They don't walk about and can't be hurt: they aren't pedestrians at all, just a
@@ -61,11 +62,9 @@ interface Mission {
 
 const DELIVERY_RADIUS = 6; // m
 const PACKAGE_RADIUS = 3; // m
-const RING_RADIUS = 7; // m, inner radius of a sky ring (fly through the middle)
 /** Every ring keeps this far from buildings and the ground: the ring itself plus room to fly round it. */
 const RING_CLEARANCE = RING_RADIUS + 8;
 const BUOY_RADIUS = 4; // m: swim this close to a buoy to tag it
-const GATE_RADIUS = 9; // m: drive through a race gate within this distance of its centre
 const FLAG_RADIUS = 4; // m: walk up to a summit flag
 const GIVER_RADIUS = 2.6; // m, how close to stand to talk to a giver
 /** The givers further out: where (a point; they stand on the nearest street's sidewalk), who, and what. */
@@ -91,6 +90,8 @@ export interface MissionHooks {
   isOnFoot(): boolean;
   /** Ground height (no sidewalks) at (x, z). */
   ground(x: number, z: number): number;
+  /** Something else going on (a story mission) that rules out taking a job here. */
+  blocked?(): boolean;
 }
 
 /** "!" badge for the markers. */
@@ -212,22 +213,16 @@ export class Missions implements SimEntity {
         label: () => 'mission',
         position: () => giver.position,
         radius: GIVER_RADIUS,
-        available: () => this.mission === null && this.offer === null,
+        available: () => this.mission === null && this.offer === null && !this.hooks.blocked?.(),
         activate: () => this.makeOffer(giver),
       });
     });
 
     // --- Mission markers.
-    this.beacon = new THREE.Mesh(
-      new THREE.CylinderGeometry(DELIVERY_RADIUS * 0.6, DELIVERY_RADIUS * 0.6, 60, 24, 1, true).translate(0, 30, 0),
-      new THREE.MeshBasicMaterial({ color: 0xff3b5c, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }),
-    );
+    this.beacon = beaconMesh(DELIVERY_RADIUS * 0.6);
     this.beacon.visible = false;
     scene.add(this.beacon);
-    this.targetArrow = new THREE.Mesh(
-      new THREE.ConeGeometry(0.6, 1.2, 4).rotateX(Math.PI),
-      new THREE.MeshBasicMaterial({ color: 0xff3b5c }),
-    );
+    this.targetArrow = arrowMesh();
     this.targetArrow.visible = false;
     scene.add(this.targetArrow);
 
@@ -404,12 +399,8 @@ export class Missions implements SimEntity {
       m.timeLeft = 200;
       m.title = 'Package run — collect the packages';
       for (const p of m.points) {
-        const box = new THREE.Mesh(
-          new THREE.BoxGeometry(0.6, 0.45, 0.5),
-          new THREE.MeshStandardMaterial({ color: 0xb98a52, emissive: 0xffb347, emissiveIntensity: 0.35 }),
-        );
+        const box = packageMesh();
         box.position.copy(p).add(new THREE.Vector3(0, 0.45, 0));
-        box.castShadow = true;
         this.scene.add(box);
         this.packageMeshes.push(box);
       }
@@ -441,10 +432,7 @@ export class Missions implements SimEntity {
       m.title = 'Country race — drive through the first gate';
       for (let i = 0; i < m.points.length; i++) {
         const next = m.points[i + 1] ?? m.points[i - 1];
-        const gate = new THREE.Mesh(
-          new THREE.TorusGeometry(GATE_RADIUS * 0.8, 0.35, 8, 36),
-          new THREE.MeshBasicMaterial({ color: 0x4cd964, transparent: true, opacity: 0.85 }),
-        );
+        const gate = gateMesh();
         gate.position.copy(m.points[i]).add(new THREE.Vector3(0, GATE_RADIUS * 0.8 - 0.5, 0));
         gate.lookAt(next.x, gate.position.y, next.z);
         this.scene.add(gate);
@@ -461,10 +449,7 @@ export class Missions implements SimEntity {
       m.title = 'Ring course — fly through the first ring';
       for (let i = 0; i < m.points.length; i++) {
         const next = m.points[i + 1] ?? m.points[i - 1];
-        const ring = new THREE.Mesh(
-          new THREE.TorusGeometry(RING_RADIUS, 0.45, 10, 40),
-          new THREE.MeshBasicMaterial({ color: 0xffd60a, transparent: true, opacity: 0.85 }),
-        );
+        const ring = ringMesh();
         ring.position.copy(m.points[i]);
         // Face along the course (the torus's hole is along its local Z).
         ring.lookAt(next.x, m.points[i].y, next.z);
@@ -876,31 +861,4 @@ const REWARDS: Record<MissionKind, { base: number; bonus: number }> = {
   longhaul: { base: 300, bonus: 1.5 }, // base is recomputed from the distance
 };
 
-/** A red-and-white marker buoy (origin at the waterline). */
-function buoyMesh(): THREE.Mesh {
-  const buoy = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.55, 0.7, 1.2, 14).translate(0, 0.3, 0),
-    new THREE.MeshStandardMaterial({ color: 0xe03a2f, roughness: 0.5, emissive: 0x401010 }),
-  );
-  const band = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.58, 0.58, 0.3, 14).translate(0, 0.55, 0),
-    new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5 }),
-  );
-  const light = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8).translate(0, 1.05, 0), new THREE.MeshBasicMaterial({ color: 0xffd60a }));
-  buoy.add(band, light);
-  return buoy;
-}
 
-/** A flag on a pole (origin at the foot of the pole). */
-function flagMesh(): THREE.Mesh {
-  const pole = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.05, 0.06, 3.2, 8).translate(0, 1.6, 0),
-    new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.5, roughness: 0.4 }),
-  );
-  const cloth = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.2, 0.75).translate(0.6, 2.75, 0),
-    new THREE.MeshStandardMaterial({ color: 0xff3b5c, emissive: 0x501020, side: THREE.DoubleSide }),
-  );
-  pole.add(cloth);
-  return pole;
-}

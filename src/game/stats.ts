@@ -82,6 +82,13 @@ export class PlayerStats implements SimEntity {
   readonly addons = new Set<string>();
   current: WeaponId = 'fists';
   dead = false;
+  /** Shop price multiplier (the story's friends-of-Dolores discount sets 0.85). */
+  priceFactor = 1;
+
+  /** What a list price costs you now (rounded to the dollar). */
+  price(list: number): number {
+    return Math.round(list * this.priceFactor);
+  }
 
   private sinceDamage = Infinity;
   private readonly damageListeners: ((amount: number) => void)[] = [];
@@ -125,8 +132,8 @@ export class PlayerStats implements SimEntity {
 
   buyWeapon(id: WeaponId): boolean {
     const w = WEAPONS[id];
-    if (this.owned.has(id) || this.money < w.price) return false;
-    this.money -= w.price;
+    if (this.owned.has(id) || this.money < this.price(w.price)) return false;
+    this.money -= this.price(w.price);
     this.owned.add(id);
     this.ammo[id] += w.startAmmo ?? 0;
     this.current = id;
@@ -138,8 +145,10 @@ export class PlayerStats implements SimEntity {
   }
 
   buyAddon(weapon: WeaponId, addon: AddonId): boolean {
-    const price = ADDONS[addon].price[weapon];
-    if (price === undefined || !this.owned.has(weapon) || this.hasAddon(weapon, addon) || this.money < price) return false;
+    const list = ADDONS[addon].price[weapon];
+    if (list === undefined) return false;
+    const price = this.price(list);
+    if (!this.owned.has(weapon) || this.hasAddon(weapon, addon) || this.money < price) return false;
     this.money -= price;
     this.addons.add(`${weapon}:${addon}`);
     return true;
@@ -147,8 +156,8 @@ export class PlayerStats implements SimEntity {
 
   buyApAmmo(id: WeaponId): boolean {
     const ap = AP_AMMO[id];
-    if (!ap || !this.owned.has(id) || this.money < ap.price) return false;
-    this.money -= ap.price;
+    if (!ap || !this.owned.has(id) || this.money < this.price(ap.price)) return false;
+    this.money -= this.price(ap.price);
     this.apAmmo[id] += ap.pack;
     return true;
   }
@@ -187,8 +196,8 @@ export class PlayerStats implements SimEntity {
 
   buyAmmo(id: WeaponId): boolean {
     const w = WEAPONS[id];
-    if (!w.ammoPrice || !this.owned.has(id) || this.money < w.ammoPrice) return false;
-    this.money -= w.ammoPrice;
+    if (!w.ammoPrice || !this.owned.has(id) || this.money < this.price(w.ammoPrice)) return false;
+    this.money -= this.price(w.ammoPrice);
     this.ammo[id] += w.ammoPack!;
     return true;
   }

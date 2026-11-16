@@ -22,7 +22,12 @@ Playwright is not a dependency of the game. Install it once if your machine does
 | `save.test.cjs` | progress survives a reload; corrupt or hostile saves fall back safely; New game |
 | `jobs.test.cjs` | taxi, ambulance and delivery shifts end to end |
 | `route.test.cjs` | A* is optimal (vs Dijkstra), off-road legs, trimming, re-routing, arrival |
+| `story.test.cjs` | the whole story campaign (all 16 missions, every step kind), choices → flags, props and phone messages, the gun-store discount, story progress after a reload, the scared-Hank branch, failure and retry, no jobs or side missions during a story mission, skip prologue, goons give no stars |
 | `sound.test.cjs` | audio starts on a click, plays when driving, one-shots clean up, a hidden tab suspends it, mute |
 
 `game.simulate(seconds)` runs physics steps immediately, so tests don't depend on the headless
 frame rate (a few frames per second). Tests that need wall-clock time (fades, audio) wait.
+
+New games normally start the story's prologue by themselves. The harness sets
+`localStorage['opencity.noPrologue'] = '1'` so tests start in free roam; pass
+`openGame({ prologue: true })` to keep the prologue.

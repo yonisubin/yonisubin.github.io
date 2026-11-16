@@ -20,8 +20,9 @@ tested on the code: numbers, names, call orders and rules here match the source 
 7. [Game systems and sound](#7-game-systems-and-sound)
 8. [The interface and the main loop](#8-the-interface-and-the-main-loop)
 9. [Build, deploy, scripts and tests](#9-build-deploy-scripts-and-tests)
-10. [Cross-cutting topics](#10-cross-cutting-topics)
-11. [Appendix: self-test](#11-appendix-self-test)
+10. [Story mode](#10-story-mode)
+11. [Cross-cutting topics](#11-cross-cutting-topics)
+12. [Appendix: self-test](#12-appendix-self-test)
 
 ---
 
@@ -38,7 +39,7 @@ Each file gets a subsection with the same parts:
 - **Internals**: the algorithms;
 - **Decisions**: what was chosen, why, and what was rejected.
 
-Each section ends with a short self-test, and §11 collects more questions across sections.
+Each section ends with a short self-test, and §12 collects more questions across sections.
 
 **Conventions used in the text.**
 - **Units** are SI unless stated: metres, seconds, kilograms, radians. **Y is up.** The world spans
@@ -74,8 +75,9 @@ Each section ends with a short self-test, and §11 collects more questions acros
 | **Heat / stars** | The wanted level: crimes add heat, and stars are its whole part (0–5) (§7). |
 | **Busted** | Arrested by the police: fined and moved to a police station (§6, §7, §8). |
 | **Hooks** | Small objects of callbacks passed into a system so it can ask the game for things (player position, damage the player…) without importing `main.ts`. The main decoupling pattern here (§2.4). |
-| **Input block** | A counter in `Input`: while above 0, gameplay sees no input (menus, fades) (§5, §10.4). |
-| **Deterministic** | The same seed (1337) always produces the same world; each cell has its own random stream (§3, §10.2). |
+| **Input block** | A counter in `Input`: while above 0, gameplay sees no input (menus, fades) (§5, §11.4). |
+| **Story mode** | The campaign in `src/story/`: characters with a gold ★ offer missions made of steps; dialogue scenes, phone messages and world props follow your choices (§10). |
+| **Deterministic** | The same seed (1337) always produces the same world; each cell has its own random stream (§3, §11.2). |
 
 ---
 
@@ -210,7 +212,7 @@ flowchart TD
 | Deterministic generation, one random stream per cell | The same world every visit, and chunks can be built in any order. |
 
 The cross-cutting consequences (heights, determinism, budgets, input blocking, disposal) are
-gathered in §10.
+gathered in §11.
 
 ---
 
@@ -6844,12 +6846,390 @@ No `sound.ctx` before a click; after a mouse click the context is `running`; an 
 
 ---
 
-## 10. Cross-cutting topics
+## 10. Story mode
+
+"Kane County" is the game's story: a crime-rise campaign of 16 missions (a 3-mission prologue,
+then Acts 1–3 and a finale) told through 7 characters, dialogue scenes with choices, phone
+calls and texts, and a world that changes as the story moves on.
+
+- **Data, not code.** The story is written as data in `story/script.ts`. A small engine in `story/` runs it:
+  - the director (`director.ts`) decides what's on offer and runs the current mission;
+  - each mission is a list of steps (`steps.ts`), drawn from a fixed set of kinds;
+  - the cast (`cast.ts`) places the characters;
+  - the world (`world.ts`) shows signs and props;
+  - two UI pieces (`ui/scene.ts`, `ui/phone.ts`) present scenes and messages.
+- **Writing more story means editing the script only.**
+- **How it starts:**
+  - **A new game** (no save) starts the prologue automatically, at the bus stop.
+  - **An existing save** keeps playing as before; Rico's ★ simply appears.
+  - **Story missions** are offered by characters with a gold ★: walk up and press E.
+
+```mermaid
+flowchart TD
+  SCRIPT["story/script.ts: characters, missions, lines, choices, phone, props"]
+  TYPES["story/types.ts: the data types"]
+  PLACES["story/places.ts: named places to real spots"]
+  DIR["story/director.ts: offers, running mission, fail and retry, save"]
+  STEPS["story/steps.ts: one class per step kind"]
+  CAST["story/cast.ts: characters and stars"]
+  WORLD["story/world.ts: signs, banners, boards, crops"]
+  SCENE["ui/scene.ts: dialogue scenes"]
+  PHONE["ui/phone.ts: calls, texts, log"]
+  OBJ["game/objectives.ts: marker meshes"]
+  MAIN["main.ts: hooks, save, map, HUD"]
+  SCRIPT --> DIR
+  TYPES --> SCRIPT
+  PLACES --> DIR
+  DIR --> STEPS
+  DIR --> CAST
+  DIR --> WORLD
+  DIR --> SCENE
+  DIR --> PHONE
+  STEPS --> OBJ
+  MAIN -->|StoryDeps hooks| DIR
+  DIR -->|onChange: price discount| MAIN
+```
+
+### 10.1 The story
+
+**Premise.** You arrive by bus with your cousin Rico's number.
+- Rico owes money to Victor Kane, a developer buying up the county.
+- Dolores, who runs the diner and the neighbourhood, takes you under her wing.
+- You rise from repo jobs to Kane's driver, discover he set up a robbery to pin on you, and bring him down with Detective Nina Park, or take his money.
+
+| id | Title | Act | Giver | Requires | Steps (kinds) | Reward |
+|---|---|---|---|---|---|---|
+| p1 | Off the Bus | Prologue | none (starts by itself) | none | wait, phone, goto garage on foot, scene | $50 |
+| p2 | Test Drive | Prologue | Rico | p1 | scene, enter car, drive to the customer (0 crashes), goto garage, scene | $100 |
+| p3 | Pocket Money | Prologue | Dolores | p2 | scene, enter taxi, fare, buy bat, goto diner, scene | $150 |
+| m1 | Repo Man | Act 1 | Rico | p3 | scene, markCar repo, jack, loseCops, drive garage, scene | $400 |
+| m2 | The Lunch Rush | Act 1 | Dolores | p3 | scene, packages ×5 (240 s), goto diner, scene | $350 |
+| m3 | Bad Paint | Act 1 | Rico | m1, m2 | scene, goons ×4 at the garage, scene | $500 |
+| m4 | Two-Tone's Ride | Act 1 | Dolores | m3 | scene, markCar tommy, wreck (180 s), loseCops, goto diner, scene | $600 |
+| m5 | A Job Interview | Act 2 | Kane | m4 | scene, enter car, drive to the bank (≤2 crashes, 260 s), scene | $800 |
+| m6 | Friendly Advice | Act 2 | Kane | m5 | scene, drive to the farm, **choice scene** with Hank (`hank`: scared or warned) | $600 |
+| m7 | Smash and Dash | Act 2 | Jules | m5 | scene, drive to the bank, stars 3, gates bank to pier (170 s), loseCops, goto shack, scene | $1500 |
+| m8 | Lake Drop | Act 2 | Jules | m7 | scene, goto lakeDock, enter boat, buoys ×5 (150 s), **choice** (`jules`: quit or stayed) | $1200 |
+| m9 | Missing Cousin | Act 3 | Dolores | m6, m8 | scene, goto garage, scene, goto lakeHide, scene (Rico's confession), set `ricoConfessed` | $500 |
+| m10 | Tail Job | Act 3 | Nina | m9 | scene, markCar kane, follow 25–90 m for 75 s, scene | $800 |
+| m11 | Ledger | Act 3 | Nina | m10 | scene, enter heli, rings ×6 to Kane's roof (240 s), set `ledger`, goto police, scene | $1200 |
+| m12 | Hold the Line | Act 3 | Hank | m9, *only if Hank was warned* | scene, goons ×6 at the farm (200 s), scene | $900 |
+| m13 | Kane Falls | Finale | Nina | m11, and m12 done or Hank scared | scene, markCar kane, stars 4, wreck (200 s), loseCops, goto diner, **choice** (`ending`: clean or rich) | $3000 |
+
+```mermaid
+flowchart LR
+  p1 --> p2 --> p3
+  p3 --> m1
+  p3 --> m2
+  m1 --> m3
+  m2 --> m3
+  m3 --> m4 --> m5
+  m5 --> m6
+  m5 --> m7 --> m8
+  m6 -->|hank: warned| m12
+  m6 --> m9
+  m8 -->|jules: quit or stayed| m9
+  m9 --> m10 --> m11
+  m9 --> m12
+  m11 --> m13
+  m12 --> m13
+  m6 -->|hank: scared, skips m12| m13
+  m13 -->|ending: clean or rich| END["epilogue calls and the final world"]
+```
+
+**The cast** (`CHARACTERS`; each has a name colour, a fixed look, and spots by condition, where the first matching entry wins):
+
+| id | Name | Look | Where |
+|---|---|---|---|
+| rico | Rico | m_worker | `lakeHide` while hiding (m6 and m8 done, m11 not done), otherwise `garage` |
+| dolores | Dolores | w_formal | `diner` once p2 is done |
+| kane | Victor Kane | m_suit | `kane` after m4, until m13 |
+| tommy | Tommy "Two-Tone" | m_punk | `motel` after m2, until m4 (he mostly appears in scenes) |
+| jules | Jules | w_casual | `shack` after m5, unless she quit |
+| hank | Hank | m_farmer | `farm` after m5, unless you scared him |
+| nina | Det. Nina Park | w_suit | `diner` after m11, `police` after m9 |
+
+**Flags** (set by choices and steps): `hank` (`scared` or `warned`), `jules` (`quit` or `stayed`), `ricoConfessed`, `ledger`, `ending` (`clean` or `rich`).
+
+**What they change:**
+- **Lines:** later lines with a `when` condition.
+- **Missions:**
+  - m12 only exists if you warned Hank;
+  - the finale opens without it if you scared him.
+- **Characters:** Jules and Hank leave depending on your choices.
+- **Phone messages:** some only arrive for certain choices.
+- **Props:** the signs and banners in the world (§10.7).
+- **Price discount:** Dolores's friends get 15 % off at the gun stores after m4 (`discount`, `PlayerStats.priceFactor` = 0.85).
+
+**Writing style.** Lines are short and punchy. Violence stays light (knock-outs, wrecked cars, no deaths), matching the rest of the game. Apostrophes are typographic (’) so they can't end a string by accident.
+
+### 10.2 `src/story/types.ts`
+
+**Purpose.** The shape of the data the script is written in. **Used by:** every `story/` file.
+
+| Type | Meaning |
+|---|---|
+| `CharId` | `'rico' \| 'dolores' \| 'kane' \| 'tommy' \| 'jules' \| 'hank' \| 'nina'` |
+| `PlaceId` | Named places: bus, garage, diner, customer, gunstore, bank, kane, kaneRoof, shack, beach, farm, police, helipad, lakeDock, lakeFar, lakeHide, motel, pier |
+| `StoryState` | `{ done: ReadonlySet<string>; flags: Record<string, string \| boolean> }`: everything conditions can look at |
+| `Cond` | `(s: StoryState) => boolean` |
+| `CharacterSpec` | `id`, `name`, `color`, `look` (a `Look`), `spots: { at: PlaceId; when?: Cond }[]` |
+| `Line` | `who` (a `CharId` or `'you'`), `text`, `when?` |
+| `ChoiceOption` | `label`, `set` (flags), `reply?` (lines played after picking it) |
+| `PhoneSpec` | `from`, `call?` (a call rather than a text), `lines`, `delay?` (s), `when?` |
+| `StepSpec` | The union of the 21 step kinds; see §10.4 |
+| `MissionSpec` | `id`, `title`, `act`, `giver` (a `CharId`, or null for "starts by itself"), `requires` (mission ids), `when?`, `summary`, `reward`, `steps`, `after?` (phone messages on completion) |
+| `PropSpec` | `id`, `at`, `offset?` ([along the street, away from it], m), `kind` (sign, banner, boards, crops or tape), `text?`, `colors?` ([background, text]), `when` |
+
+### 10.3 `src/story/script.ts`
+
+**Purpose.** The story itself, as data. **Exports:**
+- `CHARACTERS`, `MISSIONS`, `PROPS`, `STORY_ORDER` (mission ids in script order), `EXTRA_PHONE` (empty; for later chapters);
+- `discount` (a `Cond`: m4 done);
+- `storyFinished(s)` (m13 done);
+- `conditions` (the helpers `done`, `not`, `all`, `any`, `flag` used to write conditions).
+
+**Decisions:**
+- **Conditions are functions, not a mini-language:** the script is TypeScript, so the type checker catches typos in mission ids or flags.
+- **The prologue teaches the game:** walking with the route line, driving, a side job, the gun store. That way new players learn the systems from the story rather than a tutorial.
+
+### 10.4 `src/story/steps.ts`
+
+**Purpose.** The mission building blocks.
+- Each `StepSpec` becomes a `Step` (`makeStep(spec)`) with:
+  - `start(ctx)`;
+  - `update(dt, ctx)`, returning `'running'`, `'done'` or `{ fail: reason }`;
+  - `end(ctx)`;
+  - `text(ctx)` (the HUD objective);
+  - `target(ctx)` (a world point for the route line and the map objective, or null);
+  - `timeLeft()` (seconds or null).
+- Steps only reach the game through **`StoryCtx`**: the place lookup, the player's position, mode, vehicle kind and speed, the nearest vehicle of a kind, traffic, wanted, pedestrians, stats, terrain, the street net, the router, water, `faresDone`/`endJob`, `playScene`, `phone`, `state`, `setFlags`, `pay`, the counters `crashes` and `goonsDown`, and `cars` (the story's marked traffic cars).
+- Other exports: `Mode` (`foot | car | boat | heli`), `VehicleKind` (`car | taxi | boat | heli`), `StepResult`.
+
+| Kind | Done when | Fails when | Notes |
+|---|---|---|---|
+| scene | the scene (and any choice reply) ends | never | Picks the choice's flags, then plays its `reply` lines |
+| wait | `seconds` have passed | never | Optional HUD text |
+| goto | within `radius` of the place (default 6 m; 10 m by car, 14 m by heli; heli also within 25 m in height), in the right mode if `by` is set | never | A yellow beacon at the place; drivers route to the road point |
+| enter | you're in that kind (a car also accepts a taxi) | never | Route to the nearest vehicle of the kind |
+| drive | in a car, within `radius` (12 m) of the place | `time` runs out; crashes exceed `maxCrashes` | A hard crash is a ≥ 5 damage hit in a vehicle (`noteCrash`) |
+| markCar | `traffic.pickTarget(player, min, max)` found a car (pinned, serial stored) | none found in 8 s | Defaults: 90–260 m |
+| jack | the marked slot was taken *and* you're driving within 15 m of where it was | it's wrecked; it was taken but not by you ("got away") | An arrow spins over the car |
+| wreck | `car.wrecked ≥ 0` | the slot is recycled or taken; `time` runs out | Unpins the car at the end |
+| follow | `seconds` spent between `min` and `max` m | closer than `min` for 3 s ("spotted"); further than 1.6 × `max` for 6 s ("lost") | A text hint while too close or too far |
+| packages | every point reached (3.5 m, any order) | `time` runs out | Points on sidewalks 60–320 m around the place, at least 50 m apart, from a fixed seed |
+| gates | every gate passed in order (within `GATE_RADIUS` = 9 m) | `time` | Gates every 220 m (the first at 60 m) along the A* drive route, plus one at the end |
+| rings | every ring in order (within 1.2 × `RING_RADIUS`) | `time` | `count` rings on a line at 45 m above the ground; the last at the destination's height |
+| buoys | every buoy in order, in a boat, within 9 m | `time` | A zig-zag (±18 m) along the line, nudged onto the water |
+| loseCops | 0 stars | never | No HUD text once you're clean |
+| goons | `count` goons knocked out | `time` (counted from when you arrive) | Waits until you're within 45 m. At most 3 out at once; they spawn 16–24 m around the place at golden-angle spacing |
+| buy | you own the weapon | never | Routes to the gun store nearest the garage |
+| fare | `faresDone()` went up | never | Then ends the job shift |
+| phone, set, pay, stars | at once | never | `stars` raises heat to at least `stars + 0.3` |
+
+- **Courses:** `CourseStep` is the shared base for packages, gates, rings and buoys. It builds the meshes from `game/objectives.ts` and disposes them in `end`.
+
+### 10.5 `src/story/director.ts`
+
+**Purpose.** `StoryDirector` (a `SimEntity`) runs the story.
+- **State:** `done` (a Set), `flags`, and the phone log.
+- **`available()`:** missions not done, whose `requires` are all done and whose `when` holds.
+- **`offerFrom(id)`:** the first available mission that character gives, if they're present.
+- **`interactables`:** one per character. Its label is the mission title, and it's only available when there's an offer, no mission is running and no scene is open. `deps.busy()` (a side mission or a job shift) blocks starting.
+
+```mermaid
+stateDiagram-v2
+  Idle: no mission (stars on givers)
+  Running: a mission, step by step
+  Idle --> Running: press E at a giver, or startPrologue
+  Running --> Running: step done, next step
+  Running --> Idle: last step done - complete (reward, after-messages, refresh)
+  Running --> Idle: fail - death, busted, or a step fails
+  Idle --> Running: retry from the giver, or auto-restart if no giver
+```
+
+- **`start(id)`:** clears the marked cars, shows the act and title, removes the ★s (refresh) and starts step 0.
+- **`next()`:** resets `ctx.crashes` and `ctx.goonsDown` for each step.
+- **`complete()`:**
+  - marks the mission done;
+  - pays `reward`;
+  - queues the `after` messages (each with its `delay`, if its `when` holds);
+  - refreshes the cast, props and discount.
+- **`fail(reason)`:**
+  - ends the step, unpins the marked cars and dismisses the goons;
+  - clears the story's route;
+  - toasts "Talk to <giver> to try again";
+  - a mission without a giver (p1) restarts by itself 4 s later.
+- **Hooks from `main.ts`:**
+  - `playerDown(reason)` on death and busted;
+  - `noteCrash()` on a ≥ 5 damage hit in a vehicle;
+  - `noteGoonDown()` when a goon is knocked out.
+- **`render(frameDt)`:**
+  - the cast animation;
+  - the HUD line "★ Title — objective · m:ss";
+  - the route: `navigator.setWaypoint(x, z, 'story')`, refreshed when the target moves more than 15 m, at most every 2 s;
+  - the story owner is cleared when a step has no target.
+- **The prologue:**
+  - `startPrologue()` (from `main.ts` on a new game, unless `localStorage['opencity.noPrologue']` is `'1'`, which the tests set);
+  - `skipPrologue()` marks p1–p3 done and pays their rewards ($300). The "Skip prologue ⏭" button shows while a prologue mission runs;
+  - `inPrologue` tells whether any of p1–p3 is still undone.
+- **Saving:**
+  - `toJSON()` returns `StorySave` `{ done, flags, phone }`, written into the save as `SaveData.story` and validated on load (§7.11);
+  - `load()` restores it;
+  - a mission in progress isn't saved: you start it again from its giver.
+- **For tests:** `debugStep` (the mission, step index, kind and target) and `debugCtx`.
+
+### 10.6 `src/story/places.ts` and `src/story/cast.ts`
+
+**`resolvePlaces(inputs)`** turns `PlaceId`s into `Spot`s `{ x, z, y, facing, road }` once at startup.
+- **Most places** are "the sidewalk of the nearest street to an approximate point" (`APPROX`; for example garage near (−117, 117), diner near (117, −39)), facing the road. Where there's no sidewalk, the spot is 2.5 m off the road edge.
+- **The others:**
+
+| Place | How it's found |
+|---|---|
+| `gunstore` | The store door nearest the garage |
+| `police` | The first (downtown) police station |
+| `kane` | The big-box parcel nearest (600, −300) |
+| `kaneRoof` | 6 m above its building's roof |
+| `farm` | A country road near Eastfield + (180, 140) |
+| `lakeDock` | The lake shore from the speedboat |
+| `lakeFar` | A water point across the lake |
+| `lakeHide` | The far shore |
+
+**`StoryCast`:**
+- **Models:** one per character, via `CharacterLibrary.create(look)`. These are models, not pedestrians, so they can't be hurt or pushed.
+- **`refresh(state, offering)`** puts each character at their first matching spot, or hides them, and shows the gold ★ sprite (2.45 m up, bobbing) for characters in `offering`.
+- **`render`** turns each character toward the player within 9 m and animates them within 70 m.
+- **Queries:** `present`, `position`, `facing`, `model`, `spec`, `starred()` (for the maps).
+
+### 10.7 `src/story/world.ts`
+
+**`StoryWorld`** shows the `PROPS` whose condition holds, building each one the first time it's needed.
+- **Placement:** each prop sits at its place's spot plus `offset` = [along the street, away from the street], on `Terrain.surfaceAt`. Its front faces the road (`rotation.y = facing + π`).
+- **Kinds:**
+
+| Kind | Size / look |
+|---|---|
+| sign | A 4.4 × 1.1 m board on 1.6 m posts, with canvas text, lit slightly (emissive) |
+| banner | 5.2 × 0.9 m, 3.2 m up |
+| boards | Planks in an X over a dark frame |
+| crops | One `InstancedMesh` of cones, 26 × 12 m |
+
+- **`showing(id)`** is for tests.
+
+| Prop | Shows when |
+|---|---|
+| garage-old "VANCE AUTO" | m4 not done |
+| garage-cousin "VANCE & COUSIN" | m4 done, not (m6 and m8), m13 not done |
+| garage-boards | m6 and m8 done, m13 not done (Rico has run) |
+| garage-new "VANCE & COUSIN · EST. TODAY" | m13 done |
+| diner-dim / diner-lit "DOLORES'S · OPEN" | before / after m2 |
+| kane-sign "KANE HOLDINGS" | m13 not done |
+| kane-tape "UNDER INVESTIGATION" / kane-sold "UNDER NEW MANAGEMENT" | ending clean / rich |
+| farm-crops | Hank warned, and m12 or m13 done |
+| farm-sold "SOLD · KANE HOLDINGS" | Hank scared |
+| shack-fishing "GONE FISHING" / shack-bait "JULES'S BAIT & TACKLE" | Jules quit / Jules stayed and m13 done |
+
+### 10.8 `src/ui/scene.ts` and `src/ui/phone.ts`
+
+**`SceneUI`**: dialogue scenes.
+
+```mermaid
+sequenceDiagram
+  participant D as StoryDirector
+  participant S as SceneUI
+  participant I as Input
+  D->>S: play lines, choices, speaker focus and facing
+  S->>I: setBlocked true, release the mouse, hide Click to play
+  loop each line
+    S->>S: type it out at 55 chars per second
+    Note over S: Space, Enter, E or a click finishes the line, then advances
+  end
+  alt choices
+    S->>S: show 1, 2, 3 buttons
+    Note over S: a digit key or a click picks one
+  end
+  S->>I: setBlocked false, Click to play back, re-lock the mouse on desktop
+  S-->>D: resolve with the choice index or null
+```
+
+- **`play(lines, choices, focus, facing)`** returns a `Promise<number | null>`. `SceneLine` is `{ name, color, model, text }`. One scene plays at a time.
+- **Keys:** Esc (`skip()`) jumps to the choices or the end. Game keys are blocked during a scene, so the scene has its own `window` keydown listener.
+- **Talk animation:** the speaker's model plays `setTalking(true)` during their line.
+- **Two-shot camera** (when the speaker is within 30 m):
+  - The camera sits beside the line between you and the speaker, `3 + 0.6·d` m out, 1.9 m above the higher of your feet, looking at the midpoint 1.15 m up.
+  - **Of the two sides, it takes the street side** (where the speaker faces): behind characters there are walls and signs. The first version picked a side at random and ended up behind the garage sign.
+  - It is lerped at `min(1, 6·dt)` per frame, and `update()` runs after the picker in the frame.
+- **Bug found by the story test:** Space didn't advance a scene that ended in a choice, because it only advanced while a line was still typing. The rule is now "advance unless the choices are showing".
+
+**`Phone`**: calls and texts.
+- **`receive(entry)`** queues a `PhoneEntry` `{ from, name, color, call, lines }` and logs it (the last 40).
+- **`update(dt)`** shows one card at a time (top-left, under the job line), with a ring (`Sound.chime`):
+  - a text stays 6 s;
+  - a call shows each line for 3.5 s.
+- **The log:** `toggleLog()` shows the Messages list. Open it from "✉ Messages" on the full map; it closes with the map.
+- **Saving:** `load(entries)` restores a saved log, copying first, so loading its own array is safe.
+
+### 10.9 `src/game/objectives.ts`
+
+**Purpose.** The objective markers shared by side missions (`game/missions.ts`) and story steps. They were moved out of `missions.ts` so both use the same ones.
+- **Meshes:**
+  - `beaconMesh(radius, color)`: a translucent 60 m pillar;
+  - `ringMesh()`: sky ring, inner radius `RING_RADIUS` = 7 m;
+  - `gateMesh()`: road gate, `GATE_RADIUS`·0.8 torus, `GATE_RADIUS` = 9 m;
+  - `packageMesh()`, `arrowMesh(color)`, `buoyMesh()`, `flagMesh()`.
+- **`disposeObject(object)`:** removes an object from its parent and disposes every geometry and material under it.
+
+### 10.10 Changes elsewhere for the story
+
+| File | Change |
+|---|---|
+| `npc/pedestrians.ts` | A **goon** pool (4; `m_punk`, `w_punk`, `m_hoodie` looks; state `goon`): they run at you on foot and punch; in a vehicle they wait 4 m away. They never flee. `summonGoon`, `goonsOut`, `goonsFree`, `dismissGoons`, and the hook `goonDown`. They're excluded from `peopleNear` and `alarm`. |
+| `main.ts` | Hurting a goon isn't a crime. Story creation (`resolvePlaces`, `StoryDirector` deps), interactables, the save field, `startPrologue` on a new game, the skip button, ★ and objective map markers, `story.playerDown` on death and busted, `noteCrash`, and the frame order: `story.render`, `sceneUI.update`, `phone.update`. |
+| `game/stats.ts`, `game/shop.ts` | `priceFactor` and `price(list)`. Every purchase and price label goes through it. |
+| `game/jobs.ts` | The `blocked()` hook: no shifts during a story mission, except during a `fare` step. |
+| `game/missions.ts` | The `blocked()` hook: side-mission givers aren't available during a story mission. It also uses `objectives.ts`. |
+| `game/route.ts` | `Navigator.owner` can be `'story'` (not cleared on arrival, like `'job'`). |
+| `game/save.ts` | `SaveData.story` (`StorySave`), validated: `done` must be strings, `flags` strings or booleans, and phone entries need string fields and string lines. |
+| `ui/fullMap.ts` | The public `addButton(text, css, onClick)` (used for ✉ Messages) and the "★ Story" legend entry. |
+| `world/mapImage.ts` | The marker kind `'story'`: a gold ★ in a dark disc. |
+| `tests/harness.cjs` | `openGame({ prologue: true })`; otherwise new games skip the auto-prologue (`opencity.noPrologue`). |
+
+### 10.11 Tests
+
+`tests/story.test.cjs` plays the **whole campaign** in a headless browser.
+- **How it drives each step:** it teleports to each step's target, takes the marked car or wrecks it, knocks out goons, presses Space through scenes and picks choices with the number keys.
+- **Choices taken:** warn Hank, Jules quits, clean ending.
+- **What it checks:**
+  - every mission completes, and the flags, props, phone log and discount follow;
+  - saving and reloading keeps everything;
+  - scaring Hank removes m12 and his farm, and opens the finale;
+  - dying fails a mission and the giver offers it again;
+  - side jobs and missions are blocked during a story mission;
+  - skipping the prologue pays $300 and opens Act 1;
+  - knocking out goons adds no heat.
+
+### 10.z Self-test
+
+1. Where is the story's content, and what do you change to add a mission? → The script, `story/script.ts`: add a `MissionSpec` with steps (§10.3, §10.4).
+2. What starts the prologue, and how do automated tests avoid it? → `startPrologue()` on a new game with no save. Tests set `localStorage['opencity.noPrologue'] = '1'` (§10.5, §10.10).
+3. Which mission only exists in one branch, and why? → m12, Hold the Line: `when: flag('hank', 'warned')`. If you scared Hank, he and his farm are gone and the finale opens without it (§10.1).
+4. How does a `jack` step tell "you took it" from "it got away"? → The slot was taken *and* you're driving within 15 m of where the car last was (§10.4).
+5. What counts as a crash for "drive with at most N crashes"? → A ≥ 5 damage hit while in a vehicle, counted by `noteCrash()` from `stats.onDamage` (§10.4, §10.10).
+6. Why does the scene camera pick the street side? → Behind characters are walls, signs and shop fronts. The first version filmed Rico through the garage sign (§10.8).
+7. What is saved of the story, and what isn't? → Missions done, flags and the phone log are saved. A mission in progress isn't (you start it again from its giver) (§10.5).
+8. Why doesn't knocking out goons give you stars? → The `hurt` hook in `main.ts` skips `wanted.crime` for `ped.goon` (§10.10).
+9. What does "Skip prologue" do? → It marks p1–p3 done, pays their $300 and refreshes, so Rico's and Dolores's ★s for Act 1 appear (§10.5).
+10. Which file draws the ★ on the maps? → `world/mapImage.ts` (kind `'story'`), fed by `story.markers().stars` in `main.ts` (§10.10).
+
+---
+
+## 11. Cross-cutting topics
 
 These rules touch many files at once. Each subsection says what the rule is, where it's
 enforced, and what broke when it wasn't followed.
 
-### 10.1 Heights: nothing is flat
+### 11.1 Heights: nothing is flat
 
 Every town is hilly, so no system may assume a fixed ground height. There are three height
 functions in `world/terrain.ts` (§4), and each caller must use the right one:
@@ -6869,14 +7249,14 @@ flowchart LR
 - **Standing height** is `surfaceAt`. It's the sidewalk or lawn top in towns (`lawnLift`: +0.15 m in suburb, village and beachtown, 0 elsewhere), and the ground or road otherwise.
 - **The bug this prevents:** cars once hit invisible steps of up to 0.86 m, which caused crash damage. The causes were level road slabs on cross-slopes, flat junction discs, cul-de-sac sidewalk rings across the street mouth, driveways without curb cuts, and a `townDistance` cutoff that made `smoothHeight` jump at cell borders. Draping fixed all of them (§4). The lawn-lift rule now exists once (`layout.ts:lawnLift`), because the chunk meshes and `surfaceAt` must agree to the centimetre.
 
-### 10.2 Determinism
+### 11.2 Determinism
 
 - **One seed (1337, `main.ts:CITY_SEED`) builds the same world every time.** The world is regenerated on every load and never stored, so determinism is what lets a save hold just a position.
 - **Generation uses only `world/rng.ts`** (mulberry32 seeded by `hashSeed(seed, i, k…)`) **and the hand-written noise in `world/noise.ts`.** `Math.random` is never used in generation. It's allowed only for gameplay variety (sound, smoke, job picks) that doesn't change the world.
 - **Each cell and chunk has its own random stream,** so chunks can be built in any order and come out identical (§3.6). The street network is the exception: it's generated once at startup, in a fixed order, sharing one builder and raster.
 - **Tested** by `tests/world.test.cjs` (a fingerprint of buildings, houses and edge lengths is the same after a reload). Deleting dead code had to keep the random sequence intact: removing the never-taken branches of `generateBlock` didn't change which `rng` calls downtown makes.
 
-### 10.3 Performance budgets
+### 11.3 Performance budgets
 
 | Budget | Where | Why |
 |---|---|---|
@@ -6889,7 +7269,7 @@ flowchart LR
 | No per-frame allocation in hot loops (shared scratch vectors and matrices) | traffic render, police, `sim/pose.ts` | Garbage collection pauses show up as stutter on phones. |
 | At most 4 carjacked cars kept; dropped cash expires after 120 s; 40 dropped bundles max | `main.ts`, `pickups.ts` | Nothing may grow without limit over a long session. |
 
-### 10.4 Input blocking (a counter)
+### 11.4 Input blocking (a counter)
 
 `Input.setBlocked(true)` adds one block and `setBlocked(false)` releases one (`input/actions.ts`).
 Gameplay sees no movement, held actions or presses while the count is above 0.
@@ -6908,7 +7288,7 @@ flowchart LR
 - **The rule for callers:** release exactly the block you took. Every opener guards against opening twice (`open_`, `panel`) and every closer against closing twice. The busted handler releases its block even when death takes over.
 - **Keys during a block:** game keys are dropped, so the map and the picker listen for their own close keys (M or Esc, and P or Esc) on `window`.
 
-### 10.5 Disposal and leaks
+### 11.5 Disposal and leaks
 
 - **Chunks:** unloading returns every instance-pool slot and removes every collider and chunk mesh. Tested exactly: back to the baseline collider count and 0 slots in use.
 - **Vehicles:** `Car.dispose` removes the vehicle controller, then the rigid body (with its colliders), then the scene object, and disposes the car's own paint material. Body and wheel geometry are shared caches (`carGeometry`, and `wheelGeometry` per radius) and are never disposed.
@@ -6916,7 +7296,7 @@ flowchart LR
 - **Sound:** one-shot sounds disconnect all their nodes when they end (`Sound.live` counts them); the voices are built once.
 - **Effects:** tracers and smoke dispose themselves when they expire.
 
-### 10.6 Saving: what persists where
+### 11.6 Saving: what persists where
 
 | Data | Where | Key |
 |---|---|---|
@@ -6929,7 +7309,7 @@ flowchart LR
 
 ---
 
-## 11. Appendix: self-test
+## 12. Appendix: self-test
 
 Each section from §3 to §9 ends with its own self-test (§3.z … §9.z). The questions below cut
 across sections: answering them means following data from one module to another. Answers are
@@ -6938,9 +7318,9 @@ hidden in collapsible blocks.
 1. A frame took 1 s (the tab was in the background). How many physics steps run, and why not 60?
    <details><summary>Answer</summary>15. `frameTime` is capped at `MAX_FRAME_TIME` = 0.25 s, and 0.25 / (1/60) = 15. The cap stops the game trying to catch up after a long pause (§2.3, §8.1).</details>
 2. Name the three height functions and say which one a parked car, the terrain collider and a pedestrian each use.
-   <details><summary>Answer</summary>`smoothHeight` (parked car), `heightAt` (terrain heightfield; 0.6 m under roads), `surfaceAt` (pedestrian; sidewalk or lawn top) (§4, §10.1).</details>
+   <details><summary>Answer</summary>`smoothHeight` (parked car), `heightAt` (terrain heightfield; 0.6 m under roads), `surfaceAt` (pedestrian; sidewalk or lawn top) (§4, §11.1).</details>
 3. Why can chunks be built in any order and still match, while the street network can't?
-   <details><summary>Answer</summary>Each cell and chunk has its own random stream (`hashSeed`). The street network is generated once at startup in a fixed order with a shared builder and raster (§3.6, §10.2).</details>
+   <details><summary>Answer</summary>Each cell and chunk has its own random stream (`hashSeed`). The street network is generated once at startup in a fixed order with a shared builder and raster (§3.6, §11.2).</details>
 4. Trace one road edge from generation to three different consumers.
    <details><summary>Answer</summary>Generated in `suburbs.ts`, then added to `NetworkBuilder`, then stored in `StreetNet.edges`. From there: draped into ribbons by `chunks.ts`; turned into lanes and pieces by `roadGraph.ts` (traffic); searched by `game/route.ts` `Router` (directions and police pursuits); drawn by `mapImage.ts` (maps) (§3, §4, §6, §7).</details>
 5. The player punches a pedestrian twice while a patrol car watches. What are the heat and the stars, and why?
@@ -6950,13 +7330,13 @@ hidden in collapsible blocks.
 7. You're busted and then shot dead during the 2.5 s fade. What happens to your money and where do you wake?
    <details><summary>Answer</summary>The busted timeout sees `stats.dead`, releases its input block and returns: no fine. The death respawn takes 20% of your money and puts you at the nearest hospital (§8.1, §7.1).</details>
 8. Why does closing the full map no longer unfreeze the game under the look picker?
-   <details><summary>Answer</summary>`Input.setBlocked` is a counter. The picker holds one block and the map another; closing the map releases only its own (§10.4, §5).</details>
+   <details><summary>Answer</summary>`Input.setBlocked` is a counter. The picker holds one block and the map another; closing the map releases only its own (§11.4, §5).</details>
 9. What does `Navigator` do when you stray 100 m from the route while driving?
    <details><summary>Answer</summary>Twice a second it trims the route at your projected position. If you're more than 25 m off and more than 2 s have passed since the last route, it runs A* again from where you are (§7.8).</details>
 10. Which job vehicles exist, and how does the game decide a car is one?
     <details><summary>Answer</summary>`jobKind(car)` in `main.ts`: livery `'ambulance'` means ambulance, type `'taxi'` means taxi, any other `'van'` means delivery, and anything else is not a job vehicle (§8.1, §7.10).</details>
 11. You carjack a fifth car. What happens to the first, and to its physics body?
-    <details><summary>Answer</summary>At most 4 jacked cars are kept (`MAX_JACKED`). The oldest you're not in (sunk ones first) is removed from `cars`, `entities` and the interactables. `Car.dispose` then removes its vehicle controller, rigid body and scene object and disposes its paint (§8.1, §5, §10.5).</details>
+    <details><summary>Answer</summary>At most 4 jacked cars are kept (`MAX_JACKED`). The oldest you're not in (sunk ones first) is removed from `cars`, `entities` and the interactables. `Car.dispose` then removes its vehicle controller, rigid body and scene object and disposes its paint (§8.1, §5, §11.5).</details>
 12. Why can Vera's wreck mission notice that its target was carjacked, even though the traffic slot is reused at once?
     <details><summary>Answer</summary>Every traffic slot has a `serial`, increased (and `pinned` cleared) on respawn. The mission stored the serial at start and fails with "the car got away" when it changes (§6.1, §7.7).</details>
 13. Where does sound stop when you switch tabs, and why does the radio not burst missed notes afterwards?
@@ -6966,7 +7346,7 @@ hidden in collapsible blocks.
 15. What runs, and in which jobs, when you push to `main`? What if the preview branch doesn't compile?
     <details><summary>Answer</summary>`build-preview` (continue-on-error, no token) builds `PREVIEW_BRANCH` for `/preview/`. `build` (runs unless cancelled) builds `main`, adds the preview artifact if there is one, and uploads the Pages artifact. `deploy` publishes. A broken preview just leaves `/preview/` out; the live site still deploys (§9.5).</details>
 16. Why is the forest pool 12,000, and what happens when a pool is full?
-    <details><summary>Answer</summary>The densest forest loads about 10,400 trees within the near-tier unload distance. When the pool is full, a forest tree is skipped entirely: no instance and no collider, so there are never invisible obstacles (§4, §10.3).</details>
+    <details><summary>Answer</summary>The densest forest loads about 10,400 trees within the near-tier unload distance. When the pool is full, a forest tree is skipped entirely: no instance and no collider, so there are never invisible obstacles (§4, §11.3).</details>
 17. Why does `Terrain.roadDistance` search only 40 m?
     <details><summary>Answer</summary>Every caller only asks "closer than ≤ 32 m?", and the search cost grows with the square of the radius. 200 m made each far chunk take 80–200 ms; 40 m gives identical results in ~30 ms (§4).</details>
 18. How does the test runner avoid testing a stale server?

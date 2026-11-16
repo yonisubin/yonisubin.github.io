@@ -182,8 +182,8 @@ export class Shop {
       const rounds = owned && !w.melee ? ` · ${s.ammo[id]} rounds${s.apAmmo[id] ? ` + ${s.apAmmo[id]} AP` : ''}` : '';
       info.innerHTML = `<div style="font-weight:600">${w.name}</div><div style="opacity:0.7;font-size:13px">${kind} · damage ${w.damage}${rounds}</div>`;
       row.appendChild(info);
-      if (!owned) row.appendChild(this.button(`Buy $${w.price}`, s.money >= w.price, () => s.buyWeapon(id)));
-      else if (w.ammoPrice) row.appendChild(this.button(`+${w.ammoPack} ammo $${w.ammoPrice}`, s.money >= w.ammoPrice, () => s.buyAmmo(id)));
+      if (!owned) row.appendChild(this.button(`Buy $${s.price(w.price)}`, s.money >= s.price(w.price), () => s.buyWeapon(id)));
+      else if (w.ammoPrice) row.appendChild(this.button(`+${w.ammoPack} ammo $${s.price(w.ammoPrice)}`, s.money >= s.price(w.ammoPrice), () => s.buyAmmo(id)));
       else row.appendChild(this.label('Owned'));
       panel.appendChild(row);
 
@@ -191,8 +191,9 @@ export class Shop {
       if (!owned) continue;
       for (const addon of Object.keys(ADDONS) as AddonId[]) {
         const def = ADDONS[addon];
-        const price = def.price[id];
-        if (price === undefined) continue;
+        const list = def.price[id];
+        if (list === undefined) continue;
+        const price = s.price(list);
         const has = s.hasAddon(id, addon);
         panel.appendChild(
           this.subRow(`${def.name}`, def.description, has ? this.label('Fitted') : this.button(`$${price}`, s.money >= price, () => s.buyAddon(id, addon))),
@@ -205,7 +206,7 @@ export class Shop {
           this.subRow(
             'Armour-piercing rounds',
             `+${Math.round((AP_DAMAGE - 1) * 100)}% damage · $${perRound} a round · fired first`,
-            this.button(`+${ap.pack} $${ap.price}`, s.money >= ap.price, () => s.buyApAmmo(id)),
+            this.button(`+${ap.pack} $${s.price(ap.price)}`, s.money >= s.price(ap.price), () => s.buyApAmmo(id)),
           ),
         );
       }

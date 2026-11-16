@@ -22,6 +22,8 @@ export class FullMap {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private open_ = false;
+  /** Add a button to the map screen (absolute CSS position in `css`). */
+  addButton: (text: string, css: string, onClick: () => void) => HTMLButtonElement;
   /** Set by main.ts: wipe the save and restart. */
   onNewGame: (() => void) | null = null;
   // View: the world point at the screen centre and the zoom (CSS px per metre).
@@ -62,7 +64,7 @@ export class FullMap {
     this.root.appendChild(this.canvas);
 
     // Close button, "centre on me" button and a legend.
-    const button = (text: string, css: string, onClick: () => void) => {
+    const button = (this.addButton = (text: string, css: string, onClick: () => void) => {
       const b = document.createElement('button');
       b.textContent = text;
       b.style.cssText = `position:absolute;${css};padding:8px 14px;border:0;border-radius:10px;background:rgba(0,0,0,0.6);color:#fff;font:600 16px system-ui,sans-serif;cursor:pointer`;
@@ -73,7 +75,7 @@ export class FullMap {
       });
       this.root.appendChild(b);
       return b;
-    };
+    });
     button('✕', 'top:max(12px, env(safe-area-inset-top));right:max(12px, env(safe-area-inset-right))', () => this.close());
     button('◎ Me', 'top:max(12px, env(safe-area-inset-top));right:calc(max(12px, env(safe-area-inset-right)) + 60px)', () => {
       this.needsCentre = true;
@@ -99,6 +101,7 @@ export class FullMap {
       ['#ffffff', '✚', 'Hospital'],
       ['#6f9cff', '★', 'Police'],
       ['#f2c94c', '$', 'Guns & Ammo'],
+      ['#ffcf33', '★', 'Story'],
       ['#ffd60a', '!', 'Mission'],
       ['#3d8cff', '■', 'Your cars'],
       ['#ffcc33', 'H', 'Helicopter'],

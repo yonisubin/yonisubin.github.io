@@ -11,6 +11,8 @@
 
 // A copy of the game served from a sub-folder (the /preview/ build) keeps its own save, so
 // trying a preview never overwrites your progress in the live game on the same site.
+import type { StorySave } from '../story/director';
+
 const KEY = `opencity.save.v1${import.meta.env.BASE_URL === '/' ? '' : import.meta.env.BASE_URL}`;
 const VERSION = 1;
 
@@ -32,6 +34,8 @@ export interface SaveData {
   player: { x: number; z: number; heading: number };
   hours: number;
   waypoint: { x: number; z: number } | null;
+  /** Story mode: missions done, choices made, the phone log (story/director.ts). */
+  story?: StorySave;
 }
 
 export function loadSave(): SaveData | null {
@@ -43,12 +47,30 @@ export function loadSave(): SaveData | null {
     if (![x, z, heading, data.hours].every(Number.isFinite)) return null;
     data.missions = records(data.missions, ['done', 'best']);
     data.jobs = records(data.jobs, ['done', 'earned']);
+    data.story = storyRecord(data.story);
     const w = data.waypoint;
     data.waypoint = isObject(w) && Number.isFinite(w.x) && Number.isFinite(w.z) ? { x: w.x, z: w.z } : null;
     return data;
   } catch {
     return null; // corrupt or blocked storage: a new game
   }
+}
+
+/** A well-formed story record, or an empty one. */
+function storyRecord(v: unknown): StorySave {
+  const out: StorySave = { done: [], flags: {}, phone: [] };
+  if (!isObject(v)) return out;
+  if (Array.isArray(v.done)) out.done = v.done.filter((id: unknown): id is string => typeof id === 'string');
+  if (isObject(v.flags)) {
+    for (const [k, f] of Object.entries(v.flags)) if (typeof f === 'string' || typeof f === 'boolean') out.flags[k] = f;
+  }
+  if (Array.isArray(v.phone)) {
+    out.phone = v.phone.filter(
+      (m: unknown): m is StorySave['phone'][number] =>
+        isObject(m) && typeof m.from === 'string' && typeof m.name === 'string' && typeof m.color === 'string' && Array.isArray(m.lines) && m.lines.every((l: unknown) => typeof l === 'string'),
+    ).map((m: StorySave['phone'][number]) => ({ from: m.from, name: m.name, color: m.color, call: !!m.call, lines: m.lines }));
+  }
+  return out;
 }
 
 function isObject(v: unknown): v is Record<string, any> {
