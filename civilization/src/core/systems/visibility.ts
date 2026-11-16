@@ -3,8 +3,9 @@
 // doesn't block. Mountains always block; forest/jungle and hills block a viewer standing lower.
 import { D } from '../../data';
 import { distance, neighbors, within } from '../hex';
-import { allCities, allUnits, dims, notify, tileAt, unitDef } from '../query';
+import { allCities, allUnits, dims, notify, tileAt, unitDef, withIndex } from '../query';
 import type { GameState, Tile } from '../state';
+import { playerEffects, sum } from './effects';
 
 /** Height level for line of sight: 0 flat, 1 hills or woods, 2 wooded hills, 3 mountain. */
 function level(t: Tile): number {
@@ -43,10 +44,15 @@ export function unitSight(s: GameState, uid: number): number {
   let r = unitDef(u).sight;
   for (const p of u.promotions) r += D.promotions.get(p)!.sight;
   if (tileAt(s, u.tile).hills) r += D.rules.hills.sight;
+  if (!s.players[u.owner].isBarbarian) r += sum(playerEffects(s, u.owner), 'sight', 'amount', (e) => !e.class || e.class === unitDef(u).class);
   return r;
 }
 
 export function recomputeVisibility(s: GameState, p: number): void {
+  withIndex(s, () => recomputeIndexed(s, p));
+}
+
+function recomputeIndexed(s: GameState, p: number): void {
   const pl = s.players[p];
   if (pl.isBarbarian) return;
   const n = s.map.tiles.length;

@@ -140,3 +140,15 @@ summary { cursor: pointer; color: var(--accent); margin-bottom: 8px; }
 .endgame canvas { width: 100%; max-height: 55vh; object-fit: contain; background: #0d1119; border: 1px solid var(--line); border-radius: 8px; }
 .endgame input[type=range] { flex: 1; }
 .splash { width: min(420px, 100%); display: block; margin: 0 auto 8px; }
+
+/* Policies */
+.trees { flex: 1; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; align-content: start; }
+.tree-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--panel2); display: flex; flex-direction: column; gap: 6px; }
+.tree-card.open { border-color: var(--accent); }
+.pols { display: flex; flex-direction: column; gap: 4px; }
+.pol { text-align: left; display: flex; flex-direction: column; }
+.pol small { color: var(--dim); font-size: 11px; }
+.pol.known { background: #1c2b1c; border-color: #4a7a3c; opacity: 1; }
+.pol.avail { border-color: var(--accent); }
+.item .name { display: flex; align-items: center; }
+span.name { flex: 1; }

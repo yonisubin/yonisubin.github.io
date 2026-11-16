@@ -1,0 +1,859 @@
+[
+ {
+  "id": "heritage",
+  "name": "Heritage",
+  "era": 0,
+  "description": "Tall empires: a strong capital, fast borders, growth.",
+  "opener": [
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 3,
+    "scope": "capital"
+   },
+   {
+    "type": "cost_pct",
+    "target": "border",
+    "percent": -25
+   }
+  ],
+  "finisher": [
+   {
+    "type": "free_building",
+    "building": "aqueduct",
+    "count": 4
+   },
+   {
+    "type": "growth_pct",
+    "percent": 10
+   }
+  ],
+  "excludes": null,
+  "policies": [
+   {
+    "id": "hearth_laws",
+    "name": "Hearth Laws",
+    "description": "+15% growth in the capital.",
+    "effects": [
+     {
+      "type": "growth_pct",
+      "percent": 15,
+      "scope": "capital"
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "old_families",
+    "name": "Old Families",
+    "description": "Wonders cost 15% less.",
+    "effects": [
+     {
+      "type": "cost_pct",
+      "target": "wonder",
+      "percent": -15
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "elder_council",
+    "name": "Elder Council",
+    "description": "+1 food in every city.",
+    "effects": [
+     {
+      "type": "city_yield",
+      "yield": "food",
+      "amount": 1
+     }
+    ],
+    "requires": [
+     "hearth_laws"
+    ]
+   },
+   {
+    "id": "royal_court",
+    "name": "Royal Court",
+    "description": "+3 happiness.",
+    "effects": [
+     {
+      "type": "happiness",
+      "amount": 3
+     }
+    ],
+    "requires": [
+     "old_families"
+    ]
+   },
+   {
+    "id": "unbroken_line",
+    "name": "Unbroken Line",
+    "description": "+3 production and +2 science in the capital.",
+    "effects": [
+     {
+      "type": "city_yield",
+      "yield": "production",
+      "amount": 3,
+      "scope": "capital"
+     },
+     {
+      "type": "city_yield",
+      "yield": "science",
+      "amount": 2,
+      "scope": "capital"
+     }
+    ],
+    "requires": [
+     "elder_council",
+     "royal_court"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "frontier",
+  "name": "Frontier",
+  "era": 0,
+  "description": "Wide empires: cheap settlers and workers, many cities.",
+  "opener": [
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 1
+   }
+  ],
+  "finisher": [
+   {
+    "type": "free_great_person"
+   }
+  ],
+  "excludes": null,
+  "policies": [
+   {
+    "id": "open_roads",
+    "name": "Open Roads",
+    "description": "Settlers cost 33% less.",
+    "effects": [
+     {
+      "type": "cost_pct",
+      "target": "settler",
+      "percent": -33
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "citizen_levies",
+    "name": "Citizen Levies",
+    "description": "A free Worker; Workers cost 25% less.",
+    "effects": [
+     {
+      "type": "free_unit",
+      "unit": "worker"
+     },
+     {
+      "type": "cost_pct",
+      "target": "worker",
+      "percent": -25
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "town_charters",
+    "name": "Town Charters",
+    "description": "\u221225% unhappiness from the number of cities.",
+    "effects": [
+     {
+      "type": "unhappiness_city_pct",
+      "percent": -25
+     }
+    ],
+    "requires": [
+     "open_roads"
+    ]
+   },
+   {
+    "id": "common_wealth",
+    "name": "Common Wealth",
+    "description": "+1 production in every city.",
+    "effects": [
+     {
+      "type": "city_yield",
+      "yield": "production",
+      "amount": 1
+     }
+    ],
+    "requires": [
+     "citizen_levies"
+    ]
+   },
+   {
+    "id": "pioneer_spirit",
+    "name": "Pioneer Spirit",
+    "description": "A golden age starts now; +25% golden age points.",
+    "effects": [
+     {
+      "type": "golden_age"
+     },
+     {
+      "type": "golden_age_points_pct",
+      "percent": 25
+     }
+    ],
+    "requires": [
+     "town_charters",
+     "common_wealth"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "valor",
+  "name": "Valor",
+  "era": 0,
+  "description": "Military: barbarian hunting, veteran troops, cheap armies.",
+  "opener": [
+   {
+    "type": "combat",
+    "when": "vs_barbarian",
+    "percent": 33
+   }
+  ],
+  "finisher": [
+   {
+    "type": "kill_gold",
+    "amount": 10
+   }
+  ],
+  "excludes": null,
+  "policies": [
+   {
+    "id": "drill_yards",
+    "name": "Drill Yards",
+    "description": "New units get +15 XP.",
+    "effects": [
+     {
+      "type": "xp",
+      "amount": 15
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "warrior_codes",
+    "name": "Warrior Codes",
+    "description": "+3 culture for every enemy unit killed.",
+    "effects": [
+     {
+      "type": "kill_culture",
+      "amount": 3
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "disciplined_ranks",
+    "name": "Disciplined Ranks",
+    "description": "+10% combat strength.",
+    "effects": [
+     {
+      "type": "combat",
+      "when": "always",
+      "percent": 10
+     }
+    ],
+    "requires": [
+     "drill_yards"
+    ]
+   },
+   {
+    "id": "garrison_pride",
+    "name": "Garrison Pride",
+    "description": "+1 happiness per city with a military unit inside.",
+    "effects": [
+     {
+      "type": "garrison_happiness",
+      "amount": 1
+     }
+    ],
+    "requires": [
+     "drill_yards"
+    ]
+   },
+   {
+    "id": "warlords_mantle",
+    "name": "Warlord\u2019s Mantle",
+    "description": "Unit upkeep \u221233%.",
+    "effects": [
+     {
+      "type": "upkeep_pct",
+      "target": "unit",
+      "percent": -33
+     }
+    ],
+    "requires": [
+     "disciplined_ranks",
+     "garrison_pride"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "devotion",
+  "name": "Devotion",
+  "era": 1,
+  "description": "Faith and contentment.",
+  "opener": [
+   {
+    "type": "happiness",
+    "amount": 2
+   }
+  ],
+  "finisher": [
+   {
+    "type": "free_great_person"
+   }
+  ],
+  "excludes": "reason",
+  "policies": [
+   {
+    "id": "shrinekeepers",
+    "name": "Shrinekeepers",
+    "description": "+1 happiness per Shrine.",
+    "effects": [
+     {
+      "type": "happiness_per_building",
+      "building": "shrine",
+      "amount": 1
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "pilgrim_roads",
+    "name": "Pilgrim Roads",
+    "description": "+1 gold in every city.",
+    "effects": [
+     {
+      "type": "city_yield",
+      "yield": "gold",
+      "amount": 1
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "sacred_calendar",
+    "name": "Sacred Calendar",
+    "description": "+1 culture in every city.",
+    "effects": [
+     {
+      "type": "city_yield",
+      "yield": "culture",
+      "amount": 1
+     }
+    ],
+    "requires": [
+     "shrinekeepers"
+    ]
+   },
+   {
+    "id": "temple_lands",
+    "name": "Temple Lands",
+    "description": "+1 happiness per Temple.",
+    "effects": [
+     {
+      "type": "happiness_per_building",
+      "building": "temple",
+      "amount": 1
+     }
+    ],
+    "requires": [
+     "pilgrim_roads"
+    ]
+   },
+   {
+    "id": "faithful_throng",
+    "name": "Faithful Throng",
+    "description": "Golden ages last 25% longer.",
+    "effects": [
+     {
+      "type": "golden_age_length_pct",
+      "percent": 25
+     }
+    ],
+    "requires": [
+     "sacred_calendar",
+     "temple_lands"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "patronage",
+  "name": "Patronage",
+  "era": 2,
+  "description": "Friends among the city-states.",
+  "opener": [
+   {
+    "type": "cs_decay_pct",
+    "percent": -25
+   }
+  ],
+  "finisher": [
+   {
+    "type": "cs_ally_yield",
+    "yield": "culture",
+    "amount": 2
+   }
+  ],
+  "excludes": null,
+  "policies": [
+   {
+    "id": "envoys",
+    "name": "Envoys",
+    "description": "Influence with city-states rests 20 higher.",
+    "effects": [
+     {
+      "type": "cs_resting",
+      "amount": 20
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "gilded_gifts",
+    "name": "Gilded Gifts",
+    "description": "Gold gifts to city-states give 25% more influence.",
+    "effects": [
+     {
+      "type": "cs_gift_pct",
+      "percent": 25
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "allied_banners",
+    "name": "Allied Banners",
+    "description": "City-state bonuses +25%.",
+    "effects": [
+     {
+      "type": "cs_bonus_pct",
+      "percent": 25
+     }
+    ],
+    "requires": [
+     "envoys"
+    ]
+   },
+   {
+    "id": "scholar_exchange",
+    "name": "Scholar Exchange",
+    "description": "+2 science per allied city-state.",
+    "effects": [
+     {
+      "type": "cs_ally_yield",
+      "yield": "science",
+      "amount": 2
+     }
+    ],
+    "requires": [
+     "gilded_gifts"
+    ]
+   },
+   {
+    "id": "grand_alliance",
+    "name": "Grand Alliance",
+    "description": "Influence decays 25% slower.",
+    "effects": [
+     {
+      "type": "cs_decay_pct",
+      "percent": -25
+     }
+    ],
+    "requires": [
+     "allied_banners",
+     "scholar_exchange"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "artistry",
+  "name": "Artistry",
+  "era": 2,
+  "description": "Culture and great artists, writers and musicians.",
+  "opener": [
+   {
+    "type": "city_percent",
+    "yield": "culture",
+    "percent": 10
+   }
+  ],
+  "finisher": [
+   {
+    "type": "city_percent",
+    "yield": "culture",
+    "percent": 15
+   }
+  ],
+  "excludes": null,
+  "policies": [
+   {
+    "id": "patron_guilds",
+    "name": "Patron Guilds",
+    "description": "+2 culture in the capital.",
+    "effects": [
+     {
+      "type": "city_yield",
+      "yield": "culture",
+      "amount": 2,
+      "scope": "capital"
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "gallery_streets",
+    "name": "Gallery Streets",
+    "description": "Great Artists 33% faster.",
+    "effects": [
+     {
+      "type": "great_people_pct",
+      "gp": "artist",
+      "percent": 33
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "lyric_schools",
+    "name": "Lyric Schools",
+    "description": "Great Writers 33% faster.",
+    "effects": [
+     {
+      "type": "great_people_pct",
+      "gp": "writer",
+      "percent": 33
+     }
+    ],
+    "requires": [
+     "patron_guilds"
+    ]
+   },
+   {
+    "id": "concert_halls",
+    "name": "Concert Halls",
+    "description": "Great Musicians 33% faster.",
+    "effects": [
+     {
+      "type": "great_people_pct",
+      "gp": "musician",
+      "percent": 33
+     }
+    ],
+    "requires": [
+     "gallery_streets"
+    ]
+   },
+   {
+    "id": "golden_muse",
+    "name": "Golden Muse",
+    "description": "+50% golden age points.",
+    "effects": [
+     {
+      "type": "golden_age_points_pct",
+      "percent": 50
+     }
+    ],
+    "requires": [
+     "lyric_schools",
+     "concert_halls"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "commerce",
+  "name": "Commerce",
+  "era": 2,
+  "description": "Gold, markets and merchants.",
+  "opener": [
+   {
+    "type": "city_percent",
+    "yield": "gold",
+    "percent": 25,
+    "scope": "capital"
+   }
+  ],
+  "finisher": [
+   {
+    "type": "great_people_pct",
+    "gp": "merchant",
+    "percent": 25
+   }
+  ],
+  "excludes": null,
+  "policies": [
+   {
+    "id": "merchant_fleets",
+    "name": "Merchant Fleets",
+    "description": "+2 gold in coastal cities.",
+    "effects": [
+     {
+      "type": "city_yield",
+      "yield": "gold",
+      "amount": 2,
+      "scope": "coastal"
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "toll_roads",
+    "name": "Toll Roads",
+    "description": "Road upkeep \u221250%.",
+    "effects": [
+     {
+      "type": "upkeep_pct",
+      "target": "road",
+      "percent": -50
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "guild_banks",
+    "name": "Guild Banks",
+    "description": "+10% gold in every city.",
+    "effects": [
+     {
+      "type": "city_percent",
+      "yield": "gold",
+      "percent": 10
+     }
+    ],
+    "requires": [
+     "merchant_fleets"
+    ]
+   },
+   {
+    "id": "free_markets",
+    "name": "Free Markets",
+    "description": "Buying costs 15% less.",
+    "effects": [
+     {
+      "type": "cost_pct",
+      "target": "buy",
+      "percent": -15
+     }
+    ],
+    "requires": [
+     "toll_roads"
+    ]
+   },
+   {
+    "id": "great_bazaars",
+    "name": "Great Bazaars",
+    "description": "+1 happiness per luxury.",
+    "effects": [
+     {
+      "type": "luxury_happiness",
+      "amount": 1
+     }
+    ],
+    "requires": [
+     "guild_banks",
+     "free_markets"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "voyaging",
+  "name": "Voyaging",
+  "era": 2,
+  "description": "The sea: coastal cities and navies.",
+  "opener": [
+   {
+    "type": "moves",
+    "class": "naval",
+    "amount": 1
+   }
+  ],
+  "finisher": [
+   {
+    "type": "free_great_person",
+    "gp": "general"
+   }
+  ],
+  "excludes": null,
+  "policies": [
+   {
+    "id": "harbor_towns",
+    "name": "Harbor Towns",
+    "description": "+1 production in coastal cities.",
+    "effects": [
+     {
+      "type": "city_yield",
+      "yield": "production",
+      "amount": 1,
+      "scope": "coastal"
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "chartmakers",
+    "name": "Chartmakers",
+    "description": "+1 sight for all units.",
+    "effects": [
+     {
+      "type": "sight",
+      "amount": 1
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "treasure_fleets",
+    "name": "Treasure Fleets",
+    "description": "+2 gold in coastal cities.",
+    "effects": [
+     {
+      "type": "city_yield",
+      "yield": "gold",
+      "amount": 2,
+      "scope": "coastal"
+     }
+    ],
+    "requires": [
+     "harbor_towns"
+    ]
+   },
+   {
+    "id": "navigator_schools",
+    "name": "Navigator Schools",
+    "description": "+2 science in coastal cities.",
+    "effects": [
+     {
+      "type": "city_yield",
+      "yield": "science",
+      "amount": 2,
+      "scope": "coastal"
+     }
+    ],
+    "requires": [
+     "chartmakers"
+    ]
+   },
+   {
+    "id": "admiralty",
+    "name": "Admiralty",
+    "description": "+2 happiness.",
+    "effects": [
+     {
+      "type": "happiness",
+      "amount": 2
+     }
+    ],
+    "requires": [
+     "treasure_fleets",
+     "navigator_schools"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "reason",
+  "name": "Reason",
+  "era": 3,
+  "description": "Science and secular learning.",
+  "opener": [
+   {
+    "type": "city_percent",
+    "yield": "science",
+    "percent": 10
+   }
+  ],
+  "finisher": [
+   {
+    "type": "free_tech"
+   }
+  ],
+  "excludes": "devotion",
+  "policies": [
+   {
+    "id": "learned_academies",
+    "name": "Learned Academies",
+    "description": "+0.25 science per citizen.",
+    "effects": [
+     {
+      "type": "per_pop",
+      "yield": "science",
+      "amount": 0.25
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "free_thought",
+    "name": "Free Thought",
+    "description": "+10% science.",
+    "effects": [
+     {
+      "type": "city_percent",
+      "yield": "science",
+      "percent": 10
+     }
+    ],
+    "requires": []
+   },
+   {
+    "id": "secular_rule",
+    "name": "Secular Rule",
+    "description": "+2 happiness.",
+    "effects": [
+     {
+      "type": "happiness",
+      "amount": 2
+     }
+    ],
+    "requires": [
+     "learned_academies"
+    ]
+   },
+   {
+    "id": "experimental_method",
+    "name": "Experimental Method",
+    "description": "Great Scientists 33% faster.",
+    "effects": [
+     {
+      "type": "great_people_pct",
+      "gp": "scientist",
+      "percent": 33
+     }
+    ],
+    "requires": [
+     "free_thought"
+    ]
+   },
+   {
+    "id": "age_of_inquiry",
+    "name": "Age of Inquiry",
+    "description": "A free technology.",
+    "effects": [
+     {
+      "type": "free_tech"
+     }
+    ],
+    "requires": [
+     "secular_rule",
+     "experimental_method"
+    ]
+   }
+  ]
+ }
+]

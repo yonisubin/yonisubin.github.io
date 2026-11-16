@@ -1,0 +1,44 @@
+[
+ {
+  "id": "scientist",
+  "name": "Great Scientist",
+  "unit": "great_scientist",
+  "source": "specialist"
+ },
+ {
+  "id": "engineer",
+  "name": "Great Engineer",
+  "unit": "great_engineer",
+  "source": "specialist"
+ },
+ {
+  "id": "merchant",
+  "name": "Great Merchant",
+  "unit": "great_merchant",
+  "source": "specialist"
+ },
+ {
+  "id": "artist",
+  "name": "Great Artist",
+  "unit": "great_artist",
+  "source": "specialist"
+ },
+ {
+  "id": "writer",
+  "name": "Great Writer",
+  "unit": "great_writer",
+  "source": "specialist"
+ },
+ {
+  "id": "musician",
+  "name": "Great Musician",
+  "unit": "great_musician",
+  "source": "specialist"
+ },
+ {
+  "id": "general",
+  "name": "Great General",
+  "unit": "great_general",
+  "source": "combat"
+ }
+]

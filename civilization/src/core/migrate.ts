@@ -8,10 +8,22 @@ export function migrate(s: GameState): GameState {
   st.maxTurns ??= get(D.pace, s.settings.pace).maxTurns;
   s.replay ??= [];
   s.events ??= [];
+  s.wonders ??= {};
+  s.modGen ??= 0;
+  for (const c of Object.values(s.cities)) {
+    c.specialists ??= {};
+    c.manualSpecialists ??= {};
+  }
   for (const p of s.players) {
     p.projects ??= [];
     p.spaceship ??= {};
     p.futureTechs ??= 0;
+    p.policies ??= [];
+    p.culture ??= 0;
+    p.freePolicies ??= 0;
+    p.goldenAge ??= { points: 0, turnsLeft: 0, count: 0 };
+    p.gpPoints ??= {};
+    p.gpCount ??= {};
     const zero = { pop: 0, military: 0, production: 0, gold: 0, science: 0, culture: 0, land: 0 };
     p.stats ??= [];
     for (const x of p.stats) for (const [k, v] of Object.entries(zero)) if (!(k in x)) (x as unknown as Record<string, number>)[k] = v;

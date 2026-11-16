@@ -1,0 +1,56 @@
+[
+ {
+  "id": "scientist",
+  "name": "Scientist",
+  "yields": {
+   "science": 3
+  },
+  "gp": "scientist",
+  "points": 3
+ },
+ {
+  "id": "engineer",
+  "name": "Engineer",
+  "yields": {
+   "production": 2
+  },
+  "gp": "engineer",
+  "points": 3
+ },
+ {
+  "id": "merchant",
+  "name": "Merchant",
+  "yields": {
+   "gold": 3
+  },
+  "gp": "merchant",
+  "points": 3
+ },
+ {
+  "id": "artist",
+  "name": "Artist",
+  "yields": {
+   "culture": 3
+  },
+  "gp": "artist",
+  "points": 3
+ },
+ {
+  "id": "writer",
+  "name": "Writer",
+  "yields": {
+   "culture": 2
+  },
+  "gp": "writer",
+  "points": 3
+ },
+ {
+  "id": "musician",
+  "name": "Musician",
+  "yields": {
+   "culture": 3
+  },
+  "gp": "musician",
+  "points": 3
+ }
+]

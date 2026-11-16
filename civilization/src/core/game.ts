@@ -16,7 +16,7 @@ import {
 import type { Action, ActionResult, GameState, Player, Settings, VictoryKind } from './state';
 import { annexPuppet, assignCitizens, buyItem, canFoundAt, cannotBuild, checkElimination, claimTile, decideCapture, foundCity, processCity, tileBuyCost, claimableTiles } from './systems/cities';
 import { canAttack, canCityAttack, resolveAttack, resolveCityAttack } from './systems/combat';
-import { goldReport, score } from './systems/economy';
+import { goldReport, score, SCORE_HOOKS } from './systems/economy';
 import { happinessOf } from './systems/happiness';
 import { followPath, moveUnit } from './systems/movement';
 import { autoExplore } from './systems/explore';
@@ -26,6 +26,10 @@ import { recomputeAllVisibility, recomputeVisibility } from './systems/visibilit
 import { barbarianSpawns, spawnRebels } from './systems/barbarians';
 import { playerYields } from './systems/yields';
 import { recordTurn } from './systems/stats';
+import { adoptPolicy, canPickPolicy } from './systems/policies';
+import { processGoldenAge } from './systems/goldenage';
+import { processGreatPeople, useGreatPerson } from './systems/greatpeople';
+import { specialistSlots } from './systems/yields';
 import { militaryStrength } from './power';
 import { logEvent } from './query';
 
@@ -98,6 +102,12 @@ export function newGame(o: NewGameOptions = {}): GameState {
       projects: [],
       spaceship: {},
       futureTechs: 0,
+      policies: [],
+      culture: 0,
+      freePolicies: 0,
+      goldenAge: { points: 0, turnsLeft: 0, count: 0 },
+      gpPoints: {},
+      gpCount: {},
     };
   });
   players.push({
@@ -138,6 +148,8 @@ export function newGame(o: NewGameOptions = {}): GameState {
     human: settings.spectator ? -1 : 0,
     replay: [],
     events: [],
+    wonders: {},
+    modGen: 0,
   };
   for (const c of map.camps) s.camps[c] = -99;
 
@@ -343,6 +355,28 @@ export function applyAction(s: GameState, p: number, a: Action): ActionResult {
       const err = annexPuppet(city!);
       return err ? fail(err) : OK;
     }
+    case 'adoptPolicy': {
+      const err = adoptPolicy(s, p, a.policy);
+      return err ? fail(err) : OK;
+    }
+    case 'specialist': {
+      const c = city!;
+      const slots = specialistSlots(c);
+      const cur = c.manualSpecialists[a.specialist] ?? 0;
+      const next = cur + a.delta;
+      if (next < 0) return fail('no specialist to remove');
+      if (next > (slots[a.specialist] ?? 0)) return fail('no free slot');
+      const total = Object.values(c.manualSpecialists).reduce((x, y) => x + y, 0) + a.delta;
+      if (total > c.pop - 1) return fail('a city needs at least one citizen on the land');
+      c.manualSpecialists[a.specialist] = next;
+      assignCitizens(s, c);
+      return OK;
+    }
+    case 'greatPerson': {
+      const err = useGreatPerson(s, unit!, a.use);
+      if (!err) recomputeVisibility(s, p);
+      return err ? fail(err) : OK;
+    }
     case 'declareWar': {
       const q = a.target;
       if (q === p || !s.players[q] || s.players[q].isBarbarian || !s.players[q].alive) return fail('invalid target');
@@ -423,6 +457,9 @@ export function endPlayerTurn(s: GameState, p: number): void {
   for (const c of playerCities(s, p)) processCity(s, c, happy.net);
   const y = playerYields(s, p);
   addScience(s, p, y.science);
+  pl.culture += y.culture;
+  processGoldenAge(s, p, happy.net);
+  processGreatPeople(s, p);
   const g = goldReport(s, p);
   pl.gold += g.net;
   if (pl.gold < 0) {
@@ -444,12 +481,13 @@ export function startPlayerTurn(s: GameState, p: number): void {
     if (u.owner !== p) continue;
     if (u.order === 'fortify' && !u.acted) u.fortifyTurns = Math.min(2, u.fortifyTurns + 1);
     if (u.order === 'skip') u.order = 'none';
-    u.moves = u.job ? 0 : fullMoves(u);
+    u.moves = u.job ? 0 : fullMoves(s, u);
     u.acted = false;
     u.hasAttacked = false;
     u.setUp = false;
   }
   for (const c of playerCities(s, p)) c.hasAttacked = false;
+  citadelDamage(s, p);
   // Units with orders keep walking (the human's too); explorers keep exploring.
   for (const u of Object.values(s.units)) {
     if (u.owner !== p || u.job) continue;
@@ -504,6 +542,13 @@ export function spaceshipComplete(s: GameState, p: number): boolean {
 /** Victory checks; later phases add their own to this list. */
 export const VICTORY_CHECKS: ((s: GameState) => void)[] = [];
 
+// Wonders and policies count toward score.
+SCORE_HOOKS.push((s, p) => {
+  const sc = D.rules.score;
+  const wonders = allCities(s).filter((c) => c.owner === p).reduce((a, c) => a + c.buildings.filter((b) => D.buildings.get(b)?.wonder === 'world').length, 0);
+  return wonders * sc.perWonder + s.players[p].policies.filter((x) => !x.startsWith('done:')).length * sc.perPolicy;
+});
+
 export function checkVictory(s: GameState): void {
   if (s.winner) return;
   const v = s.settings.victories;
@@ -533,9 +578,28 @@ export function checkVictory(s: GameState): void {
 }
 
 /** Is it safe to say the human has nothing left to do (for the End Turn button)? */
-export function nextRequiredAction(s: GameState, p: number): { kind: 'research' | 'production' | 'unit' | 'capture' | 'promotion' | 'done'; id?: number } {
+/** Citadels hurt enemy units next to them at the start of their owner's turn. */
+function citadelDamage(s: GameState, p: number): void {
+  for (let i = 0; i < s.map.tiles.length; i++) {
+    const t = s.map.tiles[i];
+    if (t.improvement !== 'citadel' || t.pillaged || t.owner !== p) continue;
+    for (const n of neighbors(s.map, i)) {
+      for (const u of Object.values(s.units)) {
+        if (u.tile !== n || u.owner === p || isCivilian(u) || !s.diplomacy.war[p]?.[u.owner] && !s.players[u.owner].isBarbarian) continue;
+        u.hp -= D.rules.greatPeople.citadelDamage;
+        if (u.hp <= 0) {
+          notify(s, u.owner, `Your ${unitDef(u).name} was destroyed by a citadel.`, 'bad', n);
+          removeUnit(s, u);
+        }
+      }
+    }
+  }
+}
+
+export function nextRequiredAction(s: GameState, p: number): { kind: 'research' | 'production' | 'unit' | 'capture' | 'promotion' | 'policy' | 'done'; id?: number } {
   const pl = s.players[p];
   if (pl.pendingCaptures.length) return { kind: 'capture', id: pl.pendingCaptures[0] };
+  if (canPickPolicy(s, p)) return { kind: 'policy' };
   if (!pl.research && playerCities(s, p).length && pl.techs.length < D.techs.size) return { kind: 'research' };
   for (const c of playerCities(s, p)) if (!c.queue.length && !c.puppet && !c.razing) return { kind: 'production', id: c.id };
   for (const u of playerUnits(s, p)) if (u.pendingPromotions > 0 && u.moves > 0) return { kind: 'promotion', id: u.id };

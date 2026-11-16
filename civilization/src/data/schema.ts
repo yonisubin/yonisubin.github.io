@@ -2,7 +2,7 @@
 // startup, so a typo in a data file fails loudly instead of quietly breaking a rule.
 import { z } from 'zod';
 
-export const YIELD_KEYS = ['food', 'production', 'gold', 'science', 'culture'] as const;
+export const YIELD_KEYS = ['food', 'production', 'gold', 'science', 'culture', 'faith', 'tourism'] as const;
 export type YieldKey = (typeof YIELD_KEYS)[number];
 
 export const Yields = z
@@ -12,6 +12,8 @@ export const Yields = z
     gold: z.number().optional(),
     science: z.number().optional(),
     culture: z.number().optional(),
+    faith: z.number().optional(),
+    tourism: z.number().optional(),
   })
   .strict();
 export type YieldsData = z.infer<typeof Yields>;
@@ -93,6 +95,8 @@ export const Improvement = z
     clears: z.array(z.string()).default([]),
     /** Extra food when next to fresh water (river, lake, oasis). */
     freshWaterFood: z.number().default(0),
+    /** Built instantly by a great person (Academy, Manufactory...). */
+    greatPerson: z.boolean().default(false),
     /** Only on one of `features` (lumber mill: forest only). */
     needsFeature: z.boolean().default(false),
     color: z.string(),
@@ -128,7 +132,10 @@ export const Unit = z
     /** Barbarians may field it (the best one their era allows). */
     barbarian: z.boolean().default(false),
     /** AI hint for what the unit is for. */
-    role: z.enum(['settle', 'work', 'explore', 'defense', 'attack', 'ranged', 'siege', 'fast', 'spaceship']),
+    role: z.enum(['settle', 'work', 'explore', 'defense', 'attack', 'ranged', 'siege', 'fast', 'spaceship', 'great_person']),
+    /** Great person type (scientist, engineer...) and the tile improvement it can build. */
+    greatPerson: z.string().optional(),
+    gpImprovement: z.string().optional(),
     /** Can only be built in a city with this building / after this project. */
     requiresBuilding: z.string().optional(),
     requiresProject: z.string().optional(),
@@ -168,6 +175,10 @@ export const Building = z
         building: z.string().optional(),
         /** Uses one copy of a strategic resource. */
         resource: z.string().optional(),
+        /** The city must be on the coast. */
+        coast: z.boolean().optional(),
+        /** National wonders: every city must have this building first. */
+        allCities: z.string().optional(),
       })
       .strict()
       .default({}),
@@ -176,14 +187,23 @@ export const Building = z
     faction: z.string().optional(),
     replaces: z.string().optional(),
     /** AI hint: what the building is for. */
-    focus: z.enum(['growth', 'production', 'gold', 'science', 'culture', 'happiness', 'defense', 'military']),
+    focus: z.enum(['growth', 'production', 'gold', 'science', 'culture', 'happiness', 'defense', 'military', 'wonder']),
+    /** Specialist slots: { scientist: 1 }. */
+    specialists: z.record(z.string(), z.number()).default({}),
+    /** A wonder: 'world' (one per world) or 'national' (one per empire). */
+    wonder: z.enum(['world', 'national']).optional(),
+    /** Effects for the whole empire / only this city. */
+    effects: z.array(z.lazy(() => Effect)).default([]),
+    cityEffects: z.array(z.lazy(() => Effect)).default([]),
+    /** Great person points per turn, by type. */
+    greatPeople: z.record(z.string(), z.number()).default({}),
   })
   .strict();
 
 export const TileMod = z
   .object({
     improvement: z.string(),
-    yield: z.enum(['food', 'production', 'gold', 'science', 'culture']),
+    yield: z.enum(['food', 'production', 'gold', 'science', 'culture', 'faith', 'tourism']),
     amount: z.number(),
     freshWaterOnly: z.boolean().optional(),
   })
@@ -234,20 +254,46 @@ export const Promotion = z
   })
   .strict();
 
-export const Effect = z.discriminatedUnion('type', [
-  z
-    .object({
-      type: z.literal('tile_yield'),
-      where: z.enum(['river', 'hills', 'tundra_snow', 'desert', 'forest', 'coast']),
-      yield: z.enum(['food', 'production', 'gold', 'science', 'culture']),
-      amount: z.number(),
-    })
-    .strict(),
-  z.object({ type: z.literal('city_percent'), yield: z.enum(['food', 'production', 'gold', 'science', 'culture']), percent: z.number() }).strict(),
-  z.object({ type: z.literal('combat'), when: z.enum(['vs_city', 'rough', 'always']), percent: z.number() }).strict(),
-  z.object({ type: z.literal('connection_gold'), amount: z.number() }).strict(),
-  z.object({ type: z.literal('happiness'), amount: z.number() }).strict(),
-]);
+/**
+ * One bonus from a faction ability, policy, wonder, belief or tenet. `type` says what it does;
+ * the other fields qualify it (only the ones that type uses are read):
+ *   tile_yield        +amount `yield` on tiles matching `where`
+ *   city_yield        +amount `yield` in cities matching `scope` (all, capital, coastal, this)
+ *   per_pop           +amount `yield` per citizen in `scope` cities
+ *   city_percent      +percent `yield` in `scope` cities
+ *   growth_pct        +percent food surplus in `scope` cities
+ *   combat            +percent strength `when` (vs_city, rough, always, vs_barbarian)
+ *   connection_gold   +amount gold per city connected to the capital
+ *   happiness         +amount happiness; luxury_happiness +amount per luxury;
+ *   happiness_per_building +amount per `building`; garrison_happiness +amount per garrisoned city
+ *   unhappiness_city_pct / unhappiness_pop_pct  −percent unhappiness from cities / citizens
+ *   cost_pct          +percent cost of `target` (settler, worker, unit, building, wonder,
+ *                     spaceship, policy, border, tile, buy, upgrade)
+ *   upkeep_pct        +percent upkeep of `target` (unit, building, road)
+ *   golden_age_length_pct, golden_age_points_pct, great_people_pct (`gp` type or all)
+ *   xp (+amount for new units), heal (+amount HP per turn), moves / sight (+amount, `class`)
+ *   defense_pct (cities), kill_culture / kill_gold (+amount per enemy unit killed)
+ *   One-shot, applied when gained: free_unit (`unit` × count), free_building (`building` in the
+ *   first `count` cities), free_policy, free_tech, free_great_person (`gp`), golden_age.
+ *   Later phases add their own types (faith, tourism, trade routes, city-states, delegates...).
+ */
+export const Effect = z
+  .object({
+    type: z.string(),
+    yield: z.enum(['food', 'production', 'gold', 'science', 'culture', 'faith', 'tourism']).optional(),
+    amount: z.number().default(0),
+    percent: z.number().default(0),
+    count: z.number().default(1),
+    where: z.string().optional(),
+    scope: z.enum(['all', 'capital', 'coastal', 'this']).default('all'),
+    when: z.string().optional(),
+    target: z.string().optional(),
+    unit: z.string().optional(),
+    building: z.string().optional(),
+    gp: z.string().optional(),
+    class: z.string().optional(),
+  })
+  .strict();
 export type EffectData = z.infer<typeof Effect>;
 
 export const Personality = z
@@ -303,6 +349,31 @@ export const Difficulty = z
     aiVsBarbarianPct: z.number(),
     /** Final-score multiplier (Hall of Fame). */
     scoreMult: z.number(),
+  })
+  .strict();
+
+export const Specialist = z
+  .object({ id, name: z.string(), yields: Yields, gp: z.string(), points: z.number() })
+  .strict();
+
+export const GreatPerson = z
+  .object({ id, name: z.string(), unit: z.string(), source: z.enum(['specialist', 'combat', 'naval', 'faith']) })
+  .strict();
+
+export const Policy = z
+  .object({ id, name: z.string(), description: z.string(), effects: z.array(z.lazy(() => Effect)), requires: z.array(z.string()) })
+  .strict();
+
+export const PolicyTree = z
+  .object({
+    id,
+    name: z.string(),
+    era: z.number(),
+    description: z.string(),
+    opener: z.array(z.lazy(() => Effect)),
+    finisher: z.array(z.lazy(() => Effect)),
+    excludes: z.string().nullable(),
+    policies: z.array(Policy),
   })
   .strict();
 
@@ -437,6 +508,25 @@ export const Rules = z
       .strict(),
     work: z.object({ roadTurns: z.number(), repairTurns: z.number(), removeTurns: z.record(z.string(), z.number()) }).strict(),
     upgradeGoldPerProduction: z.number(),
+    policy: z.object({ base: z.number(), perPolicy: z.number(), exponent: z.number(), perCityPct: z.number() }).strict(),
+    goldenAge: z.object({ base: z.number(), perAge: z.number(), turns: z.number(), productionBonus: z.number(), goldBonus: z.number(), culturePct: z.number() }).strict(),
+    greatPeople: z
+      .object({
+        base: z.number(),
+        perPerson: z.number(),
+        generalXpShare: z.number(),
+        scienceTurns: z.number(),
+        cultureTurns: z.number(),
+        hurryBase: z.number(),
+        hurryPerPop: z.number(),
+        tradeGold: z.number(),
+        tradePerEra: z.number(),
+        generalAura: z.number(),
+        citadelDamage: z.number(),
+        citadelDefense: z.number(),
+      })
+      .strict(),
+    nationalWonderPerCityPct: z.number(),
     ruinsPerLandTiles: z.number(),
     startUnits: z.array(z.string()),
     techPlayersMetDiscountPct: z.number(),

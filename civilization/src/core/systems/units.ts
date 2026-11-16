@@ -23,12 +23,20 @@ import type { GameState, Unit } from '../state';
 import { recomputeVisibility, reveal } from './visibility';
 import { availableTechs, learnTech } from './research';
 import { isPassableLand } from '../../mapgen/generate';
+import { playerEffects, sum } from './effects';
 
-export const fullMoves = (u: Unit): number => {
-  let m = unitDef(u).moves;
+/** Full movement points per turn (base + promotions + effects such as +1 for mounted units). */
+export const fullMoves = (s: GameState, u: Unit): number => {
+  const def = unitDef(u);
+  let m = def.moves;
   for (const p of u.promotions) m += D.promotions.get(p)!.moves;
+  if (s.players[u.owner] && !s.players[u.owner].isBarbarian)
+    m += sum(playerEffects(s, u.owner), 'moves', 'amount', (e) => !e.class || e.class === def.class || (e.class === 'naval' && NAVAL_CLASSES.includes(def.class)));
   return m * D.rules.moveScale;
 };
+
+/** Unit classes that count as naval (phase 10 adds them). */
+export const NAVAL_CLASSES: string[] = ['naval_melee', 'naval_ranged', 'naval'];
 
 export function createUnit(s: GameState, type: string, owner: number, tile: number, xp = 0): Unit {
   const id = s.nextId++;
@@ -52,9 +60,11 @@ export function createUnit(s: GameState, type: string, owner: number, tile: numb
     path: [],
     exploring: false,
   };
-  u.moves = fullMoves(u);
+  u.moves = fullMoves(s, u);
   s.units[id] = u;
-  if (xp) addXp(s, u, xp, false);
+  // Policies and wonders add starting XP to new military units.
+  const bonusXp = isCivilian(u) || s.players[owner]?.isBarbarian ? 0 : sum(playerEffects(s, owner), 'xp');
+  if (xp + bonusXp) addXp(s, u, xp + bonusXp, false);
   return u;
 }
 
@@ -133,6 +143,7 @@ export function healUnits(s: GameState, p: number): void {
     const t = tileAt(s, u.tile);
     const city = cityAt(s, u.tile);
     let amount = city && city.owner === p ? h.city : t.owner === p ? h.friendly : t.owner < 0 ? h.neutral : atWar(s, p, t.owner) ? h.enemy : h.neutral;
+    amount += sum(playerEffects(s, p), 'heal');
     // Field medics heal themselves and their neighbours.
     for (const n of [u.tile, ...neighbors(dims(s), u.tile)]) {
       const o = militaryAt(s, n);

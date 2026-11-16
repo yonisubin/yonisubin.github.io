@@ -28,15 +28,18 @@ import { happinessOf } from '../core/systems/happiness';
 import { stepCost } from '../core/systems/movement';
 import { availableTechs, describeUnlocks, techCost } from '../core/systems/research';
 import { availablePromotions, buildOptions, upgradeCost, upgradeTarget } from '../core/systems/units';
-import { cityYields, playerYields, resourceVisible, tileYields } from '../core/systems/yields';
+import { cityGreatPeople, cityYields, inGoldenAge, playerYields, resourceVisible, specialistSlots, tileYields } from '../core/systems/yields';
 import { deleteSave, listSaves, type SaveSummary } from '../save/db';
+import { cannotAdopt, canPickPolicy, policyCost } from '../core/systems/policies';
+import { goldenAgeThreshold } from '../core/systems/goldenage';
+import { describeUse, gpThreshold, greatPersonUses } from '../core/systems/greatpeople';
 import { drawEndgame, endgameHtml, hallOfFameHtml, recordHallOfFame } from './endgame';
 import { act, endTurn, endTurnLabel, load, nextUnit, quickSave, selectCity, selectUnit, startGame, toast } from './controller';
 import { set, ui } from './store';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const $ = (id: string) => document.getElementById(id)!;
-const ICON: Record<string, string> = { food: '🌾', production: '⚒', gold: '●', science: '⚗', culture: '♪' };
+const ICON: Record<string, string> = { food: '🌾', production: '⚒', gold: '●', science: '⚗', culture: '♪', faith: '✦', tourism: '✈' };
 const fmt = (n: number) => (Math.round(n * 10) / 10).toString();
 const sign = (n: number) => (n >= 0 ? `+${fmt(n)}` : fmt(n));
 
@@ -103,7 +106,8 @@ function renderTop(s: GameState): void {
     <button class="chip sci" data-a="panel" data-p="tech" title="Science per turn — click for the tech tree">⚗ ${sign(y.science)} · ${esc(research)}</button>
     <span class="chip gold" title="Cities ${g.cities}, connections ${g.connections}, buildings −${g.buildings}, units −${g.units}, roads −${g.roads}">● ${pl.gold} (${sign(g.net)})</span>
     <span class="chip ${h.net < 0 ? 'bad' : 'happy'}" title="Happiness ${h.happy} − unhappiness ${h.unhappy}. Luxuries: ${esc(h.luxuries.map((l) => D.resources.get(l)!.name).join(', ') || 'none')}">${h.net < 0 ? '☹' : '☺'} ${h.net}</span>
-    <span class="chip cult" title="Culture per turn (grows borders)">♪ ${sign(y.culture)}</span>
+    <button class="chip cult" data-a="panel" data-p="policies" title="Culture per turn — ${pl.culture.toFixed(0)}/${policyCost(s, p)} toward the next policy">♪ ${sign(y.culture)} · ${pl.freePolicies > 0 || pl.culture >= policyCost(s, p) ? '<b>policy!</b>' : `policy ${Math.max(1, Math.ceil((policyCost(s, p) - pl.culture) / Math.max(1, y.culture)))}t`}</button>
+    <span class="chip ${inGoldenAge(s, p) ? 'happy' : ''}" title="Golden age: ${inGoldenAge(s, p) ? `${pl.goldenAge.turnsLeft} turns left` : `${Math.round(pl.goldenAge.points)}/${goldenAgeThreshold(s, p)} points from happiness`}">☀ ${inGoldenAge(s, p) ? `Golden age ${pl.goldenAge.turnsLeft}` : `${Math.round((100 * pl.goldenAge.points) / goldenAgeThreshold(s, p))}%`}</span>
     ${res}
     <span class="spacer"></span>
     <span class="chip">Turn ${s.turn} · ${yearOf(s)}</span>
@@ -146,6 +150,7 @@ function renderUnit(s: GameState): void {
     }
     if (def.canFound) actions += b('found', 'Found city (B)', canFoundAt(s, u.owner, u.tile) ?? 'Found a city here');
     if (def.canBuild) for (const o of buildOptions(s, u)) actions += b('build', `${esc(o.name)} (${o.turns})`, `${o.turns} turns`, `data-job="${o.job}"`);
+    for (const use of greatPersonUses(s, u)) actions += b('gp-use', esc(GP_USE_NAMES[use] ?? use), describeUse(s, u, use), `data-u="${use}"`);
     if (u.job) actions += `<span class="note">Working: ${esc(jobName(u.job.improvement))}, ${u.job.turnsLeft} turn(s) left</span>`;
     if (def.class !== 'civilian') actions += b('order', 'Fortify (F)', 'Dig in: +25% defence, +50% after two turns', 'data-o="fortify"');
     actions += b('order', 'Sleep (S)', 'Skip this unit until woken', 'data-o="sleep"');
@@ -168,6 +173,10 @@ function renderUnit(s: GameState): void {
     <div class="actions">${actions}</div>`,
   );
 }
+
+const GP_USE_NAMES: Record<string, string> = {
+  discover: 'Discover', hurry: 'Hurry production', trade: 'Trade mission', golden_age: 'Golden age', inspire: 'Write', concert: 'Concert', improve: 'Build special tile',
+};
 
 function unitDefMoves(u: Unit): number {
   let m = unitDef(u).moves;
@@ -198,7 +207,7 @@ function renderCity(s: GameState): void {
   const pl = s.players[c.owner];
   const r = cityYields(s, c);
   const t = r.total;
-  const yields = YIELD_KEYS.map((k) => `<span class="y ${k}" title="${k}">${ICON[k]} ${fmt(k === 'food' ? r.foodSurplus : t[k])}</span>`).join('');
+  const yields = YIELD_KEYS.filter((k) => (k !== 'faith' && k !== 'tourism') || t[k] > 0).map((k) => `<span class="y ${k}" title="${k}">${ICON[k]} ${fmt(k === 'food' ? r.foodSurplus : t[k])}</span>`).join('');
   const growth =
     r.foodSurplus > 0 ? `grows in ${r.growthTurns} turns` : r.foodSurplus < 0 ? `<span class="bad">starving</span>` : 'not growing';
   let body = '';
@@ -234,8 +243,10 @@ function renderCity(s: GameState): void {
           <button data-a="buy" data-k="${q.kind}" data-id="${q.id}" ${pl.gold < gold || c.resistance ? 'disabled' : ''} title="Buy now">${gold}●</button></div>`;
       };
       body += `<h4>Units</h4><div class="items">${items.filter((q) => q.kind === 'unit').map(row).join('')}</div>`;
-      const blds = items.filter((q) => q.kind === 'building');
+      const blds = items.filter((q) => q.kind === 'building' && !get(D.buildings, q.id).wonder);
       if (blds.length) body += `<h4>Buildings</h4><div class="items">${blds.map(row).join('')}</div>`;
+      const wnd = items.filter((q) => q.kind === 'building' && get(D.buildings, q.id).wonder);
+      if (wnd.length) body += `<h4>Wonders</h4><div class="items">${wnd.map(row).join('')}</div>`;
       const projects = items.filter((q) => q.kind === 'project');
       if (projects.length)
         body += `<h4>Projects</h4><div class="items">${projects
@@ -257,7 +268,22 @@ function renderCity(s: GameState): void {
       body += `<button class="primary" data-a="city-attack">${ui().cityAttack ? 'Choose a target…' : 'City attack'}</button>`;
     if (c.puppet) body += `<button data-a="annex" data-c="${c.id}">Annex this puppet</button>`;
   }
-  body += `<h4>Buildings</h4><div class="note">${c.buildings.map((b) => esc(get(D.buildings, b).name)).join(', ') || 'none yet'}</div>`;
+  const slots = specialistSlots(c);
+  if (own && Object.keys(slots).length) {
+    body += `<h4>Specialists</h4><div class="items">${Object.entries(slots)
+      .map(([k, n]) => {
+        const sp = get(D.specialists, k);
+        const have = c.specialists[k] ?? 0;
+        return `<div class="item"><span class="name" title="${esc(Object.entries(sp.yields).map(([y, v]) => `+${v} ${y}`).join(', '))}, ${sp.points} great ${sp.gp} points">${esc(sp.name)} ${have}/${n}</span>
+          <button data-a="spec" data-k="${k}" data-d="-1" ${(c.manualSpecialists[k] ?? 0) <= 0 ? 'disabled' : ''}>−</button><button data-a="spec" data-k="${k}" data-d="1" ${have >= n ? 'disabled' : ''}>+</button></div>`;
+      })
+      .join('')}</div>`;
+  }
+  const gpp = cityGreatPeople(s, c);
+  if (own && Object.keys(gpp).length) body += `<div class="note">Great people points: ${Object.entries(gpp).map(([k, v]) => `${esc(k)} +${fmt(v)}`).join(', ')}</div>`;
+  const wonders = c.buildings.filter((b) => get(D.buildings, b).wonder);
+  if (wonders.length) body += `<h4>Wonders</h4><div class="note">${wonders.map((b) => `<span title="${esc(buildingSummary(b))}">${esc(get(D.buildings, b).name)}</span>`).join(', ')}</div>`;
+  body += `<h4>Buildings</h4><div class="note">${c.buildings.filter((b) => !get(D.buildings, b).wonder).map((b) => esc(get(D.buildings, b).name)).join(', ') || 'none yet'}</div>`;
   setHtml(
     el,
     `<div class="title"><span class="swatch" style="background:${pl.color};border-color:${pl.color2}">${c.pop}</span>
@@ -290,6 +316,12 @@ export function buildingSummary(id: string): string {
   if (b.endsOccupation) parts.push('ends occupation unhappiness');
   parts.push(`upkeep ${b.maintenance}●`);
   if (b.replaces) parts.push(`Unique: replaces ${get(D.buildings, b.replaces).name}`);
+  for (const [k, v] of Object.entries(b.specialists)) parts.push(`${v} ${k} slot${v > 1 ? 's' : ''}`);
+  for (const [k, v] of Object.entries(b.greatPeople)) parts.push(`+${v} great ${k} points`);
+  for (const e of b.effects) parts.push(`empire: ${effectText(e)}`);
+  for (const e of b.cityEffects) parts.push(effectText({ ...e, scope: 'this' }));
+  if (b.wonder) parts.unshift(b.wonder === 'world' ? 'World wonder' : 'National wonder');
+  if (b.requires.allCities) parts.push(`needs a ${get(D.buildings, b.requires.allCities).name} in every city`);
   return parts.join(', ');
 }
 
@@ -335,6 +367,7 @@ function renderModal(s: GameState): void {
   else if (st.panel === 'menu') html = menu(s);
   else if (st.panel === 'help') html = help();
   else if (st.panel === 'victory') html = victoryPanel(s);
+  else if (st.panel === 'policies') html = policiesPanel(s);
   show(el, !!html);
   setHtml(el, html);
   if (endgame) drawEndgame(s, st.endTab, st.endStat, st.replayTurn);
@@ -398,6 +431,114 @@ function techTree(s: GameState): string {
   return `<div class="dialog wide"><div class="row head"><h2>Technology</h2><span class="sub">⚗ ${fmt(sci)} per turn · era: ${ERA_NAMES[eraOf(pl)]} · click a tech to research it (and everything it needs)</span><button class="x" data-a="panel" data-p="none">✕</button></div>
     <div class="tree"><div class="tree-inner" style="width:${width}px;height:${height}px"><svg width="${width}" height="${height}">${lines}</svg>${eraHeads}${boxes}</div></div></div>`;
 }
+
+function policiesPanel(s: GameState): string {
+  const p = s.human;
+  const pl = s.players[p];
+  const cost = policyCost(s, p);
+  const can = canPickPolicy(s, p);
+  const trees = [...D.policyTrees.values()]
+    .map((t) => {
+      const opened = pl.policies.includes(t.id);
+      const done = pl.policies.includes(`done:${t.id}`);
+      const why = cannotAdopt(s, p, t.id);
+      const fx = (list: { type: string }[]) => esc(list.map(effectText).join('; '));
+      const pols = t.policies
+        .map((x) => {
+          const have = pl.policies.includes(x.id);
+          const w = cannotAdopt(s, p, x.id);
+          return `<button class="pol ${have ? 'known' : !w ? 'avail' : 'locked'}" data-a="adopt" data-id="${x.id}" ${have || w || !can ? 'disabled' : ''} title="${esc(x.description)}${w && !have ? ` — ${esc(w)}` : ''}">${have ? '✓ ' : ''}${esc(x.name)}<small>${esc(x.description)}</small></button>`;
+        })
+        .join('');
+      return `<div class="tree-card ${opened ? 'open' : ''}"><div class="row head"><b>${esc(t.name)}</b>${done ? '<span class="happy">complete</span>' : ''}</div>
+        <div class="sub">${esc(t.description)}</div>
+        ${opened ? `<div class="note">Opened: ${fx(t.opener)}</div>` : `<button class="${!why && can ? 'primary' : ''}" data-a="adopt" data-id="${t.id}" ${why || !can ? 'disabled' : ''} title="${esc(why ?? '')}">Open ${esc(t.name)}${why ? ` — ${esc(why)}` : ''}</button><div class="note">${fx(t.opener)}</div>`}
+        <div class="pols">${pols}</div><div class="note">Completing it: ${fx(t.finisher)}</div></div>`;
+    })
+    .join('');
+  const gpRows = [...D.greatPeople.values()]
+    .map((g) => `<span class="chip" title="${esc(g.name)}s born: ${pl.gpCount[g.id] ?? 0}">${esc(g.name.replace('Great ', ''))} ${Math.round(pl.gpPoints[g.id] ?? 0)}/${gpThreshold(s, p, g.id)}</span>`)
+    .join(' ');
+  return `<div class="dialog wide"><div class="row head"><h2>Policies</h2><span class="sub">Culture ${Math.round(pl.culture)}/${cost}${pl.freePolicies ? ` · ${pl.freePolicies} free` : ''} · ${can ? '<b>pick one</b>' : 'keep making culture'} · golden age ${inGoldenAge(s, p) ? `active (${pl.goldenAge.turnsLeft} turns)` : `${Math.round(pl.goldenAge.points)}/${goldenAgeThreshold(s, p)}`}</span><button class="x" data-a="panel" data-p="none">✕</button></div>
+    <div class="row">Great people: ${gpRows}</div>
+    <div class="trees">${trees}</div></div>`;
+}
+
+/** Human-readable text for an effect. */
+export function effectText(e: { type: string; [k: string]: unknown }): string {
+  const x = e as unknown as { type: string; yield?: string; amount: number; percent: number; count: number; scope: string; target?: string; unit?: string; building?: string; gp?: string; class?: string; when?: string; where?: string };
+  const sc = x.scope === 'capital' ? ' in the capital' : x.scope === 'coastal' ? ' in coastal cities' : x.scope === 'this' ? ' here' : '';
+  const pct = (n: number) => `${n > 0 ? '+' : ''}${n}%`;
+  switch (x.type) {
+    case 'city_yield':
+      return `+${x.amount} ${x.yield}${sc || ' in every city'}`;
+    case 'per_pop':
+      return `+${x.amount} ${x.yield} per citizen`;
+    case 'city_percent':
+      return `${pct(x.percent)} ${x.yield}${sc}`;
+    case 'growth_pct':
+      return `${pct(x.percent)} growth${sc}`;
+    case 'tile_yield':
+      return `+${x.amount} ${x.yield} on ${x.where} tiles`;
+    case 'combat':
+      return `${pct(x.percent)} combat ${String(x.when).replace('vs_', 'vs ').replace('_', ' ')}`;
+    case 'happiness':
+      return `+${x.amount} happiness`;
+    case 'luxury_happiness':
+      return `+${x.amount} happiness per luxury`;
+    case 'happiness_per_building':
+      return `+${x.amount} happiness per ${D.buildings.get(x.building!)?.name}`;
+    case 'garrison_happiness':
+      return `+${x.amount} happiness per garrisoned city`;
+    case 'unhappiness_city_pct':
+      return `${pct(x.percent)} unhappiness from cities`;
+    case 'unhappiness_pop_pct':
+      return `${pct(x.percent)} unhappiness from citizens`;
+    case 'cost_pct':
+      return `${x.target} cost ${pct(x.percent)}`;
+    case 'upkeep_pct':
+      return `${x.target} upkeep ${pct(x.percent)}`;
+    case 'golden_age_length_pct':
+      return `golden ages ${pct(x.percent)} longer`;
+    case 'golden_age_points_pct':
+      return `${pct(x.percent)} golden age points`;
+    case 'great_people_pct':
+      return `${pct(x.percent)} ${x.gp ? `Great ${x.gp}` : 'great people'} points`;
+    case 'xp':
+      return `+${x.amount} XP for new units`;
+    case 'heal':
+      return `+${x.amount} healing`;
+    case 'moves':
+      return `+${x.amount} movement${x.class ? ` (${x.class})` : ''}`;
+    case 'sight':
+      return `+${x.amount} sight`;
+    case 'defense_pct':
+      return `${pct(x.percent)} city defence${sc}`;
+    case 'kill_culture':
+      return `+${x.amount} culture per kill`;
+    case 'kill_gold':
+      return `+${x.amount} gold per kill`;
+    case 'connection_gold':
+      return `+${x.amount} gold per connected city`;
+    case 'free_unit':
+      return `free ${D.units.get(x.unit!)?.name}${x.count > 1 ? ` ×${x.count}` : ''}`;
+    case 'free_building':
+      return `free ${D.buildings.get(x.building!)?.name} in ${x.count} cities`;
+    case 'free_policy':
+      return 'a free policy';
+    case 'free_tech':
+      return x.count > 1 ? `${x.count} free techs` : 'a free tech';
+    case 'free_great_person':
+      return `a free ${x.gp ? `Great ${x.gp}` : 'great person'}`;
+    case 'golden_age':
+      return 'a golden age starts';
+    default:
+      return EFFECT_TEXT[x.type]?.(x) ?? x.type.replace(/_/g, ' ');
+  }
+}
+
+/** Text for effect types added by later phases. */
+export const EFFECT_TEXT: Record<string, (e: { amount: number; percent: number; yield?: string; [k: string]: unknown }) => string> = {};
 
 function victoryPanel(s: GameState): string {
   const v = s.settings.victories;
@@ -742,6 +883,15 @@ export function installHudEvents(centerOn: (tile: number) => void): void {
         break;
       case 'end-turn':
         endTurn();
+        break;
+      case 'adopt':
+        act({ type: 'adoptPolicy', policy: target.dataset.id! });
+        break;
+      case 'spec':
+        if (city !== null) act({ type: 'specialist', city, specialist: target.dataset.k!, delta: Number(target.dataset.d) as 1 | -1 });
+        break;
+      case 'gp-use':
+        if (unit !== null) act({ type: 'greatPerson', unit, use: target.dataset.u as 'discover' });
         break;
       case 'end-tab':
         set({ endTab: target.dataset.t!, replayTurn: target.dataset.t === 'replay' ? 0 : st.replayTurn });

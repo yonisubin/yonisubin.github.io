@@ -22,9 +22,11 @@ import type { City, CityFocus, GameState, QueueItem } from '../state';
 import { isPassableLand, tileValue } from '../../mapgen/generate';
 import { strategicResources } from './economy';
 import { happinessOf } from './happiness';
-import { cityYields, hasBuilding, tileYields } from './yields';
+import { cityYields, hasBuilding, specialistSlots, tileYields } from './yields';
 import { createUnit, deliverSpaceshipPart, freeTileNear, removeUnit } from './units';
 import { addScience } from './research';
+import { bumpEffects, cityEffects, costPct, inScope, isCoastal, sum } from './effects';
+import { applyOneShots } from './policies';
 import { recomputeAllVisibility } from './visibility';
 import type { StrengthReport } from './combat';
 
@@ -90,6 +92,8 @@ export function foundCity(s: GameState, p: number, tile: number): City {
     occupied: false,
     founded: s.turn,
     damagedThisTurn: false,
+    specialists: {},
+    manualSpecialists: {},
   };
   c.hp = cityMaxHp(c);
   s.cities[id] = c;
@@ -125,6 +129,7 @@ export function cityStrength(s: GameState, c: City): StrengthReport {
   let base = r.baseStrength + c.pop * r.perPop;
   for (const b of c.buildings) base += get(D.buildings, b).defense;
   if (c.isCapital) base += r.capitalBonus;
+  base *= 1 + sum(cityEffects(s, c), 'defense_pct', 'percent', (e) => inScope(s, e, c)) / 100;
   const g = militaryAt(s, c.tile);
   if (g && g.owner === c.owner) base += unitDef(g).strength * r.garrisonShare;
   const mods = tileAt(s, c.tile).hills ? [{ label: 'Hills', pct: r.hillsPct }] : [];
@@ -135,12 +140,12 @@ export function cityStrength(s: GameState, c: City): StrengthReport {
 // ---- Citizens ----
 
 const FOCUS_WEIGHTS: Record<CityFocus, Record<string, number>> = {
-  default: { food: 2.5, production: 2, gold: 1.2, science: 1, culture: 1 },
-  food: { food: 6, production: 1, gold: 0.5, science: 0.5, culture: 0.5 },
-  production: { food: 2, production: 6, gold: 0.5, science: 0.5, culture: 0.5 },
-  gold: { food: 2, production: 1, gold: 6, science: 0.5, culture: 0.5 },
-  science: { food: 2, production: 1, gold: 0.5, science: 6, culture: 0.5 },
-  culture: { food: 2, production: 1, gold: 0.5, science: 0.5, culture: 6 },
+  default: { food: 2.5, production: 2, gold: 1.2, science: 1, culture: 1, faith: 1, tourism: 0.5 },
+  food: { food: 6, production: 1, gold: 0.5, science: 0.5, culture: 0.5 , faith: 0.5, tourism: 0.5 },
+  production: { food: 2, production: 6, gold: 0.5, science: 0.5, culture: 0.5 , faith: 0.5, tourism: 0.5 },
+  gold: { food: 2, production: 1, gold: 6, science: 0.5, culture: 0.5 , faith: 0.5, tourism: 0.5 },
+  science: { food: 2, production: 1, gold: 0.5, science: 6, culture: 0.5 , faith: 0.5, tourism: 0.5 },
+  culture: { food: 2, production: 1, gold: 0.5, science: 0.5, culture: 6 , faith: 0.5, tourism: 0.5 },
 };
 
 /** Tiles this city could work: its own territory within the work radius, not another city's. */
@@ -157,7 +162,19 @@ export function workableTiles(s: GameState, c: City): number[] {
 
 export function assignCitizens(s: GameState, c: City): void {
   const tiles = workableTiles(s, c);
-  c.locked = c.locked.filter((i) => tiles.includes(i)).slice(0, c.pop);
+  // Specialists the player asked for, limited by slots and population.
+  const slots = specialistSlots(c);
+  const manual: Record<string, number> = {};
+  let used = 0;
+  for (const [k, n] of Object.entries(c.manualSpecialists ?? {})) {
+    const v = Math.max(0, Math.min(n, slots[k] ?? 0, c.pop - 1 - used));
+    if (v > 0) manual[k] = v;
+    used += v;
+  }
+  c.manualSpecialists = manual;
+  c.specialists = { ...manual };
+  const workers = c.pop - used;
+  c.locked = c.locked.filter((i) => tiles.includes(i)).slice(0, workers);
   const pick = (foodWeight?: number) => {
     const w = { ...FOCUS_WEIGHTS[c.focus] };
     if (foodWeight) w.food = foodWeight;
@@ -172,7 +189,7 @@ export function assignCitizens(s: GameState, c: City): void {
       .sort((a, b) => b.v - a.v || a.i - b.i);
     const worked = [...c.locked];
     for (const x of scored) {
-      if (worked.length >= c.pop) break;
+      if (worked.length >= workers) break;
       if (x.v <= D.rules.unemployedProduction * w.production * 0.99 && x.v <= 0) continue;
       worked.push(x.i);
     }
@@ -181,6 +198,25 @@ export function assignCitizens(s: GameState, c: City): void {
   c.worked = pick();
   // Avoid starving: if food runs short, weigh food much more.
   if (cityYields(s, c).foodSurplus < 0) c.worked = pick(8);
+  // Citizens with no tile to work fill free specialist slots (best for the city's focus).
+  let idle = workers - c.worked.length;
+  if (idle > 0) {
+    const w = FOCUS_WEIGHTS[c.focus];
+    const kinds = Object.keys(slots).sort((a, b) => specValue(b, w) - specValue(a, w) || a.localeCompare(b));
+    for (const k of kinds) {
+      while (idle > 0 && (c.specialists[k] ?? 0) < slots[k]) {
+        c.specialists[k] = (c.specialists[k] ?? 0) + 1;
+        idle--;
+      }
+    }
+  }
+}
+
+function specValue(id: string, w: Record<string, number>): number {
+  const y = get(D.specialists, id).yields;
+  let v = 0;
+  for (const k of YIELD_KEYS) v += (y[k] ?? 0) * w[k];
+  return v;
 }
 
 // ---- Borders ----
@@ -188,7 +224,7 @@ export function assignCitizens(s: GameState, c: City): void {
 export function borderCost(s: GameState, c: City): number {
   const b = D.rules.border;
   const pace = get(D.pace, s.settings.pace).costPct / 100;
-  return Math.round((b.base + Math.pow(b.perTile * c.tilesClaimed, b.exponent)) * pace);
+  return Math.round((b.base + Math.pow(b.perTile * c.tilesClaimed, b.exponent)) * pace * Math.max(0.1, 1 + costPct(s, c.owner, 'border') / 100));
 }
 
 /** Unowned tiles next to the city's territory that it could claim or buy. */
@@ -221,7 +257,7 @@ function bestClaim(s: GameState, c: City): number {
 export function tileBuyCost(s: GameState, c: City, i: number): number {
   const b = D.rules.tileBuy;
   const pace = get(D.pace, s.settings.pace).costPct / 100;
-  return Math.round((b.base + b.perDistance * distance(dims(s), c.tile, i) + b.perBought * c.tilesBought) * pace);
+  return Math.round((b.base + b.perDistance * distance(dims(s), c.tile, i) + b.perBought * c.tilesBought) * pace * Math.max(0.1, 1 + costPct(s, c.owner, 'tile') / 100));
 }
 
 // ---- Production ----
@@ -233,8 +269,29 @@ export function itemDef(item: QueueItem): UnitDef | BuildingDef | ProjectDef {
 /** Processes (Wealth, Research) never finish: they convert production every turn. */
 export const isProcess = (item: QueueItem | undefined) => !!item && item.kind === 'project' && !!D.projects.get(item.id)?.process;
 
+/** Which cost_pct targets apply to an item. */
+function costTargets(item: QueueItem): string[] {
+  if (item.kind === 'unit') {
+    const u = get(D.units, item.id);
+    const t = ['unit', u.replaces ?? u.id];
+    if (u.spaceshipPart) t.push('spaceship');
+    return t;
+  }
+  if (item.kind === 'building') {
+    const b = get(D.buildings, item.id);
+    return b.wonder ? ['wonder', b.id] : ['building', b.replaces ?? b.id];
+  }
+  return ['project', item.id];
+}
+
 export function itemCost(s: GameState, p: number, item: QueueItem): number {
-  return Math.max(1, Math.round(itemDef(item).cost * costMult(s, p)));
+  let cost = itemDef(item).cost * costMult(s, p);
+  if (item.kind === 'building' && get(D.buildings, item.id).wonder === 'national') {
+    // National wonders cost more the more cities you have.
+    cost *= 1 + (D.rules.nationalWonderPerCityPct / 100) * Math.max(0, playerCities(s, p).length - 1);
+  }
+  cost *= Math.max(0.1, 1 + costPct(s, p, costTargets(item)) / 100);
+  return Math.max(1, Math.round(cost));
 }
 
 export function buyCost(s: GameState, c: City, item: QueueItem): number {
@@ -243,6 +300,7 @@ export function buyCost(s: GameState, c: City, item: QueueItem): number {
   const remaining = Math.max(1, itemCost(s, c.owner, item) - progress);
   let g = b.multiplier * Math.pow(remaining, b.exponent);
   if (item.kind !== 'unit') g *= b.buildingPct / 100;
+  g *= Math.max(0.1, 1 + costPct(s, c.owner, 'buy') / 100);
   return Math.round(g);
 }
 
@@ -252,6 +310,7 @@ export function cannotBuild(s: GameState, c: City, item: QueueItem): string | nu
   if (item.kind === 'unit') {
     const u = D.units.get(item.id);
     if (!u) return 'unknown unit';
+    if (u.greatPerson || u.cost <= 0) return 'great people cannot be trained';
     if (u.faction && u.faction !== pl.faction) return 'another faction’s unique unit';
     if (!u.faction && [...D.units.values()].some((x) => x.replaces === u.id && x.faction === pl.faction)) return 'replaced by your unique unit';
     if (!hasTech(pl, u.tech)) return `needs ${get(D.techs, u.tech!).name}`;
@@ -280,6 +339,19 @@ export function cannotBuild(s: GameState, c: City, item: QueueItem): string | nu
   if (!b.faction && [...D.buildings.values()].some((x) => x.replaces === b.id && x.faction === pl.faction)) return 'replaced by your unique building';
   if (hasBuilding(c, b.replaces ?? b.id)) return 'already built';
   if (!hasTech(pl, b.tech)) return `needs ${get(D.techs, b.tech!).name}`;
+  if (b.wonder === 'world' && s.wonders[b.id] !== undefined) {
+    const where = s.cities[s.wonders[b.id]];
+    return `already built${where && pl.explored[where.tile] ? ` in ${where.name}` : ''}`;
+  }
+  if (b.wonder === 'national') {
+    if (playerCities(s, c.owner).some((o) => hasBuilding(o, b.id))) return 'already built';
+    if (b.requires.allCities) {
+      const missing = playerCities(s, c.owner).filter((o) => !o.puppet && !hasBuilding(o, b.requires.allCities!));
+      if (missing.length) return `needs a ${get(D.buildings, b.requires.allCities).name} in every city (${missing.length} missing)`;
+    }
+  }
+  if (b.wonder && playerCities(s, c.owner).some((o) => o.id !== c.id && o.queue[0]?.kind === 'building' && o.queue[0].id === b.id)) return 'already under way in another city';
+  if (b.requires.coast && !isCoastal(s, c)) return 'needs a coastal city';
   if (b.requires.building && !hasBuilding(c, b.requires.building)) return `needs a ${get(D.buildings, b.requires.building).name}`;
   if (b.requires.river && !tileAt(s, c.tile).river) return 'needs a river';
   if (b.requires.mountain && !neighbors(dims(s), c.tile).some((n) => tileAt(s, n).terrain === 'mountain')) return 'needs a mountain next to the city';
@@ -314,9 +386,11 @@ function completeItem(s: GameState, c: City, item: QueueItem): boolean {
     return true;
   }
   if (item.kind === 'building') {
+    const b = get(D.buildings, item.id);
     c.buildings.push(item.id);
-    if (get(D.buildings, item.id).hp) c.hp += get(D.buildings, item.id).hp;
-    notify(s, c.owner, `${c.name} built a ${get(D.buildings, item.id).name}.`, 'good', c.tile);
+    if (b.hp) c.hp += b.hp;
+    if (b.wonder) completeWonder(s, c, item.id);
+    else notify(s, c.owner, `${c.name} built a ${b.name}.`, 'good', c.tile);
     return true;
   }
   const at = freeTileNear(s, item.id, c.owner, c.tile, 2);
@@ -327,11 +401,34 @@ function completeItem(s: GameState, c: City, item: QueueItem): boolean {
   return true;
 }
 
+function completeWonder(s: GameState, c: City, id: string): void {
+  const b = get(D.buildings, id);
+  const pl = s.players[c.owner];
+  if (b.wonder === 'world') {
+    s.wonders[id] = c.id;
+    // Everyone else building it loses it; their progress is paid back as gold.
+    for (const o of Object.values(s.cities)) {
+      if (o.id === c.id || o.queue[0]?.kind !== 'building' || o.queue[0].id !== id) continue;
+      const refund = Math.round(o.production);
+      o.queue.shift();
+      o.production = 0;
+      s.players[o.owner].gold += refund;
+      notify(s, o.owner, `The ${pl.name} finished the ${b.name} first. ${o.name}'s work became ${refund} gold.`, 'bad', o.tile);
+    }
+    logEvent(s, `The ${pl.name} built the ${b.name} in ${c.name}.`, c.tile, c.owner);
+    for (const q of s.players) if (q.id !== c.owner && !q.isBarbarian) notify(s, q.id, `${q.met.includes(c.owner) ? `The ${pl.name}` : 'A distant civilization'} completed the ${b.name}.`, 'info');
+  }
+  notify(s, c.owner, `${c.name} completed the ${b.name}!`, 'good', c.tile);
+  applyOneShots(s, c.owner, b.effects, c.tile);
+  bumpEffects(s);
+}
+
 export function buyItem(s: GameState, c: City, item: QueueItem): string | null {
   const why = cannotBuild(s, c, item);
   if (why) return why;
   if (c.resistance > 0 || c.puppet) return 'this city cannot buy right now';
   if (item.kind === 'project') return 'projects cannot be bought';
+  if (item.kind === 'building' && get(D.buildings, item.id).wonder) return 'wonders cannot be bought';
   const cost = buyCost(s, c, item);
   const pl = s.players[c.owner];
   if (pl.gold < cost) return `needs ${cost} gold`;
@@ -436,7 +533,10 @@ export function captureCity(s: GameState, c: City, by: number): void {
   const loserCap = c.isCapital;
   c.owner = by;
   c.isCapital = false;
-  c.buildings = c.buildings.filter((b) => b !== 'palace' && !get(D.buildings, b).faction);
+  // The palace, unique buildings and national wonders don't change hands; world wonders do.
+  c.buildings = c.buildings.filter((b) => b !== 'palace' && !get(D.buildings, b).faction && get(D.buildings, b).wonder !== 'national');
+  c.manualSpecialists = {};
+  bumpEffects(s);
   c.pop = Math.max(1, Math.round(c.pop * (1 - D.rules.city.capturePopLossPct / 100)));
   c.queue = [];
   c.production = 0;
@@ -498,7 +598,9 @@ export function destroyCity(s: GameState, c: City): void {
       t.cityId = -1;
     }
   tileAt(s, c.tile).road = true;
+  for (const [w, cid] of Object.entries(s.wonders)) if (cid === c.id) delete s.wonders[w];
   delete s.cities[c.id];
+  bumpEffects(s);
   notify(s, c.owner, `${c.name} has been razed to the ground.`, 'info', c.tile);
   logEvent(s, `${c.name} was razed.`, c.tile, c.owner);
   checkElimination(s, c.originalOwner);

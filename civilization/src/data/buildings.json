@@ -63,7 +63,10 @@
   "perPop": {
    "science": 0.5
   },
-  "focus": "science"
+  "focus": "science",
+  "specialists": {
+   "scientist": 1
+  }
  },
  {
   "id": "water_mill",
@@ -111,7 +114,10 @@
   "requires": {
    "building": "shrine"
   },
-  "focus": "happiness"
+  "focus": "happiness",
+  "specialists": {
+   "artist": 1
+  }
  },
  {
   "id": "market",
@@ -125,7 +131,10 @@
   "percent": {
    "gold": 25
   },
-  "focus": "gold"
+  "focus": "gold",
+  "specialists": {
+   "merchant": 1
+  }
  },
  {
   "id": "amphitheater",
@@ -139,7 +148,10 @@
   "requires": {
    "building": "monument"
   },
-  "focus": "culture"
+  "focus": "culture",
+  "specialists": {
+   "writer": 1
+  }
  },
  {
   "id": "courthouse",
@@ -171,7 +183,10 @@
   "percent": {
    "production": 10
   },
-  "focus": "production"
+  "focus": "production",
+  "specialists": {
+   "engineer": 1
+  }
  },
  {
   "id": "university",
@@ -188,7 +203,10 @@
   "requires": {
    "building": "library"
   },
-  "focus": "science"
+  "focus": "science",
+  "specialists": {
+   "scientist": 2
+  }
  },
  {
   "id": "castle",
@@ -230,7 +248,10 @@
   "requires": {
    "building": "market"
   },
-  "focus": "gold"
+  "focus": "gold",
+  "specialists": {
+   "merchant": 1
+  }
  },
  {
   "id": "observatory",
@@ -258,7 +279,10 @@
   "requires": {
    "building": "amphitheater"
   },
-  "focus": "culture"
+  "focus": "culture",
+  "specialists": {
+   "musician": 1
+  }
  },
  {
   "id": "seedvault",
@@ -301,7 +325,10 @@
   },
   "faction": "sunwake",
   "replaces": "market",
-  "focus": "gold"
+  "focus": "gold",
+  "specialists": {
+   "merchant": 1
+  }
  },
  {
   "id": "athenaeum",
@@ -318,7 +345,10 @@
   },
   "faction": "starlit",
   "replaces": "library",
-  "focus": "science"
+  "focus": "science",
+  "specialists": {
+   "scientist": 1
+  }
  },
  {
   "id": "saga_stone",
@@ -360,6 +390,9 @@
   },
   "requires": {
    "building": "university"
+  },
+  "specialists": {
+   "scientist": 1
   }
  },
  {
@@ -378,6 +411,9 @@
   "requires": {
    "building": "workshop",
    "resource": "coal"
+  },
+  "specialists": {
+   "engineer": 2
   }
  },
  {
@@ -431,6 +467,9 @@
   },
   "requires": {
    "building": "opera_house"
+  },
+  "specialists": {
+   "artist": 2
   }
  },
  {
@@ -448,6 +487,9 @@
   },
   "requires": {
    "building": "bank"
+  },
+  "specialists": {
+   "merchant": 2
   }
  },
  {
@@ -508,6 +550,9 @@
   },
   "requires": {
    "building": "public_school"
+  },
+  "specialists": {
+   "scientist": 1
   }
  },
  {
@@ -560,6 +605,955 @@
   "hp": 25,
   "requires": {
    "building": "arsenal"
+  }
+ },
+ {
+  "id": "stone_terraces",
+  "name": "Stone Terraces",
+  "cost": 185,
+  "maintenance": 0,
+  "tech": "masonry",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "cost_pct",
+    "target": "wonder",
+    "percent": -15
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "production",
+    "amount": 2
+   }
+  ]
+ },
+ {
+  "id": "star_dial",
+  "name": "Star Dial",
+  "cost": 185,
+  "maintenance": 0,
+  "tech": "calendar",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "golden_age"
+   },
+   {
+    "type": "golden_age_length_pct",
+    "percent": 25
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "hanging_orchards",
+  "name": "Hanging Orchards",
+  "cost": 185,
+  "maintenance": 0,
+  "tech": "pottery",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "growth_pct",
+    "percent": 10
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "food",
+    "amount": 6
+   }
+  ]
+ },
+ {
+  "id": "harbor_colossus",
+  "name": "Harbor Colossus",
+  "cost": 185,
+  "maintenance": 0,
+  "tech": "bronze_working",
+  "focus": "wonder",
+  "wonder": "world",
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "gold",
+    "amount": 4
+   }
+  ],
+  "requires": {
+   "coast": true
+  }
+ },
+ {
+  "id": "house_of_scrolls",
+  "name": "House of Scrolls",
+  "cost": 185,
+  "maintenance": 0,
+  "tech": "writing",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "free_tech"
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "science",
+    "amount": 3
+   }
+  ],
+  "greatPeople": {
+   "scientist": 2
+  }
+ },
+ {
+  "id": "ironfront_gate",
+  "name": "Ironfront Gate",
+  "cost": 185,
+  "maintenance": 0,
+  "tech": "bronze_working",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "xp",
+    "amount": 10
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "defense_pct",
+    "percent": 25
+   }
+  ]
+ },
+ {
+  "id": "marble_senate",
+  "name": "Marble Senate",
+  "cost": 250,
+  "maintenance": 0,
+  "tech": "philosophy",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "free_policy"
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 2
+   }
+  ]
+ },
+ {
+  "id": "theater_of_echoes",
+  "name": "Theater of Echoes",
+  "cost": 250,
+  "maintenance": 0,
+  "tech": "drama",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "happiness",
+    "amount": 2
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 3
+   }
+  ],
+  "greatPeople": {
+   "writer": 2
+  }
+ },
+ {
+  "id": "arena_maximus",
+  "name": "Arena Maximus",
+  "cost": 250,
+  "maintenance": 0,
+  "tech": "construction",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "happiness",
+    "amount": 4
+   }
+  ]
+ },
+ {
+  "id": "golden_mint",
+  "name": "Golden Mint",
+  "cost": 250,
+  "maintenance": 0,
+  "tech": "currency",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "city_percent",
+    "yield": "gold",
+    "percent": 10
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "gold",
+    "amount": 3
+   }
+  ],
+  "greatPeople": {
+   "merchant": 1
+  }
+ },
+ {
+  "id": "seven_winds_tower",
+  "name": "Tower of Seven Winds",
+  "cost": 250,
+  "maintenance": 0,
+  "tech": "optics",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "sight",
+    "amount": 1
+   },
+   {
+    "type": "moves",
+    "class": "naval",
+    "amount": 1
+   }
+  ],
+  "requires": {
+   "coast": true
+  }
+ },
+ {
+  "id": "steppe_kurgan",
+  "name": "Steppe Kurgan",
+  "cost": 250,
+  "maintenance": 0,
+  "tech": "horseback_riding",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "moves",
+    "class": "mounted",
+    "amount": 1
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "production",
+    "amount": 2
+   }
+  ]
+ },
+ {
+  "id": "aqueduct_spires",
+  "name": "Aqueduct Spires",
+  "cost": 250,
+  "maintenance": 0,
+  "tech": "engineering",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "free_building",
+    "building": "aqueduct",
+    "count": 3
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "food",
+    "amount": 3
+   }
+  ],
+  "greatPeople": {
+   "engineer": 1
+  }
+ },
+ {
+  "id": "scholars_spire",
+  "name": "Scholars\u2019 Spire",
+  "cost": 400,
+  "maintenance": 0,
+  "tech": "education",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "great_people_pct",
+    "gp": "scientist",
+    "percent": 25
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_percent",
+    "yield": "science",
+    "percent": 33
+   }
+  ],
+  "greatPeople": {
+   "scientist": 3
+  }
+ },
+ {
+  "id": "mountain_monastery",
+  "name": "Mountain Monastery",
+  "cost": 400,
+  "maintenance": 0,
+  "tech": "theology",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "happiness",
+    "amount": 3
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 3
+   }
+  ],
+  "requires": {
+   "mountain": true
+  }
+ },
+ {
+  "id": "order_of_the_lance",
+  "name": "Order of the Lance",
+  "cost": 400,
+  "maintenance": 0,
+  "tech": "chivalry",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "free_unit",
+    "unit": "knight",
+    "count": 2
+   },
+   {
+    "type": "xp",
+    "amount": 10
+   }
+  ]
+ },
+ {
+  "id": "clockwork_tower",
+  "name": "Clockwork Tower",
+  "cost": 400,
+  "maintenance": 0,
+  "tech": "machinery",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "cost_pct",
+    "target": "building",
+    "percent": -10
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_percent",
+    "yield": "production",
+    "percent": 25
+   }
+  ],
+  "greatPeople": {
+   "engineer": 2
+  }
+ },
+ {
+  "id": "grand_caravanserai",
+  "name": "Grand Caravanserai",
+  "cost": 400,
+  "maintenance": 0,
+  "tech": "guilds",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "city_yield",
+    "yield": "gold",
+    "amount": 2
+   }
+  ],
+  "greatPeople": {
+   "merchant": 2
+  }
+ },
+ {
+  "id": "bell_tower",
+  "name": "Tower of Bells",
+  "cost": 400,
+  "maintenance": 0,
+  "tech": "civil_service",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "unhappiness_pop_pct",
+    "percent": -10
+   }
+  ]
+ },
+ {
+  "id": "iron_citadel",
+  "name": "Iron Citadel",
+  "cost": 400,
+  "maintenance": 0,
+  "tech": "metal_casting",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "defense_pct",
+    "percent": 15
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "production",
+    "amount": 2
+   }
+  ]
+ },
+ {
+  "id": "dome_of_heavens",
+  "name": "Dome of Heavens",
+  "cost": 600,
+  "maintenance": 0,
+  "tech": "astronomy",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "city_percent",
+    "yield": "science",
+    "percent": 10
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "science",
+    "amount": 4
+   }
+  ],
+  "greatPeople": {
+   "scientist": 3
+  }
+ },
+ {
+  "id": "harmonic_hall",
+  "name": "Harmonic Hall",
+  "cost": 600,
+  "maintenance": 0,
+  "tech": "acoustics",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "free_great_person",
+    "gp": "musician"
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 4
+   }
+  ],
+  "greatPeople": {
+   "musician": 2
+  }
+ },
+ {
+  "id": "crown_bank",
+  "name": "Bank of the Crown",
+  "cost": 600,
+  "maintenance": 0,
+  "tech": "banking",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "cost_pct",
+    "target": "buy",
+    "percent": -15
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "gold",
+    "amount": 5
+   }
+  ],
+  "greatPeople": {
+   "merchant": 2
+  }
+ },
+ {
+  "id": "printers_guildhall",
+  "name": "Printers\u2019 Guildhall",
+  "cost": 600,
+  "maintenance": 0,
+  "tech": "printing_press",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "happiness",
+    "amount": 3
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 2
+   }
+  ],
+  "greatPeople": {
+   "writer": 2
+  }
+ },
+ {
+  "id": "palace_of_mirrors",
+  "name": "Palace of Mirrors",
+  "cost": 600,
+  "maintenance": 0,
+  "tech": "architecture",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "golden_age_length_pct",
+    "percent": 25
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 4
+   }
+  ],
+  "greatPeople": {
+   "artist": 2
+  }
+ },
+ {
+  "id": "grand_arsenal",
+  "name": "Grand Arsenal",
+  "cost": 600,
+  "maintenance": 0,
+  "tech": "metallurgy",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "xp",
+    "amount": 15
+   }
+  ]
+ },
+ {
+  "id": "compass_rose",
+  "name": "Compass Rose Lighthouse",
+  "cost": 600,
+  "maintenance": 0,
+  "tech": "navigation",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "moves",
+    "class": "naval",
+    "amount": 1
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "gold",
+    "amount": 3
+   }
+  ],
+  "requires": {
+   "coast": true
+  }
+ },
+ {
+  "id": "iron_bridge_works",
+  "name": "Iron Bridge Works",
+  "cost": 900,
+  "maintenance": 0,
+  "tech": "industrialization",
+  "focus": "wonder",
+  "wonder": "world",
+  "cityEffects": [
+   {
+    "type": "city_percent",
+    "yield": "production",
+    "percent": 25
+   }
+  ],
+  "greatPeople": {
+   "engineer": 3
+  }
+ },
+ {
+  "id": "natural_history_hall",
+  "name": "Natural History Hall",
+  "cost": 900,
+  "maintenance": 0,
+  "tech": "archaeology",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 1,
+    "scope": "capital"
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 5
+   }
+  ],
+  "greatPeople": {
+   "artist": 2
+  }
+ },
+ {
+  "id": "lighthouse_of_reason",
+  "name": "Lighthouse of Reason",
+  "cost": 900,
+  "maintenance": 0,
+  "tech": "scientific_theory",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "free_tech",
+    "count": 2
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "science",
+    "amount": 3
+   }
+  ]
+ },
+ {
+  "id": "union_arch",
+  "name": "Arch of Union",
+  "cost": 1000,
+  "maintenance": 0,
+  "tech": "electricity",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "free_policy"
+   },
+   {
+    "type": "unhappiness_city_pct",
+    "percent": -15
+   }
+  ]
+ },
+ {
+  "id": "grand_exposition",
+  "name": "Grand Exposition",
+  "cost": 1200,
+  "maintenance": 0,
+  "tech": "radio",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "happiness",
+    "amount": 2
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 8
+   }
+  ]
+ },
+ {
+  "id": "crystal_dome",
+  "name": "Crystal Dome",
+  "cost": 1200,
+  "maintenance": 0,
+  "tech": "refrigeration",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "happiness",
+    "amount": 5
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "food",
+    "amount": 5
+   }
+  ]
+ },
+ {
+  "id": "sky_harbor",
+  "name": "Sky Harbor",
+  "cost": 1200,
+  "maintenance": 0,
+  "tech": "flight",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "golden_age"
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "gold",
+    "amount": 6
+   }
+  ]
+ },
+ {
+  "id": "global_observatory",
+  "name": "Global Observatory",
+  "cost": 1600,
+  "maintenance": 0,
+  "tech": "computers",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "city_percent",
+    "yield": "science",
+    "percent": 15
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "science",
+    "amount": 6
+   }
+  ],
+  "greatPeople": {
+   "scientist": 3
+  }
+ },
+ {
+  "id": "orbital_elevator",
+  "name": "Orbital Elevator",
+  "cost": 1600,
+  "maintenance": 0,
+  "tech": "rocketry",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "cost_pct",
+    "target": "spaceship",
+    "percent": -25
+   }
+  ]
+ },
+ {
+  "id": "hall_of_nations",
+  "name": "Hall of Nations",
+  "cost": 1800,
+  "maintenance": 0,
+  "tech": "globalization",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "happiness",
+    "amount": 4
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 4
+   }
+  ]
+ },
+ {
+  "id": "arcology_prime",
+  "name": "Arcology Prime",
+  "cost": 2000,
+  "maintenance": 0,
+  "tech": "nanotechnology",
+  "focus": "wonder",
+  "wonder": "world",
+  "effects": [
+   {
+    "type": "happiness",
+    "amount": 5
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "food",
+    "amount": 10
+   }
+  ]
+ },
+ {
+  "id": "grand_archive",
+  "name": "Grand Archive",
+  "cost": 125,
+  "maintenance": 0,
+  "tech": "writing",
+  "focus": "wonder",
+  "wonder": "national",
+  "cityEffects": [
+   {
+    "type": "city_percent",
+    "yield": "science",
+    "percent": 50
+   },
+   {
+    "type": "city_yield",
+    "yield": "science",
+    "amount": 3
+   }
+  ],
+  "requires": {
+   "allCities": "library"
+  }
+ },
+ {
+  "id": "hall_of_heroes",
+  "name": "Hall of Heroes",
+  "cost": 125,
+  "maintenance": 0,
+  "tech": "bronze_working",
+  "focus": "wonder",
+  "wonder": "national",
+  "effects": [
+   {
+    "type": "xp",
+    "amount": 15
+   }
+  ],
+  "requires": {
+   "allCities": "barracks"
+  }
+ },
+ {
+  "id": "royal_treasury",
+  "name": "Royal Treasury",
+  "cost": 125,
+  "maintenance": 0,
+  "tech": "currency",
+  "focus": "wonder",
+  "wonder": "national",
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "gold",
+    "amount": 8
+   }
+  ],
+  "requires": {
+   "allCities": "market"
+  }
+ },
+ {
+  "id": "grand_circus",
+  "name": "Grand Circus",
+  "cost": 150,
+  "maintenance": 0,
+  "tech": "construction",
+  "focus": "wonder",
+  "wonder": "national",
+  "effects": [
+   {
+    "type": "happiness",
+    "amount": 5
+   }
+  ],
+  "requires": {
+   "allCities": "colosseum"
+  }
+ },
+ {
+  "id": "ironworks",
+  "name": "Ironworks Foundry",
+  "cost": 150,
+  "maintenance": 0,
+  "tech": "metal_casting",
+  "focus": "wonder",
+  "wonder": "national",
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "production",
+    "amount": 10
+   }
+  ],
+  "requires": {
+   "allCities": "workshop"
   }
  }
 ]

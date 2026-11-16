@@ -80,6 +80,8 @@ export function endTurnLabel(): string {
       return 'Decide city fate';
     case 'promotion':
       return 'Promotion ready';
+    case 'policy':
+      return 'Choose a policy';
     default: {
       const idle = playerUnits(s, s.human).filter((u) => u.moves > 0 && u.order === 'none' && !u.job && !u.path.length && !u.exploring).length;
       return idle ? `End turn (${idle} idle)` : 'End turn';
@@ -95,6 +97,7 @@ export async function endTurn(force = false): Promise<void> {
     if (n.kind === 'research') return set({ panel: 'tech' });
     if (n.kind === 'production' || n.kind === 'capture') return selectCity(n.id!);
     if (n.kind === 'promotion') return selectUnit(n.id!);
+    if (n.kind === 'policy') return set({ panel: 'policies' });
   }
   set({ busy: true, selUnit: null, cityAttack: false });
   const done = (next: GameState) => {

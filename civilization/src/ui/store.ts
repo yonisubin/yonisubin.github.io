@@ -3,7 +3,7 @@
 import { createStore } from 'zustand/vanilla';
 import type { GameState } from '../core/state';
 
-export type Panel = 'none' | 'tech' | 'relations' | 'menu' | 'help' | 'victory';
+export type Panel = 'none' | 'tech' | 'relations' | 'menu' | 'help' | 'victory' | 'policies';
 
 export interface UIState {
   game: GameState | null;

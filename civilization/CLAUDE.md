@@ -48,12 +48,14 @@ civilization/tests/  # Playwright checks through window.hexborne
 
 Phases 1–6 of the plan at the end of the spec are built: map + generator (Continents, Pangaea) + fog + camera + tooltips; units, A*, ZOC, 1UPT, Settlers, Workers; cities (growth, queue, buildings, borders, gold, buying); research + tech tree, happiness + luxuries; combat, promotions, barbarians, ruins; AI, end-turn loop (AI in a Web Worker), save/load. Phase 7: 80 techs (Ancient → Information, repeatable Future Tech), late-era units, buildings and strategic resources (coal, oil, aluminum, uranium), projects (Apollo Program) and processes (Wealth, Research), spaceship parts carried to the capital and the science victory, victory toggles and turn limit, per-turn statistics, a territory replay, the end-of-game screen (summary, graphs, replay) and the Hall of Fame (localStorage `civ:hallOfFame`).
 
-Extension points for later phases: `VICTORY_CHECKS` (core/game.ts), `SCORE_HOOKS` (core/systems/economy.ts), `MIGRATIONS` (core/migrate.ts, fills new fields in old saves), `VICTORY_ROWS` (ui/hud.ts).
+Phase 8: one effects system (`core/systems/effects.ts`: every bonus from abilities, policies, wonders — later beliefs and tenets — is an Effect record, documented in `data/schema.ts`); 9 original policy trees (`data/policies.json`); golden ages; specialists (slots in buildings) and 7 kinds of great people with their actions and special tiles (Academy, Manufactory, Customs House, Landmark, Citadel); 39 world wonders and 5 national wonders (`wonder` field in `data/buildings.json`).
+
+Extension points for later phases: `EFFECT_SOURCES`, `TILE_HOOKS`, `CITY_HOOKS`, `HAPPINESS_HOOKS`, `GOLD_HOOKS`, `COMBAT_HOOKS`, `GP_USE_HOOKS`/`GP_DO_HOOKS`, `EFFECT_TEXT`, and `VICTORY_CHECKS` (core/game.ts), `SCORE_HOOKS` (core/systems/economy.ts), `MIGRATIONS` (core/migrate.ts, fills new fields in old saves), `VICTORY_ROWS` (ui/hud.ts).
 
 Deliberate simplifications so far (say so before changing them):
 - Diplomacy is a war/peace switch (Relations panel) until phase 9. At peace, foreign territory is closed (no open borders yet).
 - Techs go up to the Renaissance (41). No naval units or embarkation yet, so units stay on their landmass.
-- No specialists or golden ages yet (phase 8). Puppets pick their own buildings.
+- Puppets pick their own buildings.
 - Barbarians sack cities (steal gold) instead of capturing them.
 - `applyAction` mutates the state in place instead of returning a new one (see Architecture rules).
 

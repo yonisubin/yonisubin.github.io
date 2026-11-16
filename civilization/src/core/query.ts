@@ -16,13 +16,41 @@ export const playerCities = (s: GameState, p: number) => allCities(s).filter((c)
 export const majorPlayers = (s: GameState) => s.players.filter((p) => !p.isBarbarian);
 export const barbarianId = (s: GameState) => s.players.findIndex((p) => p.isBarbarian);
 
+// A temporary tile → units/city index for read-only stretches (path searches, scoring loops),
+// where looking things up by scanning every unit would be too slow. Nothing may move units or
+// cities while it is active.
+let index: { s: GameState; units: Map<number, Unit[]>; cities: Map<number, City> } | null = null;
+const NONE: Unit[] = [];
+
+export function withIndex<T>(s: GameState, fn: () => T): T {
+  if (index && index.s === s) return fn();
+  const prev = index;
+  const units = new Map<number, Unit[]>();
+  for (const id in s.units) {
+    const u = s.units[id];
+    const l = units.get(u.tile);
+    if (l) l.push(u);
+    else units.set(u.tile, [u]);
+  }
+  const cities = new Map<number, City>();
+  for (const id in s.cities) cities.set(s.cities[id].tile, s.cities[id]);
+  index = { s, units, cities };
+  try {
+    return fn();
+  } finally {
+    index = prev;
+  }
+}
+
 export function unitsAt(s: GameState, tile: number): Unit[] {
+  if (index && index.s === s) return index.units.get(tile) ?? NONE;
   const out: Unit[] = [];
   for (const id in s.units) if (s.units[id].tile === tile) out.push(s.units[id]);
   return out;
 }
 
 export function cityAt(s: GameState, tile: number): City | undefined {
+  if (index && index.s === s) return index.cities.get(tile);
   for (const id in s.cities) if (s.cities[id].tile === tile) return s.cities[id];
   return undefined;
 }
@@ -76,11 +104,6 @@ export function notify(s: GameState, p: number, text: string, kind: Notification
 export function factionOf(s: GameState, p: number) {
   const pl = s.players[p];
   return pl.isBarbarian ? undefined : D.factions.get(pl.faction);
-}
-
-/** All ability effects of a player's faction. */
-export function effectsOf(s: GameState, p: number) {
-  return factionOf(s, p)?.ability.effects ?? [];
 }
 
 /** Year label for a turn ("3600 BC"). */

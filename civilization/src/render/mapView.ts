@@ -337,6 +337,12 @@ export class MapView {
         g.rect(ix - 7, iy - 2, 14, 9).fill(col);
         g.poly([ix - 9, iy - 2, ix, iy - 9, ix + 9, iy - 2]).fill(0x8a3a2a);
         break;
+      case 'citadel':
+        g.poly([ix - 10, iy + 7, ix - 10, iy - 4, ix - 6, iy - 4, ix - 6, iy - 8, ix - 2, iy - 8, ix - 2, iy - 4, ix + 2, iy - 4, ix + 2, iy - 8, ix + 6, iy - 8, ix + 6, iy - 4, ix + 10, iy - 4, ix + 10, iy + 7]).fill(col).stroke({ width: 1.2, color: 0x202020 });
+        break;
+      default:
+        // Great person tiles: a star in the improvement's colour.
+        if (get(D.improvements, id).greatPerson) g.star(ix, iy, 5, 9, 4).fill(col).stroke({ width: 1.2, color: 0x202020 });
     }
     if (pillaged) {
       g.moveTo(ix - 8, iy - 8).lineTo(ix + 8, iy + 8).stroke({ width: 3, color: 0xd02020 });

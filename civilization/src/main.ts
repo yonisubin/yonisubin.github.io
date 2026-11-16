@@ -18,7 +18,7 @@ import { installInput } from './ui/input';
 import { endTurn, startGame } from './ui/controller';
 import { saveGame, loadGame } from './save/db';
 import { damage } from './core/systems/combat';
-import { growthNeeded } from './core/systems/yields';
+import { cityYields, growthNeeded, tileYields } from './core/systems/yields';
 import { foundCity } from './core/systems/cities';
 import { createUnit } from './core/systems/units';
 import { recomputeAllVisibility } from './core/systems/visibility';
@@ -164,7 +164,7 @@ async function main(): Promise<void> {
     },
     set,
     /** Core functions for formula and rule checks. */
-    core: { checkVictory, addScience, neighbor, distance, findPath, damage, growthNeeded, foundCity, createUnit, recomputeAllVisibility, setWar, newGame, runEndTurn },
+    core: { cityYields, tileYields, checkVictory, addScience, neighbor, distance, findPath, damage, growthNeeded, foundCity, createUnit, recomputeAllVisibility, setWar, newGame, runEndTurn },
   };
   (window as unknown as { hexborne: typeof api }).hexborne = api;
 }

@@ -7,7 +7,7 @@
 // "turns × full moves + moves spent", so it prefers paths that finish in fewer turns.
 import { D, get } from '../../data';
 import { dirTo, distance, neighbors } from '../hex';
-import { atWar, cityAt, dims, isCivilian, militaryAt, tileAt, unitDef, unitsAt } from '../query';
+import { atWar, cityAt, dims, isCivilian, militaryAt, tileAt, unitDef, unitsAt, withIndex } from '../query';
 import type { GameState, Unit } from '../state';
 import { fullMoves, hasRoom, onEnterTile } from './units';
 import { recomputeVisibility, sightFrom, unitSight } from './visibility';
@@ -91,9 +91,19 @@ export interface PathResult {
 
 /** A* path for unit u to `goal`. Returns null if unreachable. */
 export function findPath(s: GameState, u: Unit, goal: number, maxNodes = 6000): PathResult | null {
+  return withIndex(s, () => findPathIndexed(s, u, goal, maxNodes));
+}
+
+function findPathIndexed(s: GameState, u: Unit, goal: number, maxNodes: number): PathResult | null {
   if (goal === u.tile) return { path: [], turns: 0 };
+  const zocCache = new Map<number, boolean>();
+  const zoc = (i: number) => {
+    let v = zocCache.get(i);
+    if (v === undefined) zocCache.set(i, (v = inEnemyZoc(s, u, i)));
+    return v;
+  };
   const m = dims(s);
-  const full = fullMoves(u);
+  const full = fullMoves(s, u);
   if (!canEnter(s, u, goal, true)) return null;
   // Node state per tile: best cost, moves left on arrival, turns.
   const best = new Map<number, number>();
@@ -122,7 +132,7 @@ export function findPath(s: GameState, u: Unit, goal: number, maxNodes = 6000): 
       }
       // A unit can't end a turn on a tile with a friendly unit of the same kind.
       let after = c === ALL_MOVES || c >= left ? 0 : left - c;
-      if (after > 0 && inEnemyZoc(s, u, cur) && inEnemyZoc(s, u, n)) after = 0;
+      if (after > 0 && zoc(cur) && zoc(n)) after = 0;
       if (after === 0 && !isGoal && !hasRoom(s, u, n, u.owner) && s.players[u.owner].visible[n]) continue;
       const g = turns * full + (full - after);
       if (g >= (best.get(n) ?? Infinity)) continue;
@@ -214,6 +224,10 @@ function trySwap(s: GameState, u: Unit, to: number): boolean {
 
 /** Tiles reachable this turn (for the move highlight), with their remaining moves. */
 export function reachable(s: GameState, u: Unit): Map<number, number> {
+  return withIndex(s, () => reachableIndexed(s, u));
+}
+
+function reachableIndexed(s: GameState, u: Unit): Map<number, number> {
   const m = dims(s);
   const out = new Map<number, number>();
   if (u.moves <= 0) return out;

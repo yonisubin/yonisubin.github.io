@@ -101,6 +101,8 @@ export function addScience(s: GameState, p: number, amount: number): void {
   const pl = s.players[p];
   let left = amount;
   for (let guard = 0; guard < 10 && left > 0; guard++) {
+    // Already known (e.g. given by a ruin or a wonder): move on to the next in the queue.
+    while (pl.research && pl.techs.includes(pl.research) && !D.techs.get(pl.research)!.repeatable) pl.research = pl.researchQueue.shift() ?? null;
     if (!pl.research) {
       // Nothing chosen: bank it on the cheapest available tech so it isn't wasted.
       const avail = availableTechs(pl);

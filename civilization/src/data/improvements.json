@@ -167,5 +167,123 @@
   ],
   "resourceOnly": true,
   "color": "#303030"
+ },
+ {
+  "id": "academy",
+  "name": "Academy",
+  "yields": {
+   "science": 5
+  },
+  "buildTurns": 0,
+  "terrains": [
+   "any_land"
+  ],
+  "features": [
+   "forest",
+   "jungle",
+   "marsh",
+   "floodplains"
+  ],
+  "clears": [
+   "forest",
+   "jungle",
+   "marsh"
+  ],
+  "greatPerson": true,
+  "color": "#5aa0f0"
+ },
+ {
+  "id": "manufactory",
+  "name": "Manufactory",
+  "yields": {
+   "production": 4
+  },
+  "buildTurns": 0,
+  "terrains": [
+   "any_land"
+  ],
+  "features": [
+   "forest",
+   "jungle",
+   "marsh",
+   "floodplains"
+  ],
+  "clears": [
+   "forest",
+   "jungle",
+   "marsh"
+  ],
+  "greatPerson": true,
+  "color": "#c07a3a"
+ },
+ {
+  "id": "customs_house",
+  "name": "Customs House",
+  "yields": {
+   "gold": 5
+  },
+  "buildTurns": 0,
+  "terrains": [
+   "any_land"
+  ],
+  "features": [
+   "forest",
+   "jungle",
+   "marsh",
+   "floodplains"
+  ],
+  "clears": [
+   "forest",
+   "jungle",
+   "marsh"
+  ],
+  "greatPerson": true,
+  "color": "#f2d24a"
+ },
+ {
+  "id": "landmark",
+  "name": "Landmark",
+  "yields": {
+   "culture": 5
+  },
+  "buildTurns": 0,
+  "terrains": [
+   "any_land"
+  ],
+  "features": [
+   "forest",
+   "jungle",
+   "marsh",
+   "floodplains"
+  ],
+  "clears": [
+   "forest",
+   "jungle",
+   "marsh"
+  ],
+  "greatPerson": true,
+  "color": "#c070e0"
+ },
+ {
+  "id": "citadel",
+  "name": "Citadel",
+  "yields": {},
+  "buildTurns": 0,
+  "terrains": [
+   "any_land"
+  ],
+  "features": [
+   "forest",
+   "jungle",
+   "marsh",
+   "floodplains"
+  ],
+  "clears": [
+   "forest",
+   "jungle",
+   "marsh"
+  ],
+  "greatPerson": true,
+  "color": "#808890"
  }
 ]

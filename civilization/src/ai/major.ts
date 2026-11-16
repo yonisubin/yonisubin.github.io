@@ -19,6 +19,7 @@ import {
   majorPlayers,
   militaryAt,
   playerCities,
+  withIndex,
   playerUnits,
   tileAt,
   unitDef,
@@ -33,6 +34,8 @@ import { findPath } from '../core/systems/movement';
 import { availableTechs, techCost } from '../core/systems/research';
 import { availablePromotions, buildOptions, upgradeCost, upgradeTarget } from '../core/systems/units';
 import { hasFreshWater } from '../core/systems/yields';
+import { adoptablePolicies, canPickPolicy } from '../core/systems/policies';
+import { greatPersonUses } from '../core/systems/greatpeople';
 import { siteScore } from '../mapgen/generate';
 
 const personality = (s: GameState, p: number): PersonalityData => get(D.factions, s.players[p].faction).leader.personality;
@@ -41,6 +44,7 @@ export function aiTurn(s: GameState, p: number): void {
   const pl = s.players[p];
   if (!pl.alive) return;
   chooseResearch(s, p);
+  choosePolicies(s, p);
   for (const id of [...pl.pendingCaptures]) decideCaptureAI(s, p, id);
   diplomacy(s, p);
   for (const c of playerCities(s, p)) if (!c.queue.length && !c.puppet && !c.razing) chooseProduction(s, p, c);
@@ -54,7 +58,9 @@ export function aiTurn(s: GameState, p: number): void {
       applyAction(s, p, { type: 'promote', unit: u.id, promotion: u.hp < 50 || !opts.length ? 'heal' : opts[0] });
     }
     const def = unitDef(u);
-    if (def.spaceshipPart) {
+    if (def.greatPerson) {
+      greatPersonTurn(s, p, u);
+    } else if (def.spaceshipPart) {
       const cap = capitalOf(s, p);
       if (cap) applyAction(s, p, { type: 'move', unit: u.id, to: cap.tile });
     } else if (def.canFound) settlerTurn(s, p, u);
@@ -71,6 +77,72 @@ export function aiTurn(s: GameState, p: number): void {
 }
 
 // ---- Strategy ----
+
+/** Policy preferences per personality trait. */
+const TREE_TASTE: Record<string, (p: PersonalityData) => number> = {
+  heritage: (p) => 10 - p.expansion + p.wonders * 0.5,
+  frontier: (p) => p.expansion * 1.2,
+  valor: (p) => p.aggression * 1.2,
+  devotion: (p) => p.religion,
+  patronage: (p) => p.cityStateInterest,
+  artistry: (p) => p.culture,
+  commerce: (p) => p.gold,
+  voyaging: (p) => p.naval,
+  reason: (p) => p.science * 1.2,
+};
+
+function choosePolicies(s: GameState, p: number): void {
+  const pers = personality(s, p);
+  for (let guard = 0; guard < 4 && canPickPolicy(s, p); guard++) {
+    const options = adoptablePolicies(s, p);
+    if (!options.length) return;
+    const pl = s.players[p];
+    const score = (id: string) => {
+      const tree = D.policyTrees.get(id) ? id : D.policies.get(id)!.tree;
+      let v = TREE_TASTE[tree]?.(pers) ?? 5;
+      // Finish trees already started.
+      if (pl.policies.includes(tree) && id !== tree) v += 6;
+      return v;
+    };
+    options.sort((a, b) => score(b) - score(a) || a.localeCompare(b));
+    if (!applyAction(s, p, { type: 'adoptPolicy', policy: options[0] }).ok) return;
+  }
+}
+
+function greatPersonTurn(s: GameState, p: number, u: Unit): void {
+  const uses = greatPersonUses(s, u);
+  const type = unitDef(u).greatPerson;
+  if (type === 'general') {
+    // Generals stick with the army: stand next to the strongest unit.
+    const army = playerUnits(s, p).filter((x) => !isCivilian(x)).sort((a, b) => unitDef(b).strength - unitDef(a).strength)[0];
+    if (army && distance(dims(s), army.tile, u.tile) > 1) applyAction(s, p, { type: 'move', unit: u.id, to: army.tile });
+    return;
+  }
+  if (type === 'engineer') {
+    // Hurry a wonder in the capital if one is being built, else build a manufactory.
+    const cap = capitalOf(s, p);
+    if (cap && cap.queue[0] && D.buildings.get(cap.queue[0].id)?.wonder) {
+      if (u.tile !== cap.tile) applyAction(s, p, { type: 'move', unit: u.id, to: cap.tile });
+      if (s.units[u.id] && u.tile === cap.tile) applyAction(s, p, { type: 'greatPerson', unit: u.id, use: 'hurry' });
+      return;
+    }
+  }
+  const prefer: Record<string, string> = { scientist: 'discover', engineer: 'improve', merchant: 'trade', artist: 'golden_age', writer: 'inspire', musician: 'concert' };
+  const want = prefer[type ?? ''];
+  if (want && uses.includes(want as never)) {
+    applyAction(s, p, { type: 'greatPerson', unit: u.id, use: want as 'discover' });
+    return;
+  }
+  // Walk to an owned tile without a city to build the special improvement.
+  const cap = capitalOf(s, p);
+  if (cap) {
+    const spot = within(dims(s), cap.tile, 2).find((i) => i !== cap.tile && tileAt(s, i).owner === p && !cityAt(s, i) && !tileAt(s, i).resource && tileAt(s, i).terrain !== 'mountain' && !D.terrains.get(tileAt(s, i).terrain)!.water);
+    if (spot !== undefined) {
+      applyAction(s, p, { type: 'move', unit: u.id, to: spot });
+      if (s.units[u.id] && greatPersonUses(s, u).includes('improve')) applyAction(s, p, { type: 'greatPerson', unit: u.id, use: 'improve' });
+    }
+  }
+}
 
 function chooseResearch(s: GameState, p: number): void {
   const pl = s.players[p];
@@ -149,7 +221,9 @@ function chooseProduction(s: GameState, p: number, c: City): void {
   const happy = happinessOf(s, p).net;
   const war = atWarWithMajor(s, p);
   const targetCities = 3 + Math.round(pers.expansion / 2);
-  const wantMilitary = 1 + cities.length * 1.2 + pers.aggression / 3 + (war ? cities.length * 1.5 : 0);
+  // Supply: armies beyond about 3 units per city cost too much upkeep to be worth it.
+  const supply = 4 + cities.length * 3;
+  const wantMilitary = Math.min(supply, 1 + cities.length * 1.2 + pers.aggression / 3 + (war ? cities.length * 1.5 : 0));
   const garrisoned = !!militaryAt(s, c.tile);
   const score = (item: QueueItem): number => {
     const cost = itemCost(s, p, item);
@@ -167,7 +241,7 @@ function chooseProduction(s: GameState, p: number, c: City): void {
       else if (u.class === 'recon') v = s.turn < 40 && units.filter((x) => unitDef(x).class === 'recon').length < 1 ? 15 : 0;
       else {
         const deficit = wantMilitary - military;
-        v = deficit > 0 ? 25 + deficit * 8 : 3;
+        v = deficit > 0 ? 25 + deficit * 8 : military >= supply ? 0 : 3;
         if (!garrisoned) v += 20;
         // Prefer strong units for their cost; defenders when not at war, attackers when at war.
         const power = Math.max(u.strength, u.ranged);
@@ -177,6 +251,11 @@ function chooseProduction(s: GameState, p: number, c: City): void {
       }
     } else {
       const b = get(D.buildings, item.id);
+      if (b.wonder) {
+        // Wonders: by personality, more in productive cities, never while in danger.
+        const prodRank = c.pop / Math.max(1, Math.max(...cities.map((x) => x.pop)));
+        return war ? 2 : ((10 + pers.wonders * 3) * (0.5 + prodRank)) / (1 + cost / 400);
+      }
       const w: Record<string, number> = {
         growth: 16 + (c.pop < 4 ? 6 : 0),
         production: 14,
@@ -213,6 +292,22 @@ function spendGold(s: GameState, p: number): void {
     }
   }
   if (pl.gold < 200) return;
+  // Rich: buy useful buildings in the weakest cities (up to three a turn).
+  const reserve = 150 + s.turn;
+  for (let k = 0; k < 3 && pl.gold > reserve * 2; k++) {
+    let bought = false;
+    for (const c of [...cities].sort((x, y) => x.pop - y.pop)) {
+      if (c.puppet || c.resistance) continue;
+      const opts = buildableItems(s, c).filter((q) => q.kind === 'building' && !get(D.buildings, q.id).wonder);
+      opts.sort((x, y) => buyCost(s, c, x) - buyCost(s, c, y));
+      const q = opts.find((x) => buyCost(s, c, x) < pl.gold - reserve);
+      if (q && applyAction(s, p, { type: 'buy', city: c.id, item: q }).ok) {
+        bought = true;
+        break;
+      }
+    }
+    if (!bought) break;
+  }
   // Hurry the queue head of the least productive city.
   const war = atWarWithMajor(s, p);
   for (const c of cities.sort((a, b) => a.pop - b.pop)) {
@@ -368,6 +463,12 @@ function scoutTurn(s: GameState, p: number, u: Unit): void {
 // ---- Military ----
 
 function tryAttack(s: GameState, p: number, u: Unit): boolean {
+  const best = withIndex(s, () => bestAttack(s, u));
+  if (best < 0) return false;
+  return applyAction(s, p, { type: 'attack', unit: u.id, to: best }).ok;
+}
+
+function bestAttack(s: GameState, u: Unit): number {
   const def = unitDef(u);
   const range = def.ranged > 0 ? def.range : 1;
   let best = -1, bestV = 0;
@@ -391,8 +492,7 @@ function tryAttack(s: GameState, p: number, u: Unit): boolean {
       best = t;
     }
   }
-  if (best < 0) return false;
-  return applyAction(s, p, { type: 'attack', unit: u.id, to: best }).ok;
+  return best;
 }
 
 function militaryTurn(s: GameState, p: number, u: Unit): void {
@@ -473,9 +573,9 @@ function approach(s: GameState, p: number, u: Unit, target: number): boolean {
   if (distance(m, u.tile, target) <= range) return tryAttack(s, p, u);
   // Find a free tile next to (or in range of) the target to move to.
   const spots = within(m, target, range)
-    .filter((i) => i !== target && distance(m, i, target) === range)
+    .filter((i) => i !== target && distance(m, i, target) === range && !militaryAt(s, i))
     .sort((a, b) => distance(m, a, u.tile) - distance(m, b, u.tile));
-  for (const spot of spots.slice(0, 4)) {
+  for (const spot of spots.slice(0, 2)) {
     const res = applyAction(s, p, { type: 'move', unit: u.id, to: spot });
     if (res.ok) {
       if (s.units[u.id] && u.moves > 0) tryAttack(s, p, u);

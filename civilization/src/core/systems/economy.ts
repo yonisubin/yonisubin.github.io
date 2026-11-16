@@ -1,7 +1,8 @@
 // Gold income/expenses, city connections and strategic resource counts.
 import { D, get } from '../../data';
 import { neighbors } from '../hex';
-import { allUnits, atWar, capitalOf, dims, effectsOf, hasTech, playerCities, playerUnits, unitDef } from '../query';
+import { allUnits, atWar, capitalOf, dims, hasTech, playerCities, playerUnits, unitDef } from '../query';
+import { playerEffects, sum } from './effects';
 import type { GameState } from '../state';
 import { cityYields } from './yields';
 import { happinessOf } from './happiness';
@@ -32,6 +33,9 @@ export function connectedCities(s: GameState, p: number): Set<number> {
   return out;
 }
 
+/** Extra gold per turn from later phases (trade routes, deals...). Can be negative. */
+export const GOLD_HOOKS: ((s: GameState, p: number) => number)[] = [];
+
 export interface GoldReport {
   cities: number;
   connections: number;
@@ -59,7 +63,8 @@ export function goldReport(s: GameState, p: number): GoldReport {
   }
   let connections = 0;
   const cg = D.rules.connectionGold;
-  const extra = effectsOf(s, p).reduce((a, e) => a + (e.type === 'connection_gold' ? e.amount : 0), 0);
+  const fx = playerEffects(s, p);
+  const extra = sum(fx, 'connection_gold');
   for (const id of connectedCities(s, p)) {
     const c = s.cities[id];
     if (c.isCapital) continue;
@@ -70,8 +75,13 @@ export function goldReport(s: GameState, p: number): GoldReport {
     const isCityTile = t.cityId >= 0 && s.cities[t.cityId]?.tile === i;
     if (t.road && t.roadOwner === p && !isCityTile) roads += D.rules.roadMaintenance;
   });
-  const units = unitUpkeep(s, p);
-  cities = Math.round(cities);
+  const upkeep = (t: string) => Math.max(0, 1 + sum(fx, 'upkeep_pct', 'percent', (e) => e.target === t) / 100);
+  const units = Math.round(unitUpkeep(s, p) * upkeep('unit'));
+  buildings = Math.round(buildings * upkeep('building'));
+  roads = Math.round(roads * upkeep('road'));
+  let other = 0;
+  for (const h of GOLD_HOOKS) other += h(s, p);
+  cities = Math.round(cities) + Math.round(other);
   connections = Math.round(connections);
   return { cities, connections, buildings, units, roads, net: cities + connections - buildings - units - roads };
 }

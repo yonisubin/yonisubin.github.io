@@ -4,13 +4,18 @@
 import { D, get } from '../../data';
 import { distance, neighbors } from '../hex';
 import { rand } from '../rng';
-import { atWar, cityAt, difficultyOf, dims, effectsOf, isCivilian, militaryAt, notify, tileAt, unitDef, unitsAt } from '../query';
+import { atWar, cityAt, difficultyOf, dims, isCivilian, militaryAt, notify, tileAt, unitDef, unitsAt } from '../query';
+import { playerEffects, sum } from './effects';
+import { addGeneralPoints } from './greatpeople';
 import type { City, GameState, Unit } from '../state';
 import { happinessOf } from './happiness';
 import { riverBetween } from './movement';
 import { addXp, onEnterTile, removeUnit } from './units';
 import { sightFrom } from './visibility';
 import { captureCity, cityMaxHp, cityStrength } from './cities';
+
+/** Extra combat modifiers from later phases. */
+export const COMBAT_HOOKS: ((s: GameState, u: Unit, attacking: boolean, ranged: boolean, foeTile: number, foe: Unit | undefined, add: (label: string, pct: number) => void) => void)[] = [];
 
 export interface Modifier {
   label: string;
@@ -86,10 +91,19 @@ export function unitStrength(s: GameState, u: Unit, attacking: boolean, ranged: 
       if (hit) add(p.name, c.percent);
     }
   }
-  for (const e of effectsOf(s, u.owner)) {
+  const foeIsBarb = (foe && s.players[foe.owner].isBarbarian) || (foeCity && s.players[foeCity.owner].isBarbarian);
+  for (const e of playerEffects(s, u.owner)) {
     if (e.type !== 'combat') continue;
-    if ((e.when === 'vs_city' && attacking && foeCity) || (e.when === 'rough' && isRough(s, fightTile)) || e.when === 'always') add('Ability', e.percent);
+    if ((e.when === 'vs_city' && attacking && foeCity) || (e.when === 'rough' && isRough(s, fightTile)) || e.when === 'always' || (e.when === 'vs_barbarian' && foeIsBarb)) add(e.source, e.percent);
   }
+  // A Great General next to (or with) the unit inspires it.
+  if (!s.players[u.owner].isBarbarian) {
+    const near = [u.tile, ...neighbors(dims(s), u.tile)];
+    if (Object.values(s.units).some((g) => g.owner === u.owner && unitDef(g).greatPerson === 'general' && near.includes(g.tile))) add('Great General', D.rules.greatPeople.generalAura);
+  }
+  // Defending in a Citadel.
+  if (!attacking && tileAt(s, u.tile).improvement === 'citadel' && !tileAt(s, u.tile).pillaged) add('Citadel', D.rules.greatPeople.citadelDefense);
+  for (const h of COMBAT_HOOKS) h(s, u, attacking, ranged, foeTile, foe, add);
   const pl = s.players[u.owner];
   if (!pl.isBarbarian && happinessOf(s, u.owner).net <= D.rules.happiness.veryUnhappy) add('Unhappiness', D.rules.happiness.veryUnhappyCombatPct);
   const foeOwner = foe ? foe.owner : foeCity ? foeCity.owner : -1;
@@ -242,8 +256,13 @@ export function resolveAttack(s: GameState, u: Unit, to: number): AttackOutcome 
   d.hp -= dealt;
   d.acted = true;
   if (!ranged) u.hp -= taken;
-  addXp(s, u, ranged ? D.rules.xp.rangedAttack : D.rules.xp.attack, vsBarb);
-  if (d.hp > 0) addXp(s, d, D.rules.xp.defend, s.players[u.owner].isBarbarian);
+  const gain = ranged ? D.rules.xp.rangedAttack : D.rules.xp.attack;
+  addXp(s, u, gain, vsBarb);
+  addGeneralPoints(s, u.owner, gain, u.tile);
+  if (d.hp > 0) {
+    addXp(s, d, D.rules.xp.defend, s.players[u.owner].isBarbarian);
+    addGeneralPoints(s, d.owner, D.rules.xp.defend, d.tile);
+  } else onKill(s, u.owner, to);
   if (d.hp <= 0) {
     out.defenderDied = true;
     removeUnit(s, d);
@@ -266,6 +285,20 @@ export function resolveAttack(s: GameState, u: Unit, to: number): AttackOutcome 
     }
   }
   return out;
+}
+
+/** Rewards for killing an enemy unit (policies: culture, gold). */
+function onKill(s: GameState, p: number, at: number): void {
+  const pl = s.players[p];
+  if (pl.isBarbarian) return;
+  const fx = playerEffects(s, p);
+  const culture = sum(fx, 'kill_culture'), gold = sum(fx, 'kill_gold');
+  if (culture) {
+    pl.culture += culture;
+    pl.cultureTotal += culture;
+  }
+  if (gold) pl.gold += gold;
+  if (culture || gold) notify(s, p, `Victory spoils: ${[culture ? `+${culture} culture` : '', gold ? `+${gold} gold` : ''].filter(Boolean).join(', ')}.`, 'good', at);
 }
 
 /** City ranged attack on a unit at `to`. */

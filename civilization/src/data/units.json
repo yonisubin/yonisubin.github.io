@@ -756,5 +756,87 @@
   "requiresBuilding": "factory",
   "requiresProject": "apollo_program",
   "spaceshipPart": "engine"
+ },
+ {
+  "id": "great_scientist",
+  "name": "Great Scientist",
+  "class": "civilian",
+  "cost": 0,
+  "strength": 0,
+  "moves": 2,
+  "role": "great_person",
+  "glyph": "\u2697",
+  "greatPerson": "scientist",
+  "gpImprovement": "academy"
+ },
+ {
+  "id": "great_engineer",
+  "name": "Great Engineer",
+  "class": "civilian",
+  "cost": 0,
+  "strength": 0,
+  "moves": 2,
+  "role": "great_person",
+  "glyph": "\u2699",
+  "greatPerson": "engineer",
+  "gpImprovement": "manufactory"
+ },
+ {
+  "id": "great_merchant",
+  "name": "Great Merchant",
+  "class": "civilian",
+  "cost": 0,
+  "strength": 0,
+  "moves": 2,
+  "role": "great_person",
+  "glyph": "\u2696",
+  "greatPerson": "merchant",
+  "gpImprovement": "customs_house"
+ },
+ {
+  "id": "great_artist",
+  "name": "Great Artist",
+  "class": "civilian",
+  "cost": 0,
+  "strength": 0,
+  "moves": 2,
+  "role": "great_person",
+  "glyph": "\u270e",
+  "greatPerson": "artist",
+  "gpImprovement": "landmark"
+ },
+ {
+  "id": "great_writer",
+  "name": "Great Writer",
+  "class": "civilian",
+  "cost": 0,
+  "strength": 0,
+  "moves": 2,
+  "role": "great_person",
+  "glyph": "\u2712",
+  "greatPerson": "writer"
+ },
+ {
+  "id": "great_musician",
+  "name": "Great Musician",
+  "class": "civilian",
+  "cost": 0,
+  "strength": 0,
+  "moves": 2,
+  "role": "great_person",
+  "glyph": "\u266b",
+  "greatPerson": "musician"
+ },
+ {
+  "id": "great_general",
+  "name": "Great General",
+  "class": "civilian",
+  "cost": 0,
+  "strength": 0,
+  "moves": 2,
+  "role": "great_person",
+  "glyph": "\u272a",
+  "greatPerson": "general",
+  "gpImprovement": "citadel"
  }
 ]

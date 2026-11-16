@@ -163,5 +163,34 @@
     "stasis": 1,
     "engine": 1
   },
-  "processPct": 25
+  "processPct": 25,
+  "policy": {
+    "base": 25,
+    "perPolicy": 6,
+    "exponent": 1.7,
+    "perCityPct": 10
+  },
+  "goldenAge": {
+    "base": 500,
+    "perAge": 250,
+    "turns": 10,
+    "productionBonus": 1,
+    "goldBonus": 1,
+    "culturePct": 20
+  },
+  "greatPeople": {
+    "base": 100,
+    "perPerson": 100,
+    "generalXpShare": 1,
+    "scienceTurns": 8,
+    "cultureTurns": 6,
+    "hurryBase": 300,
+    "hurryPerPop": 30,
+    "tradeGold": 300,
+    "tradePerEra": 100,
+    "generalAura": 15,
+    "citadelDamage": 30,
+    "citadelDefense": 100
+  },
+  "nationalWonderPerCityPct": 10
 }

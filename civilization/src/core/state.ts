@@ -1,8 +1,8 @@
 // GameState: everything about a game in plain JSON (no classes, no Maps), so a save is
 // JSON.stringify(state) and the AI worker can receive a structured clone of it.
 
-export type YieldSet = { food: number; production: number; gold: number; science: number; culture: number };
-export const emptyYields = (): YieldSet => ({ food: 0, production: 0, gold: 0, science: 0, culture: 0 });
+export type YieldSet = { food: number; production: number; gold: number; science: number; culture: number; faith: number; tourism: number };
+export const emptyYields = (): YieldSet => ({ food: 0, production: 0, gold: 0, science: 0, culture: 0, faith: 0, tourism: 0 });
 
 export interface Tile {
   terrain: string;
@@ -109,6 +109,10 @@ export interface City {
   founded: number;
   /** Was attacked this turn (heals less). */
   damagedThisTurn: boolean;
+  /** Citizens working as specialists, by type (the player's picks plus any auto-assigned). */
+  specialists: Record<string, number>;
+  /** Specialists the player asked for (kept when citizens are reassigned). */
+  manualSpecialists: Record<string, number>;
 }
 
 export interface Notification {
@@ -161,6 +165,16 @@ export interface Player {
   spaceship: Record<string, number>;
   /** Times Future Tech was researched. */
   futureTechs: number;
+  /** Adopted policy trees (their ids) and policies; finished trees as "done:<tree>". */
+  policies: string[];
+  /** Culture saved toward the next policy. */
+  culture: number;
+  /** Policies that can be picked for free (wonders, finishers). */
+  freePolicies: number;
+  goldenAge: { points: number; turnsLeft: number; count: number };
+  /** Great person points and how many of each type were born. */
+  gpPoints: Record<string, number>;
+  gpCount: Record<string, number>;
 }
 
 export interface TurnStats {
@@ -225,6 +239,10 @@ export interface GameState {
   replay: { turn: number; owners: string }[];
   /** Notable events (cities founded and taken, wars, wonders...) for the replay. */
   events: GameEvent[];
+  /** World wonders built: wonder id → city id. */
+  wonders: Record<string, number>;
+  /** Bumped whenever a player's effects change (policies, wonders...), to refresh caches. */
+  modGen: number;
   /** The human player id (0 normally; -1 in spectator games). */
   human: number;
 }
@@ -249,6 +267,9 @@ export type Action =
   | { type: 'research'; tech: string }
   | { type: 'capture'; city: number; choice: 'annex' | 'puppet' | 'raze' }
   | { type: 'annexPuppet'; city: number }
+  | { type: 'adoptPolicy'; policy: string }
+  | { type: 'specialist'; city: number; specialist: string; delta: 1 | -1 }
+  | { type: 'greatPerson'; unit: number; use: 'discover' | 'hurry' | 'trade' | 'golden_age' | 'inspire' | 'concert' | 'improve' }
   | { type: 'declareWar'; target: number }
   | { type: 'makePeace'; target: number };
 
