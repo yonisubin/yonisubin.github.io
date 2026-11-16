@@ -1061,6 +1061,13 @@ A whole-repo audit found 20 issues (and 7 smaller ones). They were fixed with a 
 | Scripts | The art scripts' packages are listed explicitly, and the Quaternius mirror is pinned to a commit. |
 | Removed | ~90 lines of dead code and duplicated helpers. The shared helpers are `sim/pose.ts` (`yawPitchQuaternion`), `sim/vehicleBody.ts` (`placeBody`, `FlipRecovery`, `ImpactMeter`), and `layout.ts` (`isTownZone`, `lawnLift`). |
 
+### 11.2 Cars that steered but wouldn't drive (2026-11)
+
+- **Reported:** sometimes a car you got into steered but wouldn't go forward or back, once right after a taxi fare got in.
+- **Cause:** Rapier puts a body to sleep about 0.5 s after it comes to rest. The car you drive was woken only once, when you got in, and the vehicle controller's wheel impulses (and our drag force) don't wake a sleeping body. Sitting still for a moment (getting in, a fare boarding, a red light) left the car asleep for good. Steering still showed, because the wheel meshes just display the steering angle.
+- **Fix:** `Car.fixedUpdate` and `Boat.fixedUpdate` wake the driven vehicle's body when it's asleep. `parkVehicles()` also keeps the vehicle you're in enabled.
+- **Test:** `gameplay.test.cjs` waits for a taxi fare to board, then drives off (this check fails without the fix), and drives a car and a boat after 3 s still.
+
 ## 12. Where to change common things
 
 | You want to… | Look in |

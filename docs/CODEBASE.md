@@ -3095,7 +3095,7 @@ Public fields: `type`, `body` (dynamic rigid body), `controller` (vehicle contro
 
 #### `fixedUpdate(dt: number): void` — once per physics step (see diagram d2):
 1. `gone` → return. Sinking → `sinking.apply(body, dt)`; when `done`, `clearWreck()`; return.
-2. Not driven and asleep → return (a parked car at rest is skipped until bumped awake).
+2. Not driven and asleep → return (a parked car at rest is skipped until bumped awake). **Driven and asleep → `body.wakeUp()`.** Rapier puts a body to sleep ~0.5 s after it comes to rest, and neither the vehicle controller's wheel impulses nor the drag `addForce(…, false)` wake it. Before this fix, a car you sat still in (getting in, a taxi fare boarding, a red light) steered (the wheel meshes show the steering angle) but never moved again. `gameplay.test.cjs` checks a taxi drives off after a fare boards, and a car and a boat after 3 s still.
 3. `impacts.before(body)`; `speed`, `absSpeed`.
 4. **Steering.** `lock = lerp(0.6, 0.14, min(1, |v|/32))`; `target = driven ? −steerInput·lock : 0` (a positive Rapier steering angle turns toward −Z = left, so right input maps to a negative angle); `steer += clamp(target − steer, ±2.2·dt)`; applied to FL and FR.
 5. **Engine and brakes** (forces scale with mass so every car type feels the same):
@@ -3302,6 +3302,7 @@ Public fields: `type`, `body`, `object`, `interp`, `mode: BoatMode | null`, `dri
 #### `forward(out)` — `(1,0,0)` by `interp.currQuat`.
 
 #### `fixedUpdate(): void` — once per step (uses the world's `dt` implicitly through Rapier forces):
+- First, while `driven`, a sleeping body is woken (its forces are added with `wake = false`, like the car's; see `Car.fixedUpdate` step 2).
 1. Read pose, `v`, `w`; `impacts.before`; `fwd`, `right`, horizontal `fwdH`, `rightH`; `speed = v·fwdH`, `side = v·rightH`. `resetForces`, `resetTorques`.
 2. **Buoyancy at each point** (diagram-free formula):
 ```text
@@ -3591,7 +3592,7 @@ Quads between neighbouring rings (two triangles each), a fan for the transom, `c
 
 **Death / busted.** `stats.onDeath`: `onFoot.knockDown()`, `input.setBlocked(true)`, fade; after 2.5 s respawn at the nearest hospital (`stats.respawn()`, `standUp()`, `breath = 12`, `placeAt`, `setMode(onFoot)`, `setBlocked(false)`). `busted()`: `setBlocked(true)`, fade; after 2.5 s (unless killed meanwhile) fine `min(money, 100·max(1, stars))`, placed at the nearest police station, `setMode(onFoot)`, `setBlocked(false)`.
 
-**Parked vehicles in unloaded chunks.** Each step `parkVehicles()` disables the body of every vehicle the player isn't in whose position has no loaded chunk (no ground collider; it would fall through) and re-enables it when the chunk loads (fixed the audit's "beached boats falling").
+**Parked vehicles in unloaded chunks.** Each step `parkVehicles()` keeps the vehicle you're in enabled and disables the body of every vehicle the player isn't in whose position has no loaded chunk (no ground collider; it would fall through) and re-enables it when the chunk loads (fixed the audit's "beached boats falling").
 
 ---
 
@@ -6057,7 +6058,7 @@ Why "closures referencing later consts" works: JavaScript `const` bindings exist
 - Then `pedestrians?.alarm(taken.position, 25)` (people within 25 m flee), `wanted.crime('carjack')`, toast "The driver ran off!", `player.setMode(car.mode!)`.
 
 #### `parkVehicles(): void` (closure)
-- For every vehicle in `[...cars, heli, ...boats]` except the one the player is in and except gone (sunk) cars: `loaded = city.isLoaded(p.x, p.z)`; if `body.isEnabled() !== loaded`, `body.setEnabled(loaded)`.
+- For every vehicle in `[...cars, heli, ...boats]` except gone (sunk) cars: the one the player is in is always enabled (re-enabled if it was switched off, so a vehicle can't be stuck disabled under you); for the others, `loaded = city.isLoaded(p.x, p.z)`; if `body.isEnabled() !== loaded`, `body.setEnabled(loaded)`.
 - Why: a parked vehicle whose chunk is not loaded has no ground collider under it and would fall through the world. Disabling the body freezes it until its ground is built again. Boats were added by the audit (a boat left on land fell; tested in `gameplay.test.cjs`).
 - Called by: `step()`, every physics step, before the player update.
 

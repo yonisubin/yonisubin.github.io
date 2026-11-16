@@ -220,6 +220,11 @@ export class Car implements SimEntity {
     }
     // A parked car at rest sleeps; skip it entirely until something bumps it awake.
     if (!this.driven && this.body.isSleeping()) return;
+    // The car you're driving must never sleep. Rapier puts a body to sleep ~0.5 s after it
+    // comes to rest, and the vehicle controller's wheel impulses (and our drag force) don't
+    // wake it: sit still for a moment (getting in, a taxi fare boarding, a red light) and the
+    // car would steer but never move again.
+    if (this.driven && this.body.isSleeping()) this.body.wakeUp();
     this.impacts.before(this.body);
 
     const speed = this.speed;

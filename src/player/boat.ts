@@ -110,6 +110,9 @@ export class Boat implements SimEntity {
   }
 
   fixedUpdate(): void {
+    // The boat you're driving must never sleep: its forces are added without waking it, so a
+    // boat left still for a moment would ignore the throttle (as cars did).
+    if (this.driven && this.body.isSleeping()) this.body.wakeUp();
     const d = BOAT_DIMENSIONS[this.type];
     const spec = SPECS[this.type];
     const tr = this.body.translation();

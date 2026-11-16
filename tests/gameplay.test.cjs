@@ -152,4 +152,102 @@ run('gameplay: cash drops, parked boats, menus, mission target, jacked cars, wea
     return { a, b: geo() };
   });
   t.ok('switching weapons 40 times adds no geometries', weapons.b === weapons.a, `${weapons.a} → ${weapons.b}`);
+
+  // --- A vehicle you sit still in still drives. Rapier puts a resting body to sleep after
+  // ~0.5 s and the vehicle forces don't wake it: cars steered but wouldn't move after you
+  // waited a moment (getting in, a taxi fare boarding).
+  const idle = await page.evaluate(() => {
+    const g = window.game;
+    g.renderer.setAnimationLoop(null);
+    const V = g.camera.position.constructor;
+    const hold = (action, seconds) => {
+      g.input.pressAction(action);
+      g.simulate(seconds);
+      g.input.releaseAction(action);
+    };
+    const flat = (b) => Math.hypot(b.linvel().x, b.linvel().z);
+    const out = {};
+    // Start clean: the carjacking checks above leave 5 stars, and the police would shoot.
+    g.wanted.clear();
+    g.police.reset();
+    g.stats.health = 100;
+    // A car: on a long open road near the spawn, get in, wait 3 s, then W; stop, wait, then S.
+    const net = g.city.layout.streets.net;
+    const sp = g.city.spawn;
+    const edge = net.edges
+      .filter((e) => e.length > 180 && Math.hypot(e.pts[0] - sp.x, e.pts[1] - sp.z) < 500)
+      .sort((a, b) => b.length - a.length)[0];
+    const at = net.pointAt(edge, edge.length / 2 - 60, { x: 0, z: 0, tx: 0, tz: 0 });
+    const car = g.cars.find((c) => !c.gone && c.type !== 'taxi' && !c.livery);
+    g.city.streamer.loadAround(new V(at.x, 0, at.z), 300);
+    const yaw = Math.atan2(-at.tz, at.tx); // the car's forward is +X
+    car.body.setTranslation({ x: at.x, y: g.city.terrain.smoothHeight(at.x, at.z) + 0.6, z: at.z }, true);
+    car.body.setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }, true);
+    car.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    car.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    g.simulate(0.5);
+    g.player.setMode(car.mode);
+    g.simulate(3);
+    out.carAsleepBefore = car.body.isSleeping();
+    hold('moveForward', 2);
+    out.forward = +flat(car.body).toFixed(1);
+    out.alive = !g.stats.dead;
+    hold('moveBack', 3); // brake to a stop
+    g.simulate(3);
+    hold('moveBack', 2);
+    out.reverse = +flat(car.body).toFixed(1);
+    g.player.setMode(g.onFoot);
+    g.simulate(0.5);
+    // A taxi fare: stop beside them until they board, then drive off.
+    const taxi = g.cars.find((c) => c.type === 'taxi' && !c.gone);
+    g.city.streamer.loadAround(taxi.interp.currPos, 300);
+    g.simulate(0.5);
+    g.player.setMode(taxi.mode);
+    g.input.pressAction('job');
+    g.simulate(1 / 60);
+    g.input.releaseAction('job');
+    const T = g.jobs.task.target;
+    g.city.streamer.loadAround(new V(T.x, 0, T.z), 300);
+    // Pulled up at the kerb facing along the road (as a driver would), not into a wall.
+    const road = net.nearest(T.x, T.z, 60);
+    const pts = net.edges[road.edge].pts;
+    const ryaw = Math.atan2(-(pts[road.seg * 2 + 3] - pts[road.seg * 2 + 1]), pts[road.seg * 2 + 2] - pts[road.seg * 2]);
+    taxi.body.setTranslation({ x: T.x, y: g.city.terrain.smoothHeight(T.x, T.z) + 0.6, z: T.z }, true);
+    taxi.body.setRotation({ x: 0, y: Math.sin(ryaw / 2), z: 0, w: Math.cos(ryaw / 2) }, true);
+    taxi.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    taxi.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    g.simulate(3);
+    out.boarded = g.jobs.stage === 'dropoff';
+    hold('moveForward', 2);
+    out.taxi = +flat(taxi.body).toFixed(1);
+    out.taxiPos = Math.hypot(taxi.interp.currPos.x - T.x, taxi.interp.currPos.z - T.z).toFixed(1);
+    g.player.setMode(g.onFoot);
+    g.simulate(0.5);
+    // A car whose body was switched off (its ground unloaded) when you got in.
+    const c2 = g.cars.find((c) => !c.gone && c !== car && c.type !== 'taxi' && !c.livery);
+    g.city.streamer.loadAround(c2.interp.currPos, 300);
+    g.simulate(0.5);
+    c2.body.setEnabled(false);
+    g.player.setMode(c2.mode);
+    hold('moveForward', 2);
+    out.disabledCar = +flat(c2.body).toFixed(1);
+    g.player.setMode(g.onFoot);
+    g.simulate(0.5);
+    // A boat: get in, wait 3 s, throttle.
+    // (one on the water: an earlier check leaves a boat parked on land, where it can't go)
+    const boat = g.boats.find((b) => g.water.isWater(b.interp.currPos.x, b.interp.currPos.z));
+    g.city.streamer.loadAround(boat.interp.currPos, 300);
+    g.simulate(0.5);
+    g.player.setMode(boat.mode);
+    g.simulate(3);
+    hold('moveForward', 2);
+    out.boat = +flat(boat.body).toFixed(1);
+    g.player.setMode(g.onFoot);
+    g.simulate(0.5);
+    return out;
+  });
+  t.ok('a car you sat still in for 3 s still drives forward and in reverse', idle.forward > 5 && idle.reverse > 2, JSON.stringify(idle));
+  t.ok('a taxi drives off after a fare boards', idle.boarded && idle.taxi > 5, JSON.stringify(idle));
+  t.ok('a car whose body was switched off drives once you are in it', idle.disabledCar > 5, JSON.stringify(idle));
+  t.ok('a boat you sat still in for 3 s still goes', idle.boat > 3, JSON.stringify(idle));
 }, { people: true });

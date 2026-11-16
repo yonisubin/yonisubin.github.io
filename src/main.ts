@@ -784,7 +784,12 @@ async function main(): Promise<void> {
   // Parked vehicles sleep while the ground under them isn't loaded (they'd fall through).
   const parkVehicles = () => {
     for (const v of [...cars, heli, ...boats]) {
-      if (player.mode === v.mode || (v instanceof Car && v.gone)) continue;
+      if (v instanceof Car && v.gone) continue;
+      if (player.mode === v.mode) {
+        // The one you're in is always switched on, wherever it is.
+        if (!v.body.isEnabled()) v.body.setEnabled(true);
+        continue;
+      }
       const p = v.body.translation();
       const loaded = city.isLoaded(p.x, p.z);
       if (v.body.isEnabled() !== loaded) v.body.setEnabled(loaded);
