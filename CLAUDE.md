@@ -93,10 +93,14 @@ public/
 - **Roads are a graph.** Downtown is a grid of blocks; every road (downtown's included) is an edge in `layout.streets.net`. Use `net.distance` / `net.kerb` / `net.nearest` / `net.pointAt` rather than grid maths. Suburban houses and parcels are in `layout.streets` (`houses`, `parcels`, `driveways`, `trees`), with a `yaw`.
 - **Determinism.** World generation uses a seeded PRNG and hand-written noise, so the same seed always produces the same world; each cell/chunk has its own random stream (`hashSeed`) so chunks can be built in any order.
 
+## Second game: `civilization/`
+
+A separate, independent game lives in `civilization/` and is served at `/civilization/` (see `civilization/README.md`). It has its own `index.html`, `src/`, `tsconfig.json` and `vite.config.ts` (`base: '/civilization/'`) and shares only the root `node_modules`. Commands: `npm run dev:civ`, `npm run typecheck:civ`, `npm run build:civ`. Never import between `src/` and `civilization/src/`; its `localStorage` keys must start with `civ:`. The deploy workflow builds it in its own `continue-on-error` job, so it can never block the main game's deploy. Everything else in this file (milestones, architecture rules) is about the open-world game.
+
 ## Deployment (GitHub Pages)
 
 - The repo is `yonisubin.github.io` (a `username.github.io` repo), so `base` in `vite.config.ts` is `'/'` and the game is served at the site root.
-- Deploy `dist/` via a GitHub Actions workflow (`.github/workflows/deploy.yml`) using the official Pages actions.
+- Deploy `dist/` via a GitHub Actions workflow (`.github/workflows/deploy.yml`) using the official Pages actions. The same workflow adds `civilization/dist` under `dist/civilization/` and the preview branch under `dist/preview/`.
 - Repo Settings → Pages → Source must be set to "GitHub Actions".
 - All asset paths must resolve through `import.meta.env.BASE_URL` so they work under the subpath.
 

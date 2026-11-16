@@ -8,6 +8,10 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "dev:civ": "vite --config civilization/vite.config.ts",
+    "build:civ": "tsc --noEmit -p civilization && vite build --config civilization/vite.config.ts",
+    "preview:civ": "vite preview --config civilization/vite.config.ts",
+    "typecheck:civ": "tsc --noEmit -p civilization",
     "build:characters": "node scripts/build-characters.mjs",
     "build:quaternius": "node scripts/build-quaternius.mjs",
     "test": "node tests/run.mjs"

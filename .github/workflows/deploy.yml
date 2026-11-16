@@ -4,8 +4,11 @@
 #   build-preview  builds PREVIEW_BRANCH (work in progress) for /preview/, in its own job, so
 #                  that branch's code never runs where the live site is built, and a broken
 #                  preview can't stop the live site from deploying (continue-on-error)
-#   build          builds main for the site root, adds the preview (if one was built) under
-#                  dist/preview, uploads the Pages artifact
+#   build-civilization  builds the second game (civilization/ on main) for /civilization/, in its
+#                  own job, so a broken build of it can't stop the live site from deploying
+#                  (continue-on-error)
+#   build          builds main for the site root, adds the preview and civilization (if they were
+#                  built) under dist/preview and dist/civilization, uploads the Pages artifact
 #   deploy         publishes it (the only job allowed to)
 name: Deploy to GitHub Pages
 
@@ -68,9 +71,33 @@ jobs:
           path: preview-dist
           retention-days: 1
 
+  build-civilization:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Build civilization/ for /civilization/
+        run: |
+          npm ci
+          npm run build:civ
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: civilization
+          path: civilization/dist
+          retention-days: 1
+
   build:
-    needs: build-preview
-    # Run even when the preview failed (a broken preview must never block the live site).
+    needs: [build-preview, build-civilization]
+    # Run even when the preview or civilization failed (neither may block the live site).
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
@@ -94,6 +121,13 @@ jobs:
         with:
           name: preview
           path: dist/preview
+
+      - name: Add civilization under dist/civilization (if it was built)
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: civilization
+          path: dist/civilization
 
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 

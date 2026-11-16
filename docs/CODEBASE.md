@@ -6633,7 +6633,7 @@ flowchart LR
 
 ### 9.5 `.github/workflows/deploy.yml`
 
-**Purpose.** "Deploy to GitHub Pages": builds the game and publishes `dist/` to Pages, with an optional preview of a work-in-progress branch at `/preview/`. Requires repo Settings → Pages → Source: "GitHub Actions". The header comment summarises the three jobs: `build-preview` builds `PREVIEW_BRANCH` for `/preview/` in its own job "so that branch's code never runs where the live site is built, and a broken preview can't stop the live site from deploying"; `build` builds `main` for the site root, adds the preview (if one was built) under `dist/preview` and uploads the Pages artifact; `deploy` publishes it ("the only job allowed to").
+**Purpose.** "Deploy to GitHub Pages": builds the game and publishes `dist/` to Pages, with an optional preview of a work-in-progress branch at `/preview/` and the second game (`civilization/`) at `/civilization/`. Requires repo Settings → Pages → Source: "GitHub Actions". The header comment summarises the four jobs: `build-preview` builds `PREVIEW_BRANCH` for `/preview/` in its own job "so that branch's code never runs where the live site is built, and a broken preview can't stop the live site from deploying"; `build-civilization` builds `civilization/` for `/civilization/` in its own `continue-on-error` job; `build` builds `main` for the site root, adds the preview and civilization (if built) under `dist/preview` and `dist/civilization` and uploads the Pages artifact; `deploy` publishes it ("the only job allowed to").
 
 **Triggers.** `push` to `main`; `workflow_dispatch` (manual "Run workflow").
 
@@ -6650,13 +6650,16 @@ flowchart LR
 4. **Build for /preview/**: `npm ci`, `npm run build -- --base=/preview/ --outDir preview-dist --emptyOutDir`.
 5. `actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02` (v4): `name: preview`, `path: preview-dist`, `retention-days: 1`.
 
-**Job `build`** (`needs: build-preview`, `if: ${{ !cancelled() }}`, `ubuntu-latest`) — runs even when the preview failed ("a broken preview must never block the live site"); `!cancelled()` overrides the default "only if the needed job succeeded":
+**Job `build-civilization`** (`ubuntu-latest`, `continue-on-error: true`): checkout (`persist-credentials: false`), setup-node (Node 22, npm cache), `npm ci` + `npm run build:civ` (type-check `civilization/` + `vite build --config civilization/vite.config.ts` → `civilization/dist`, `base: '/civilization/'`), `actions/upload-artifact@ea165f8…` (v4) `name: civilization`, `path: civilization/dist`, `retention-days: 1`. See `civilization/README.md`.
+
+**Job `build`** (`needs: [build-preview, build-civilization]`, `if: ${{ !cancelled() }}`, `ubuntu-latest`) — runs even when the preview or civilization failed ("neither may block the live site"); `!cancelled()` overrides the default "only if the needed job succeeded":
 1. `actions/checkout@11d5960…` (v4), `persist-credentials: false`.
 2. `actions/setup-node@49933ea…` (v4), Node 22, npm cache.
 3. **Build**: `npm ci` then `npm run build` (type-check + Vite build to `dist/`).
 4. **Add the preview under dist/preview (if one was built)**: `actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093` (v4), `name: preview`, `path: dist/preview`, `continue-on-error: true` (no artifact → no preview, no failure).
-5. `actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b` (v5).
-6. `actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa` (v3), `path: dist`. A comment notes this action itself calls `actions/upload-artifact` by tag internally; only the outer action can be pinned.
+5. **Add civilization under dist/civilization (if it was built)**: `actions/download-artifact@d3f86a1…` (v4), `name: civilization`, `path: dist/civilization`, `continue-on-error: true`.
+6. `actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b` (v5).
+7. `actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa` (v3), `path: dist`. A comment notes this action itself calls `actions/upload-artifact` by tag internally; only the outer action can be pinned.
 
 **Job `deploy`** (`needs: build`, `ubuntu-latest`): job-level `permissions: pages: write, id-token: write` (the OIDC token proves the deployment's origin to Pages); `environment: { name: github-pages, url: ${{ steps.deployment.outputs.page_url }} }`; single step `id: deployment`, `actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e` (v4).
 
@@ -6666,6 +6669,7 @@ flowchart LR
 - The artifact passes only built files (`preview-dist`) between jobs, kept 1 day.
 - Actions pinned to full commit SHAs (with the version in a comment) → a moved tag upstream can't change what runs.
 - Preview at `/preview/` next to the live game (commit `c09b248`) → works because every asset path goes through `BASE_URL`.
+- Second game in its own folder + job (`civilization/`) → it shares only `node_modules` with the main game, and a broken build of it only drops `/civilization/` from that deploy.
 - Tests are not run in CI (they need Playwright and a browser).
 
 ---
