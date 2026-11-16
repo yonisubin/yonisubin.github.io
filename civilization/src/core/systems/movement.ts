@@ -10,6 +10,8 @@ import { dirTo, distance, neighbors } from '../hex';
 import { atWar, cityAt, dims, isCivilian, militaryAt, tileAt, unitDef, unitsAt, withIndex } from '../query';
 import type { GameState, Unit } from '../state';
 import { fullMoves, hasRoom, onEnterTile } from './units';
+import { isWater, stealthSeen, terrainAllows } from './domain';
+import { carryAircraft } from './air';
 import { recomputeVisibility, sightFrom, unitSight } from './visibility';
 
 /** Cost marker meaning "uses all remaining movement" (river crossing). */
@@ -24,9 +26,14 @@ export function riverBetween(s: GameState, a: number, b: number): boolean {
 export function stepCost(s: GameState, u: Unit, from: number, to: number): number {
   const t = tileAt(s, to);
   const ter = get(D.terrains, t.terrain);
-  if (ter.water || ter.impassable) return Infinity;
-  if (t.feature && D.features.get(t.feature)!.impassable) return Infinity;
+  if (!terrainAllows(s, u, to)) return Infinity;
   const scale = D.rules.moveScale;
+  const def = unitDef(u);
+  // Ships pay one move per tile; embarking costs a normal move, landing ends the turn.
+  if (def.domain === 'sea') return scale;
+  const fromWater = isWater(s, from);
+  if (ter.water) return scale;
+  if (fromWater) return ALL_MOVES;
   const f = tileAt(s, from);
   const pl = s.players[u.owner];
   const bridged = pl.techs.some((x) => D.techs.get(x)!.bridges);
@@ -43,9 +50,11 @@ export function stepCost(s: GameState, u: Unit, from: number, to: number): numbe
 
 /** Does an enemy military unit (or city) of u's enemies sit next to tile i? */
 export function inEnemyZoc(s: GameState, u: Unit, i: number): boolean {
+  const dom = unitDef(u).domain;
   for (const n of neighbors(dims(s), i)) {
     const m = militaryAt(s, n);
-    if (m && m.owner !== u.owner && atWar(s, u.owner, m.owner)) return true;
+    // Ships exert zones of control on ships, land units on land units.
+    if (m && m.owner !== u.owner && atWar(s, u.owner, m.owner) && unitDef(m).domain === dom) return true;
     const c = cityAt(s, n);
     if (c && c.owner !== u.owner && atWar(s, u.owner, c.owner)) return true;
   }
@@ -61,8 +70,7 @@ export function canEnter(s: GameState, u: Unit, i: number, final: boolean): bool
   const pl = s.players[u.owner];
   const known = pl.isBarbarian || pl.explored[i] === 1;
   if (!known) return true; // unexplored: assume passable (the step will be checked for real)
-  const ter = get(D.terrains, t.terrain);
-  if (ter.water || ter.impassable || (t.feature && D.features.get(t.feature)!.impassable)) return false;
+  if (!terrainAllows(s, u, i)) return false;
   // Foreign land at peace is closed without open borders (city-states' land is always open).
   if (t.owner >= 0 && t.owner !== u.owner && !atWar(s, u.owner, t.owner) && !s.players[t.owner].isMinor && !(s.diplomacy.openBorders[t.owner]?.[u.owner] > s.turn)) return false;
   const city = cityAt(s, i);
@@ -70,8 +78,10 @@ export function canEnter(s: GameState, u: Unit, i: number, final: boolean): bool
   const visible = pl.isBarbarian || pl.visible[i] === 1;
   if (visible) {
     for (const o of unitsAt(s, i)) {
-      if (o.id === u.id) continue;
+      if (o.id === u.id || unitDef(o).domain === 'air') continue;
       if (o.owner !== u.owner) {
+        // Hidden submarines don't block (the move will bump into them for real).
+        if (unitDef(o).stealth && !stealthSeen(s, o, u.owner)) continue;
         // Military units may step onto a lone enemy civilian (capturing it).
         if (isCivilian(o) && !isCivilian(u) && atWar(s, u.owner, o.owner) && !militaryAt(s, i)) continue;
         return false;
@@ -187,7 +197,9 @@ export function followPath(s: GameState, u: Unit): void {
     const after = c === ALL_MOVES || c >= u.moves ? 0 : u.moves - c;
     if (!final && after === 0 && !hasRoom(s, u, next, u.owner)) break;
     const zoc = inEnemyZoc(s, u, u.tile) && inEnemyZoc(s, u, next);
+    const prevTile = u.tile;
     u.tile = next;
+    carryAircraft(s, u, prevTile);
     u.path.shift();
     u.moves = zoc ? 0 : after;
     u.acted = true;

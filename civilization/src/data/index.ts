@@ -20,6 +20,8 @@ import specialists from './specialists.json';
 import greatPeople from './greatPeople.json';
 import policies from './policies.json';
 import cityStates from './cityStates.json';
+import beliefs from './beliefs.json';
+import religionNames from './religionNames.json';
 import rules from './rules.json';
 
 export type TerrainDef = z.infer<typeof S.Terrain>;
@@ -41,6 +43,7 @@ export type PolicyTreeDef = z.infer<typeof S.PolicyTree>;
 export type PolicyDef = z.infer<typeof S.Policy>;
 export type EffectDef = z.infer<typeof S.Effect>;
 export type CityStateDef = z.infer<typeof S.CityState>;
+export type BeliefDef = z.infer<typeof S.Belief>;
 
 /** Parse a list file and index it by id; throws with the file name and path on any error. */
 function table<T extends { id: string }>(name: string, schema: z.ZodType<T>, raw: unknown): Map<string, T> {
@@ -76,6 +79,8 @@ export const D = {
   greatPeople: table('greatPeople', S.GreatPerson, greatPeople),
   policyTrees: table('policies', S.PolicyTree, policies),
   cityStates: table('cityStates', S.CityState, cityStates),
+  beliefs: table('beliefs', S.Belief, beliefs),
+  religionNames: z.array(z.string()).parse(religionNames),
   rules: parsedRules.data,
   /** Every policy by id, with the tree it belongs to. */
   policies: new Map<string, z.infer<typeof S.Policy> & { tree: string }>(),
@@ -133,6 +138,7 @@ export function get<T>(map: Map<string, T>, id: string): T {
     for (const k of Object.keys(b.greatPeople)) need(D.greatPeople, k, `building ${b.id} greatPeople`);
   }
   for (const g of D.greatPeople.values()) need(D.units, g.unit, `great person ${g.id} unit`);
+  for (const b of D.beliefs.values()) need(D.buildings, b.building, `belief ${b.id} building`);
   for (const u of D.units.values()) need(D.improvements, u.gpImprovement, `unit ${u.id} gpImprovement`);
   for (const t of D.policyTrees.values()) {
     for (const p of t.policies) for (const r of p.requires) if (!t.policies.some((x) => x.id === r)) errs.push(`policy ${p.id}: unknown requirement ${r}`);

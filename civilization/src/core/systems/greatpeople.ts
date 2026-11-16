@@ -48,23 +48,23 @@ export function processGreatPeople(s: GameState, p: number): void {
 }
 
 /** Land combat XP also feeds the Great General meter. */
-export function addGeneralPoints(s: GameState, p: number, xp: number, near: number): void {
+export function addGeneralPoints(s: GameState, p: number, xp: number, near: number, type: 'general' | 'admiral' = 'general'): void {
   const pl = s.players[p];
-  if (pl.isBarbarian || xp <= 0) return;
-  pl.gpPoints.general = (pl.gpPoints.general ?? 0) + xp * D.rules.greatPeople.generalXpShare;
-  const need = gpThreshold(s, p, 'general');
-  if (pl.gpPoints.general >= need) {
-    pl.gpPoints.general -= need;
+  if (pl.isBarbarian || pl.isMinor || xp <= 0) return;
+  pl.gpPoints[type] = (pl.gpPoints[type] ?? 0) + xp * D.rules.greatPeople.generalXpShare;
+  const need = gpThreshold(s, p, type);
+  if (pl.gpPoints[type] >= need) {
+    pl.gpPoints[type] -= need;
     const cities = playerCities(s, p);
     if (!cities.length) return;
-    // The general appears near the fighting if possible, else in the nearest city.
-    const gp = get(D.greatPeople, 'general');
+    // The general/admiral appears near the fighting if possible, else in a city.
+    const gp = get(D.greatPeople, type);
     const t = freeTileNear(s, gp.unit, p, near, 2);
     if (t >= 0) {
       createUnit(s, gp.unit, p, t);
-      pl.gpCount.general = (pl.gpCount.general ?? 0) + 1;
-      notify(s, p, 'A Great General rises from the ranks!', 'good', t);
-    } else spawnGreatPerson(s, p, 'general', cities[0]);
+      pl.gpCount[type] = (pl.gpCount[type] ?? 0) + 1;
+      notify(s, p, `A ${gp.name} rises from the ranks!`, 'good', t);
+    } else spawnGreatPerson(s, p, type, cities[0]);
   }
 }
 

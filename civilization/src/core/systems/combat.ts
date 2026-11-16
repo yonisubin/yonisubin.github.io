@@ -7,6 +7,7 @@ import { rand } from '../rng';
 import { atWar, cityAt, difficultyOf, dims, isCivilian, militaryAt, notify, tileAt, unitDef, unitsAt } from '../query';
 import { playerEffects, sum } from './effects';
 import { addGeneralPoints } from './greatpeople';
+import { embarkedStrength, isCoastalTile, isEmbarked, isWater } from './domain';
 import type { City, GameState, Unit } from '../state';
 import { happinessOf } from './happiness';
 import { riverBetween } from './movement';
@@ -53,7 +54,7 @@ function hpFactor(u: Unit): number {
  */
 export function unitStrength(s: GameState, u: Unit, attacking: boolean, ranged: boolean, foeTile: number, foe?: Unit): StrengthReport {
   const def = unitDef(u);
-  const base = attacking && ranged ? def.ranged : def.strength;
+  const base = !attacking && isEmbarked(s, u) ? embarkedStrength(s, u) : attacking && ranged ? def.ranged : def.strength;
   const mods: Modifier[] = [];
   const add = (label: string, pct: number) => pct && mods.push({ label, pct });
   // Where the fight happens for terrain-based bonuses: the defender's tile.
@@ -96,10 +97,12 @@ export function unitStrength(s: GameState, u: Unit, attacking: boolean, ranged: 
     if (e.type !== 'combat') continue;
     if ((e.when === 'vs_city' && attacking && foeCity) || (e.when === 'rough' && isRough(s, fightTile)) || e.when === 'always' || (e.when === 'vs_barbarian' && foeIsBarb)) add(e.source, e.percent);
   }
-  // A Great General next to (or with) the unit inspires it.
+  // A Great General (land) or Great Admiral (sea) next to the unit inspires it.
   if (!s.players[u.owner].isBarbarian) {
     const near = [u.tile, ...neighbors(dims(s), u.tile)];
-    if (Object.values(s.units).some((g) => g.owner === u.owner && unitDef(g).greatPerson === 'general' && near.includes(g.tile))) add('Great General', D.rules.greatPeople.generalAura);
+    const want = def.domain === 'sea' ? 'admiral' : 'general';
+    if (Object.values(s.units).some((g) => g.owner === u.owner && unitDef(g).greatPerson === want && near.includes(g.tile)))
+      add(want === 'admiral' ? 'Great Admiral' : 'Great General', want === 'admiral' ? D.rules.naval.admiralAura : D.rules.greatPeople.generalAura);
   }
   // Defending in a Citadel.
   if (!attacking && tileAt(s, u.tile).improvement === 'citadel' && !tileAt(s, u.tile).pillaged) add('Citadel', D.rules.greatPeople.citadelDefense);
@@ -137,11 +140,19 @@ export interface CombatPreview {
 export function canAttack(s: GameState, u: Unit, to: number): string | null {
   const def = unitDef(u);
   if (isCivilian(u)) return 'civilians cannot attack';
+  if (def.domain === 'air') return 'aircraft make air strikes';
   if (u.moves <= 0) return 'no moves left';
   if (u.hasAttacked) return 'already attacked this turn';
+  if (isEmbarked(s, u)) return 'embarked units cannot attack';
   const target = defenderAt(s, u, to);
   if (!target) return 'nothing to attack there';
   const d = distance(dims(s), u.tile, to);
+  const targetOnWater = isWater(s, to) && !target.city;
+  // Melee: land units fight on land, ships fight ships, embarked units and coastal cities.
+  if (def.ranged === 0) {
+    if (def.domain === 'land' && targetOnWater) return 'land units cannot attack ships';
+    if (def.domain === 'sea' && !targetOnWater && !(target.city && isCoastalTile(s, to))) return 'ships can only attack at sea or coastal cities';
+  }
   if (def.ranged > 0) {
     let range = def.range;
     for (const p of u.promotions) range += D.promotions.get(p)!.range;
@@ -158,7 +169,7 @@ export function defenderAt(s: GameState, u: Unit, to: number): { unit?: Unit; ci
   if (city && city.owner !== u.owner && atWar(s, u.owner, city.owner)) return { city };
   const m = militaryAt(s, to);
   if (m && m.owner !== u.owner && atWar(s, u.owner, m.owner)) return { unit: m };
-  const civ = unitsAt(s, to).find((o) => o.owner !== u.owner && atWar(s, u.owner, o.owner));
+  const civ = unitsAt(s, to).find((o) => o.owner !== u.owner && atWar(s, u.owner, o.owner) && unitDef(o).domain !== 'air');
   if (civ && unitDef(u).ranged > 0) return { unit: civ };
   return null;
 }
@@ -258,10 +269,10 @@ export function resolveAttack(s: GameState, u: Unit, to: number): AttackOutcome 
   if (!ranged) u.hp -= taken;
   const gain = ranged ? D.rules.xp.rangedAttack : D.rules.xp.attack;
   addXp(s, u, gain, vsBarb);
-  addGeneralPoints(s, u.owner, gain, u.tile);
+  addGeneralPoints(s, u.owner, gain, u.tile, def.domain === 'sea' ? 'admiral' : 'general');
   if (d.hp > 0) {
     addXp(s, d, D.rules.xp.defend, s.players[u.owner].isBarbarian);
-    addGeneralPoints(s, d.owner, D.rules.xp.defend, d.tile);
+    addGeneralPoints(s, d.owner, D.rules.xp.defend, d.tile, unitDef(d).domain === 'sea' ? 'admiral' : 'general');
   } else onKill(s, u.owner, to);
   if (d.hp <= 0) {
     out.defenderDied = true;

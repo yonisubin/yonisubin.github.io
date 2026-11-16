@@ -13,6 +13,8 @@ import type { GameState } from '../core/state';
 import { cityYields } from '../core/systems/yields';
 import { cityMaxHp, itemCost, itemDef } from '../core/systems/cities';
 import { resourceVisible, tileYields } from '../core/systems/yields';
+import { stealthSeen } from '../core/systems/domain';
+import { routeTile } from '../core/systems/trade';
 
 export const HEX = 32; // hex circumradius in world pixels
 const SQ3 = Math.sqrt(3);
@@ -297,6 +299,8 @@ export class MapView {
       }
     } else if (f === 'floodplains') {
       for (let k = 0; k < 3; k++) g.moveTo(x - 12, y - 6 + k * 6).lineTo(x + 12, y - 6 + k * 6).stroke({ width: 1.5, color: shade(col, 0.85), alpha: 0.8 });
+    } else if (f === 'fallout') {
+      for (let k = 0; k < 5; k++) g.circle(x + (jit(i, 90 + k) - 0.5) * HEX, y + (jit(i, 95 + k) - 0.5) * HEX * 0.8, 3 + jit(i, 99 + k) * 3).fill({ color: 0xb0d030, alpha: 0.8 });
     } else if (f === 'oasis') {
       g.ellipse(x, y + 2, 9, 6).fill(0x4f9cc0);
       g.poly([x + 6, y - 2, x + 8, y - 14, x + 10, y - 2]).fill(0x3a7a2a);
@@ -336,6 +340,11 @@ export class MapView {
       case 'trading_post':
         g.rect(ix - 7, iy - 2, 14, 9).fill(col);
         g.poly([ix - 9, iy - 2, ix, iy - 9, ix + 9, iy - 2]).fill(0x8a3a2a);
+        break;
+      case 'fishing_boats':
+        g.poly([ix - 9, iy, ix + 9, iy, ix + 6, iy + 5, ix - 6, iy + 5]).fill(0x8a5a30);
+        g.moveTo(ix, iy).lineTo(ix, iy - 9).stroke({ width: 1.5, color: 0x404040 });
+        g.poly([ix, iy - 9, ix + 6, iy - 2, ix, iy - 2]).fill(0xf0f0f0);
         break;
       case 'citadel':
         g.poly([ix - 10, iy + 7, ix - 10, iy - 4, ix - 6, iy - 4, ix - 6, iy - 8, ix - 2, iy - 8, ix - 2, iy - 4, ix + 2, iy - 4, ix + 2, iy - 8, ix + 6, iy - 8, ix + 6, iy - 4, ix + 10, iy - 4, ix + 10, iy + 7]).fill(col).stroke({ width: 1.2, color: 0x202020 });
@@ -490,7 +499,31 @@ export class MapView {
       }
     }
     // Units (only where visible).
-    const units = allUnits(s);
+    // Aircraft are shown as a badge with their count; hidden submarines aren't shown at all.
+    const air = new Map<number, number>();
+    const units = allUnits(s).filter((u) => {
+      if (unitDef(u).domain === 'air') {
+        if (visible(u.tile)) air.set(u.tile, (air.get(u.tile) ?? 0) + 1);
+        return false;
+      }
+      return viewer < 0 || stealthSeen(s, u, viewer);
+    });
+    for (const [t, n] of air) {
+      const { x, y } = tileCenter(m, t, HEX);
+      g.roundRect(x - 22, y - 2, 18, 12, 3).fill({ color: 0x101820, alpha: 0.85 });
+      const label = new Text({ text: `✈${n}`, style: { fontFamily: 'system-ui', fontSize: 9, fontWeight: '700', fill: 0xffffff } });
+      label.anchor.set(0.5);
+      label.position.set(x - 13, y + 4);
+      txt.addChild(label);
+    }
+    // Trade caravans on their paths.
+    for (const r of s.tradeRoutes) {
+      const t = routeTile(r);
+      if (!visible(t)) continue;
+      const { x, y } = tileCenter(m, t, HEX);
+      const col = hexToNum(s.players[r.owner].color);
+      g.poly([x + 10, y + 4, x + 16, y + 10, x + 10, y + 16, x + 4, y + 10]).fill(col).stroke({ width: 1.5, color: 0xf0e0b0 });
+    }
     const perTile = new Map<number, number>();
     for (const u of units) perTile.set(u.tile, (perTile.get(u.tile) ?? 0) + 1);
     for (const u of units) {
@@ -506,6 +539,8 @@ export class MapView {
       const col = hexToNum(pl.color), col2 = hexToNum(pl.color2);
       const done = (viewer < 0 || u.owner === viewer) && u.moves <= 0;
       const alpha = done ? 0.7 : 1;
+      // Embarked land units ride in a little hull.
+      if (unitDef(u).domain === 'land' && get(D.terrains, m.tiles[u.tile].terrain).water) g.poly([ux - r - 4, uy + 2, ux + r + 4, uy + 2, ux + r, uy + r + 4, ux - r, uy + r + 4]).fill(0x6a4a2a).stroke({ width: 1, color: 0x2a1a0a });
       if (civ) g.roundRect(ux - r, uy - r, r * 2, r * 2, 4).fill({ color: col, alpha }).stroke({ width: 2, color: col2 });
       else g.circle(ux, uy, r).fill({ color: col, alpha }).stroke({ width: 2, color: col2 });
       if (u.order === 'fortify') g.poly([ux + r - 4, uy - r - 2, ux + r + 4, uy - r - 2, ux + r + 4, uy - r + 4, ux + r, uy - r + 8, ux + r - 4, uy - r + 4]).fill(0xc0c8d0).stroke({ width: 1, color: 0x303030 });

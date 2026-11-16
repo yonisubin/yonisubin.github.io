@@ -22,5 +22,13 @@
   "tech": "education",
   "process": "science",
   "description": "Turns a quarter of this city's production into science each turn."
+ },
+ {
+  "id": "manhattan_project",
+  "name": "Nuclear Program",
+  "cost": 1500,
+  "tech": "nuclear_fission",
+  "oncePerWorld": true,
+  "description": "Unlocks nuclear weapons for every civilization."
  }
 ]

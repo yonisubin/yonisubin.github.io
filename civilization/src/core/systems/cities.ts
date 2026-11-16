@@ -97,6 +97,8 @@ export function foundCity(s: GameState, p: number, tile: number): City {
     damagedThisTurn: false,
     specialists: {},
     manualSpecialists: {},
+    followers: {},
+    pressure: {},
   };
   c.hp = cityMaxHp(c);
   s.cities[id] = c;
@@ -323,7 +325,9 @@ export function cannotBuild(s: GameState, c: City, item: QueueItem): string | nu
       if (!r || r.total - r.used < 1) return `needs ${get(D.resources, u.resource).name}`;
     }
     if (u.id === 'settler' && happinessOf(s, c.owner).net <= D.rules.happiness.veryUnhappy) return 'your people are too unhappy';
-    if (u.requiresProject && !pl.projects.includes(u.requiresProject)) return `needs the ${get(D.projects, u.requiresProject).name}`;
+    if (u.requiresProject && !pl.projects.includes(u.requiresProject) && s.worldProjects[u.requiresProject] === undefined) return `needs the ${get(D.projects, u.requiresProject).name}`;
+    if (u.faithCost > 0) return 'bought with faith';
+    if (u.domain === 'sea' && !isCoastal(s, c)) return 'needs a coastal city';
     if (u.requiresBuilding && !hasBuilding(c, u.requiresBuilding)) return `needs a ${get(D.buildings, u.requiresBuilding).name}`;
     return null;
   }
@@ -332,12 +336,14 @@ export function cannotBuild(s: GameState, c: City, item: QueueItem): string | nu
     if (!pr) return 'unknown project';
     if (!hasTech(pl, pr.tech)) return `needs ${get(D.techs, pr.tech!).name}`;
     if (pr.oncePerPlayer && pl.projects.includes(pr.id)) return 'already completed';
+    if (pr.oncePerWorld && s.worldProjects[pr.id] !== undefined) return `already completed by the ${s.players[s.worldProjects[pr.id]].name}`;
     if (pr.oncePerPlayer && playerCities(s, c.owner).some((o) => o.id !== c.id && o.queue[0]?.id === pr.id)) return 'already under way in another city';
     return null;
   }
   const b = D.buildings.get(item.id);
   if (!b) return 'unknown building';
   if (b.auto) return 'cannot be built';
+  if (b.belief) return 'bought with faith';
   if (b.faction && b.faction !== pl.faction) return 'another faction’s unique building';
   if (!b.faction && [...D.buildings.values()].some((x) => x.replaces === b.id && x.faction === pl.faction)) return 'replaced by your unique building';
   if (hasBuilding(c, b.replaces ?? b.id)) return 'already built';
@@ -384,6 +390,7 @@ function completeItem(s: GameState, c: City, item: QueueItem): boolean {
   if (item.kind === 'project') {
     const pr = get(D.projects, item.id);
     s.players[c.owner].projects.push(pr.id);
+    if (pr.oncePerWorld) s.worldProjects[pr.id] = c.owner;
     logEvent(s, `The ${s.players[c.owner].name} completed the ${pr.name}.`, c.tile, c.owner);
     for (const pl of s.players) notify(s, pl.id, pl.id === c.owner ? `${c.name} completed the ${pr.name}!` : `The ${s.players[c.owner].name} completed the ${pr.name}.`, pl.id === c.owner ? 'good' : 'info', c.tile);
     return true;

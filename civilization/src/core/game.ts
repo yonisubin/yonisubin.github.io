@@ -22,12 +22,16 @@ import { happinessOf } from './systems/happiness';
 import { followPath, moveUnit } from './systems/movement';
 import { autoExplore } from './systems/explore';
 import { addScience, setResearch } from './systems/research';
-import { buildOptions, createUnit, disbandForDebt, freeTileNear, fullMoves, healUnits, pillage, promote, removeUnit, upgradeCost, upgradeTarget, workJobs } from './systems/units';
+import { buildOptions, createUnit, disbandForDebt, finishJob, freeTileNear, fullMoves, healUnits, pillage, promote, removeUnit, upgradeCost, upgradeTarget, workJobs } from './systems/units';
 import { recomputeAllVisibility, recomputeVisibility } from './systems/visibility';
 import { barbarianSpawns, spawnRebels } from './systems/barbarians';
 import { playerYields } from './systems/yields';
 import { recordTurn } from './systems/stats';
 import { installHooks } from './hooks';
+import { airStrike, canNuke, canRebase, canStrike, nuke, rebase } from './systems/air';
+import { establishRoute, plunder, processTradeRoutes } from './systems/trade';
+import { buyWithFaith, canChoosePantheon, choosePantheon, enhanceReligion, foundReligion, processReligion, reform, removeHeresy, spread, theological } from './systems/religion';
+import { distance } from './hex';
 import { areFriends, dealProblem, dealValue, declareFriendship, denounce, denounced, executeDeal, onWarDeclared, opinion, processDiplomacy } from './systems/diplomacy';
 import { bully, giftGold, giftUnit, pledge, processCityStates } from './systems/citystates';
 import { adoptPolicy, canPickPolicy } from './systems/policies';
@@ -135,6 +139,9 @@ export function newGame(o: NewGameOptions = {}): GameState {
     goldenAge: { points: 0, turnsLeft: 0, count: 0 },
     gpPoints: {},
     gpCount: {},
+    faith: 0,
+    pantheon: null,
+    religion: null,
   });
   const players: Player[] = factionIds.map((fid, i) => {
     const f = get(D.factions, fid);
@@ -176,6 +183,9 @@ export function newGame(o: NewGameOptions = {}): GameState {
     events: [],
     wonders: {},
     modGen: 0,
+    religions: {},
+    tradeRoutes: [],
+    worldProjects: {},
   };
   for (const c of map.camps) s.camps[c] = -99;
 
@@ -274,6 +284,12 @@ export function applyAction(s: GameState, p: number, a: Action): ActionResult {
       const opt = buildOptions(s, u).find((o) => o.job === a.job);
       if (!opt) return fail('cannot build that here');
       if (u.moves <= 0) return fail('no moves left');
+      if (opt.turns === 0) {
+        // Instant (work boats): build it and use up the boat.
+        finishJob(s, u, a.job);
+        if (unitDef(u).domain === 'sea') removeUnit(s, u);
+        return OK;
+      }
       u.job = { improvement: a.job, turnsLeft: opt.turns };
       u.path = [];
       u.moves = 0;
@@ -486,6 +502,74 @@ export function applyAction(s: GameState, p: number, a: Action): ActionResult {
       const err = bully(s, p, a.minor, a.kind);
       return err ? fail(err) : OK;
     }
+    case 'rebase': {
+      const why = canRebase(s, unit!, a.to);
+      if (why) return fail(why);
+      rebase(unit!, a.to);
+      return OK;
+    }
+    case 'airStrike': {
+      const why = canStrike(s, unit!, a.to);
+      if (why) return fail(why);
+      airStrike(s, unit!, a.to);
+      recomputeAllVisibility(s);
+      return OK;
+    }
+    case 'nuke': {
+      const why = canNuke(s, unit!, a.to);
+      if (why) return fail(why);
+      nuke(s, unit!, a.to);
+      checkVictory(s);
+      return OK;
+    }
+    case 'tradeRoute': {
+      const err = establishRoute(s, unit!, a.to, a.carries);
+      return err ? fail(err) : OK;
+    }
+    case 'plunder': {
+      const err = plunder(s, unit!);
+      return err ? fail(err) : OK;
+    }
+    case 'pantheon': {
+      const err = choosePantheon(s, p, a.belief);
+      return err ? fail(err) : OK;
+    }
+    case 'foundReligion': {
+      const err = foundReligion(s, unit!, a.name, a.founder, a.follower);
+      return err ? fail(err) : OK;
+    }
+    case 'enhanceReligion': {
+      const err = enhanceReligion(s, unit!, a.follower, a.enhancer);
+      return err ? fail(err) : OK;
+    }
+    case 'reform': {
+      const err = reform(s, p, a.belief);
+      return err ? fail(err) : OK;
+    }
+    case 'spreadReligion': {
+      const err = spread(s, unit!);
+      return err ? fail(err) : OK;
+    }
+    case 'removeHeresy': {
+      const err = removeHeresy(s, unit!);
+      return err ? fail(err) : OK;
+    }
+    case 'theological': {
+      const err = theological(s, unit!, a.to);
+      return err ? fail(err) : OK;
+    }
+    case 'buyFaith': {
+      const err = buyWithFaith(s, city!, a.item);
+      if (!err) recomputeVisibility(s, p);
+      return err ? fail(err) : OK;
+    }
+    case 'admiralHeal': {
+      const u = unit!;
+      if (unitDef(u).greatPerson !== 'admiral') return fail('only a Great Admiral can do that');
+      for (const o of Object.values(s.units)) if (o.owner === p && unitDef(o).domain === 'sea' && distance(s.map, o.tile, u.tile) <= 2) o.hp = Math.min(100, o.hp + D.rules.naval.admiralHeal);
+      removeUnit(s, u);
+      return OK;
+    }
     case 'declareWar': {
       const q = a.target;
       if (q === p || !s.players[q] || s.players[q].isBarbarian || !s.players[q].alive) return fail('invalid target');
@@ -589,6 +673,7 @@ export function endPlayerTurn(s: GameState, p: number): void {
   const y = playerYields(s, p);
   addScience(s, p, y.science);
   pl.culture += y.culture;
+  pl.faith += y.faith;
   processGoldenAge(s, p, happy.net);
   processGreatPeople(s, p);
   const g = goldReport(s, p);
@@ -646,6 +731,8 @@ export function endTurn(s: GameState, hooks: TurnHooks = {}): void {
   }
   processDiplomacy(s);
   processCityStates(s);
+  processTradeRoutes(s);
+  processReligion(s);
   s.turn++;
   for (const pl of s.players) {
     if (!pl.alive) continue;
@@ -730,10 +817,11 @@ function citadelDamage(s: GameState, p: number): void {
   }
 }
 
-export function nextRequiredAction(s: GameState, p: number): { kind: 'research' | 'production' | 'unit' | 'capture' | 'promotion' | 'policy' | 'done'; id?: number } {
+export function nextRequiredAction(s: GameState, p: number): { kind: 'research' | 'production' | 'unit' | 'capture' | 'promotion' | 'policy' | 'pantheon' | 'done'; id?: number } {
   const pl = s.players[p];
   if (pl.pendingCaptures.length) return { kind: 'capture', id: pl.pendingCaptures[0] };
   if (canPickPolicy(s, p)) return { kind: 'policy' };
+  if (canChoosePantheon(s, p)) return { kind: 'pantheon' };
   if (!pl.research && playerCities(s, p).length && pl.techs.length < D.techs.size) return { kind: 'research' };
   for (const c of playerCities(s, p)) if (!c.queue.length && !c.puppet && !c.razing) return { kind: 'production', id: c.id };
   for (const u of playerUnits(s, p)) if (u.pendingPromotions > 0 && u.moves > 0) return { kind: 'promotion', id: u.id };

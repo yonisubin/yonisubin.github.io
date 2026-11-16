@@ -298,5 +298,65 @@
       "archer"
     ],
     "maxMilitary": 4
+  },
+  "religion": {
+    "pantheonBase": 10,
+    "pantheonPerPantheon": 5,
+    "prophetBase": 200,
+    "prophetPerProphet": 100,
+    "maxReligionsPct": 50,
+    "maxReligions": 7,
+    "pressureRange": 10,
+    "pressureCity": 6,
+    "pressureHoly": 12,
+    "pressureRoute": 6,
+    "convertAt": 100,
+    "missionaryConvertPct": 30,
+    "prophetConvertPct": 50,
+    "faithCostPerEra": 30,
+    "gpFaithCost": 1000,
+    "gpFaithPerPurchase": 500,
+    "theologicalDamage": 50,
+    "opinionSame": 8,
+    "opinionDifferent": -6
+  },
+  "trade": {
+    "routeTurns": 30,
+    "landRange": 10,
+    "seaRange": 20,
+    "baseGold": 2,
+    "goldPerDistance": 0.33,
+    "goldPerTargetPop": 0.33,
+    "targetGoldShare": 0.5,
+    "scienceBehind": 1,
+    "internalBase": 2,
+    "internalPerDistance": 0.25,
+    "cityStateAllyBonus": 2,
+    "plunderGold": 100,
+    "plunderPerEra": 50
+  },
+  "naval": {
+    "embarkStrength": [
+      2,
+      4,
+      8,
+      12,
+      20,
+      30,
+      45,
+      60
+    ],
+    "embarkMoves": 2,
+    "admiralAura": 15,
+    "admiralHeal": 50
+  },
+  "air": {
+    "interceptDamage": 30,
+    "interceptChancePct": 70,
+    "strikeTakePct": 40,
+    "rebaseRangeMult": 2,
+    "citySlots": 6,
+    "nukeCityPopPct": 50,
+    "nukeWarmonger": 60
   }
 }

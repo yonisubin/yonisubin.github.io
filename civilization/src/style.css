@@ -168,3 +168,4 @@ button.link { background: none; border: none; padding: 0; color: var(--text); te
 .infl .bar { height: 5px; background: #2a2f3c; border-radius: 3px; overflow: hidden; margin-top: 2px; }
 .infl .bar i { display: block; height: 100%; }
 @media (max-width: 700px) { .trade-cols { grid-template-columns: 1fr; } }
+.chip.faith { color: #f0e0a0; }

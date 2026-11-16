@@ -105,8 +105,10 @@
   "yields": {
    "food": 2
   },
-  "improvement": "none",
-  "improvedYields": {},
+  "improvement": "fishing_boats",
+  "improvedYields": {
+   "food": 1
+  },
   "terrains": [
    "coast",
    "lake"
@@ -622,8 +624,10 @@
   "yields": {
    "gold": 2
   },
-  "improvement": "none",
-  "improvedYields": {},
+  "improvement": "fishing_boats",
+  "improvedYields": {
+   "gold": 1
+  },
   "terrains": [
    "coast"
   ],
@@ -637,8 +641,10 @@
    "food": 1,
    "gold": 1
   },
-  "improvement": "none",
-  "improvedYields": {},
+  "improvement": "fishing_boats",
+  "improvedYields": {
+   "gold": 1
+  },
   "terrains": [
    "coast"
   ],

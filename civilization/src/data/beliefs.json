@@ -1,0 +1,752 @@
+[
+ {
+  "id": "river_spirits",
+  "name": "River Spirits",
+  "kind": "pantheon",
+  "description": "+1 faith on river tiles.",
+  "effects": [
+   {
+    "type": "tile_yield",
+    "where": "river",
+    "yield": "faith",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "stone_circles",
+  "name": "Stone Circles",
+  "kind": "pantheon",
+  "description": "+2 faith from quarries.",
+  "effects": [
+   {
+    "type": "tile_yield",
+    "where": "improvement:quarry",
+    "yield": "faith",
+    "amount": 2
+   }
+  ]
+ },
+ {
+  "id": "desert_hymns",
+  "name": "Desert Hymns",
+  "kind": "pantheon",
+  "description": "+1 faith on desert tiles.",
+  "effects": [
+   {
+    "type": "tile_yield",
+    "where": "desert",
+    "yield": "faith",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "green_mother",
+  "name": "Green Mother",
+  "kind": "pantheon",
+  "description": "+1 culture from forests.",
+  "effects": [
+   {
+    "type": "tile_yield",
+    "where": "forest",
+    "yield": "culture",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "herd_blessing",
+  "name": "Herd Blessing",
+  "kind": "pantheon",
+  "description": "+1 culture from pastures.",
+  "effects": [
+   {
+    "type": "tile_yield",
+    "where": "improvement:pasture",
+    "yield": "culture",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "sea_mother",
+  "name": "Sea Mother",
+  "kind": "pantheon",
+  "description": "+1 food from fishing boats.",
+  "effects": [
+   {
+    "type": "tile_yield",
+    "where": "improvement:fishing_boats",
+    "yield": "food",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "harvest_rites",
+  "name": "Harvest Rites",
+  "kind": "pantheon",
+  "description": "+1 faith from farms on fresh water... and +5% growth.",
+  "effects": [
+   {
+    "type": "growth_pct",
+    "percent": 5
+   },
+   {
+    "type": "tile_yield",
+    "where": "improvement:farm",
+    "yield": "faith",
+    "amount": 0.5
+   }
+  ]
+ },
+ {
+  "id": "hearth_gods",
+  "name": "Hearth Gods",
+  "kind": "pantheon",
+  "description": "+1 faith and +1 culture in the capital.",
+  "effects": [
+   {
+    "type": "city_yield",
+    "yield": "faith",
+    "amount": 1,
+    "scope": "capital"
+   },
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 1,
+    "scope": "capital"
+   }
+  ]
+ },
+ {
+  "id": "war_drums",
+  "name": "War Drums",
+  "kind": "pantheon",
+  "description": "+15% combat near your cities.",
+  "effects": [
+   {
+    "type": "combat",
+    "when": "always",
+    "percent": 5
+   },
+   {
+    "type": "heal",
+    "amount": 5
+   }
+  ]
+ },
+ {
+  "id": "star_watchers",
+  "name": "Star Watchers",
+  "kind": "pantheon",
+  "description": "+1 science per city.",
+  "effects": [
+   {
+    "type": "city_yield",
+    "yield": "science",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "mountain_throne",
+  "name": "Mountain Throne",
+  "kind": "pantheon",
+  "description": "+2 faith on mountain-adjacent... cities.",
+  "effects": [
+   {
+    "type": "tile_yield",
+    "where": "hills",
+    "yield": "faith",
+    "amount": 0.5
+   }
+  ]
+ },
+ {
+  "id": "jewel_goddess",
+  "name": "Jewel Goddess",
+  "kind": "pantheon",
+  "description": "+1 culture from luxury mines and camps.",
+  "effects": [
+   {
+    "type": "tile_yield",
+    "where": "luxury",
+    "yield": "culture",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "festival_lights",
+  "name": "Festival Lights",
+  "kind": "pantheon",
+  "description": "+1 happiness per 2 cities.",
+  "effects": [
+   {
+    "type": "happiness",
+    "amount": 2
+   }
+  ]
+ },
+ {
+  "id": "ancestor_tombs",
+  "name": "Ancestor Tombs",
+  "kind": "pantheon",
+  "description": "Border growth 15% cheaper.",
+  "effects": [
+   {
+    "type": "cost_pct",
+    "target": "border",
+    "percent": -15
+   }
+  ]
+ },
+ {
+  "id": "wind_whisper",
+  "name": "Wind Whisperers",
+  "kind": "pantheon",
+  "description": "+1 faith on coast tiles.",
+  "effects": [
+   {
+    "type": "tile_yield",
+    "where": "coast",
+    "yield": "faith",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "tithes",
+  "name": "Tithes",
+  "kind": "founder",
+  "description": "+1 gold per city following the religion.",
+  "effects": [
+   {
+    "type": "per_follower_city",
+    "yield": "gold",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "world_church",
+  "name": "Pilgrim Fees",
+  "kind": "founder",
+  "description": "+2 gold per foreign city following the religion.",
+  "effects": [
+   {
+    "type": "per_foreign_follower_city",
+    "yield": "gold",
+    "amount": 2
+   }
+  ]
+ },
+ {
+  "id": "council_of_elders",
+  "name": "Council of Elders",
+  "kind": "founder",
+  "description": "+1 science per city following the religion.",
+  "effects": [
+   {
+    "type": "per_follower_city",
+    "yield": "science",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "scripture_halls",
+  "name": "Scripture Halls",
+  "kind": "founder",
+  "description": "+1 culture per city following the religion.",
+  "effects": [
+   {
+    "type": "per_follower_city",
+    "yield": "culture",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "holy_peace",
+  "name": "Holy Peace",
+  "kind": "founder",
+  "description": "+1 happiness per 2 cities following the religion.",
+  "effects": [
+   {
+    "type": "per_follower_city_happiness",
+    "amount": 0.5
+   }
+  ]
+ },
+ {
+  "id": "missions_abroad",
+  "name": "Missions Abroad",
+  "kind": "founder",
+  "description": "+1 faith per city following the religion.",
+  "effects": [
+   {
+    "type": "per_follower_city",
+    "yield": "faith",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "shared_feast",
+  "name": "Shared Feast",
+  "kind": "founder",
+  "description": "+1 food in every city following the religion (yours).",
+  "effects": [
+   {
+    "type": "per_follower_city",
+    "yield": "food",
+    "amount": 0.5
+   }
+  ]
+ },
+ {
+  "id": "pilgrim_trail",
+  "name": "Pilgrim Trail",
+  "kind": "founder",
+  "description": "+2 gold from the holy city for every 4 followers.",
+  "effects": [
+   {
+    "type": "per_follower",
+    "yield": "gold",
+    "amount": 0.5
+   }
+  ]
+ },
+ {
+  "id": "bless_the_land",
+  "name": "Blessed Land",
+  "kind": "founder",
+  "description": "+2 production in the holy city.",
+  "effects": [
+   {
+    "type": "city_yield",
+    "yield": "production",
+    "amount": 2,
+    "scope": "capital"
+   }
+  ]
+ },
+ {
+  "id": "interfaith",
+  "name": "Interfaith Council",
+  "kind": "founder",
+  "description": "+3 happiness.",
+  "effects": [
+   {
+    "type": "happiness",
+    "amount": 3
+   }
+  ]
+ },
+ {
+  "id": "prayer_halls",
+  "name": "Prayer Halls",
+  "kind": "follower",
+  "description": "Buy Prayer Halls with faith (+2 faith, +1 culture, +2 happiness).",
+  "effects": [],
+  "building": "prayer_hall"
+ },
+ {
+  "id": "star_sanctums",
+  "name": "Star Sanctums",
+  "kind": "follower",
+  "description": "Buy Star Sanctums with faith (+3 faith, +1 happiness).",
+  "effects": [],
+  "building": "star_sanctum"
+ },
+ {
+  "id": "bell_gardens",
+  "name": "Bell Gardens",
+  "kind": "follower",
+  "description": "Buy Bell Gardens with faith (+2 faith, +3 happiness).",
+  "effects": [],
+  "building": "bell_garden"
+ },
+ {
+  "id": "pilgrim_towers",
+  "name": "Pilgrim Towers",
+  "kind": "follower",
+  "description": "Buy Pilgrim Towers with faith (+2 faith, +2 culture).",
+  "effects": [],
+  "building": "pilgrim_tower"
+ },
+ {
+  "id": "choral_song",
+  "name": "Choral Song",
+  "kind": "follower",
+  "description": "+1 culture in following cities.",
+  "effects": [
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "feed_the_poor",
+  "name": "Feed the Poor",
+  "kind": "follower",
+  "description": "+10% growth in following cities.",
+  "effects": [
+   {
+    "type": "growth_pct",
+    "percent": 10
+   }
+  ]
+ },
+ {
+  "id": "alms",
+  "name": "Alms",
+  "kind": "follower",
+  "description": "+2 gold in following cities.",
+  "effects": [
+   {
+    "type": "city_yield",
+    "yield": "gold",
+    "amount": 2
+   }
+  ]
+ },
+ {
+  "id": "monastic_schools",
+  "name": "Monastic Schools",
+  "kind": "follower",
+  "description": "+2 science in following cities.",
+  "effects": [
+   {
+    "type": "city_yield",
+    "yield": "science",
+    "amount": 2
+   }
+  ]
+ },
+ {
+  "id": "guild_patrons",
+  "name": "Guild Patrons",
+  "kind": "follower",
+  "description": "+2 production in following cities.",
+  "effects": [
+   {
+    "type": "city_yield",
+    "yield": "production",
+    "amount": 2
+   }
+  ]
+ },
+ {
+  "id": "peaceful_hearts",
+  "name": "Peaceful Hearts",
+  "kind": "follower",
+  "description": "+1 happiness per following city.",
+  "effects": [
+   {
+    "type": "happiness_city",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "temple_choirs",
+  "name": "Temple Choirs",
+  "kind": "follower",
+  "description": "+1 faith from Shrines and Temples.",
+  "effects": [
+   {
+    "type": "city_yield",
+    "yield": "faith",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "holy_warriors",
+  "name": "Holy Warriors",
+  "kind": "follower",
+  "description": "+10% city defence.",
+  "effects": [
+   {
+    "type": "defense_pct",
+    "percent": 10
+   }
+  ]
+ },
+ {
+  "id": "sacred_waters",
+  "name": "Sacred Waters",
+  "kind": "follower",
+  "description": "+1 happiness in following cities on a river.",
+  "effects": [
+   {
+    "type": "happiness_city",
+    "amount": 1,
+    "where": "river"
+   }
+  ]
+ },
+ {
+  "id": "craftsmen",
+  "name": "Devout Craftsmen",
+  "kind": "follower",
+  "description": "+1 production from shrines... +1 production in following cities.",
+  "effects": [
+   {
+    "type": "city_yield",
+    "yield": "production",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "lantern_vigils",
+  "name": "Lantern Vigils",
+  "kind": "follower",
+  "description": "+1 culture and +1 faith in following cities.",
+  "effects": [
+   {
+    "type": "city_yield",
+    "yield": "culture",
+    "amount": 1
+   },
+   {
+    "type": "city_yield",
+    "yield": "faith",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "zealous_missions",
+  "name": "Zealous Missions",
+  "kind": "enhancer",
+  "description": "Missionaries convert 50% more.",
+  "effects": [
+   {
+    "type": "missionary_pct",
+    "percent": 50
+   }
+  ]
+ },
+ {
+  "id": "far_preaching",
+  "name": "Far Preaching",
+  "kind": "enhancer",
+  "description": "Pressure reaches 30% farther.",
+  "effects": [
+   {
+    "type": "pressure_range_pct",
+    "percent": 30
+   }
+  ]
+ },
+ {
+  "id": "strong_faith",
+  "name": "Strong Faith",
+  "kind": "enhancer",
+  "description": "+25% religious pressure.",
+  "effects": [
+   {
+    "type": "pressure_pct",
+    "percent": 25
+   }
+  ]
+ },
+ {
+  "id": "holy_texts",
+  "name": "Holy Texts",
+  "kind": "enhancer",
+  "description": "+50% religious pressure.",
+  "effects": [
+   {
+    "type": "pressure_pct",
+    "percent": 50
+   }
+  ]
+ },
+ {
+  "id": "pilgrim_roads2",
+  "name": "Sacred Roads",
+  "kind": "enhancer",
+  "description": "Trade routes spread twice the pressure.",
+  "effects": [
+   {
+    "type": "route_pressure_pct",
+    "percent": 100
+   }
+  ]
+ },
+ {
+  "id": "defenders_faith",
+  "name": "Defenders of the Faith",
+  "kind": "enhancer",
+  "description": "+20% combat in friendly land.",
+  "effects": [
+   {
+    "type": "combat",
+    "when": "always",
+    "percent": 10
+   }
+  ]
+ },
+ {
+  "id": "itinerant_preachers",
+  "name": "Itinerant Preachers",
+  "kind": "enhancer",
+  "description": "Missionaries have +1 charge.",
+  "effects": [
+   {
+    "type": "missionary_charges",
+    "amount": 1
+   }
+  ]
+ },
+ {
+  "id": "just_war",
+  "name": "Just War",
+  "kind": "enhancer",
+  "description": "+15% combat near cities following the religion.",
+  "effects": [
+   {
+    "type": "combat",
+    "when": "always",
+    "percent": 8
+   }
+  ]
+ },
+ {
+  "id": "religious_unity",
+  "name": "Religious Unity",
+  "kind": "enhancer",
+  "description": "City-states following it count double.",
+  "effects": [
+   {
+    "type": "pressure_pct",
+    "percent": 20
+   }
+  ]
+ },
+ {
+  "id": "relic_shrines",
+  "name": "Relic Shrines",
+  "kind": "enhancer",
+  "description": "Religious units cost 25% less faith.",
+  "effects": [
+   {
+    "type": "cost_pct",
+    "target": "faith",
+    "percent": -25
+   }
+  ]
+ },
+ {
+  "id": "reformed_tithes",
+  "name": "Reformed Tithes",
+  "kind": "reformation",
+  "description": "+10% gold.",
+  "effects": [
+   {
+    "type": "city_percent",
+    "yield": "gold",
+    "percent": 10
+   }
+  ]
+ },
+ {
+  "id": "charitable_missions",
+  "name": "Charitable Missions",
+  "kind": "reformation",
+  "description": "+15% science.",
+  "effects": [
+   {
+    "type": "city_percent",
+    "yield": "science",
+    "percent": 15
+   }
+  ]
+ },
+ {
+  "id": "sacred_art",
+  "name": "Sacred Art",
+  "kind": "reformation",
+  "description": "+15% culture.",
+  "effects": [
+   {
+    "type": "city_percent",
+    "yield": "culture",
+    "percent": 15
+   }
+  ]
+ },
+ {
+  "id": "jesuit_schools",
+  "name": "Teaching Orders",
+  "kind": "reformation",
+  "description": "+2 science in every city.",
+  "effects": [
+   {
+    "type": "city_yield",
+    "yield": "science",
+    "amount": 2
+   }
+  ]
+ },
+ {
+  "id": "crusade",
+  "name": "Holy Cause",
+  "kind": "reformation",
+  "description": "+10% combat.",
+  "effects": [
+   {
+    "type": "combat",
+    "when": "always",
+    "percent": 10
+   }
+  ]
+ },
+ {
+  "id": "to_the_glory",
+  "name": "To the Glory",
+  "kind": "reformation",
+  "description": "+3 happiness.",
+  "effects": [
+   {
+    "type": "happiness",
+    "amount": 3
+   }
+  ]
+ },
+ {
+  "id": "evangelism",
+  "name": "Evangelism",
+  "kind": "reformation",
+  "description": "+50% pressure.",
+  "effects": [
+   {
+    "type": "pressure_pct",
+    "percent": 50
+   }
+  ]
+ },
+ {
+  "id": "monastic_reform",
+  "name": "Monastic Reform",
+  "kind": "reformation",
+  "description": "+2 faith in every city.",
+  "effects": [
+   {
+    "type": "city_yield",
+    "yield": "faith",
+    "amount": 2
+   }
+  ]
+ }
+]

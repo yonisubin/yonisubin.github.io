@@ -33,6 +33,9 @@ import { deleteSave, listSaves, type SaveSummary } from '../save/db';
 import { cannotAdopt, canPickPolicy, policyCost } from '../core/systems/policies';
 import { goldenAgeThreshold } from '../core/systems/goldenage';
 import { describeUse, gpThreshold, greatPersonUses } from '../core/systems/greatpeople';
+import { religionHtml, prophetHtml, routesHtml } from './religion';
+import { faithItems, majority } from '../core/systems/religion';
+import { plunderable } from '../core/systems/trade';
 import { balanceDeal, cityStateHtml, giftTargets, leaderHtml, proposalHtml, tradeHtml } from './diplomacy';
 import { opinion } from '../core/systems/diplomacy';
 import { influence, relation } from '../core/systems/citystates';
@@ -110,6 +113,7 @@ function renderTop(s: GameState): void {
     <span class="chip gold" title="Cities ${g.cities}, connections ${g.connections}, buildings −${g.buildings}, units −${g.units}, roads −${g.roads}">● ${pl.gold} (${sign(g.net)})</span>
     <span class="chip ${h.net < 0 ? 'bad' : 'happy'}" title="Happiness ${h.happy} − unhappiness ${h.unhappy}. Luxuries: ${esc(h.luxuries.map((l) => D.resources.get(l)!.name).join(', ') || 'none')}">${h.net < 0 ? '☹' : '☺'} ${h.net}</span>
     <button class="chip cult" data-a="panel" data-p="policies" title="Culture per turn — ${pl.culture.toFixed(0)}/${policyCost(s, p)} toward the next policy">♪ ${sign(y.culture)} · ${pl.freePolicies > 0 || pl.culture >= policyCost(s, p) ? '<b>policy!</b>' : `policy ${Math.max(1, Math.ceil((policyCost(s, p) - pl.culture) / Math.max(1, y.culture)))}t`}</button>
+    <button class="chip faith" data-a="panel" data-p="religion" title="Faith per turn — pantheon, prophets, missionaries">✦ ${Math.round(pl.faith)} (${sign(y.faith)})</button>
     <span class="chip ${inGoldenAge(s, p) ? 'happy' : ''}" title="Golden age: ${inGoldenAge(s, p) ? `${pl.goldenAge.turnsLeft} turns left` : `${Math.round(pl.goldenAge.points)}/${goldenAgeThreshold(s, p)} points from happiness`}">☀ ${inGoldenAge(s, p) ? `Golden age ${pl.goldenAge.turnsLeft}` : `${Math.round((100 * pl.goldenAge.points) / goldenAgeThreshold(s, p))}%`}</span>
     ${res}
     <span class="spacer"></span>
@@ -163,6 +167,18 @@ function renderUnit(s: GameState): void {
     if (def.class !== 'civilian' && s.map.tiles[u.tile].owner !== u.owner) actions += b('pillage', 'Pillage (P)', 'Destroy an improvement or road here');
     const to = upgradeTarget(s, u);
     if (to) actions += b('upgrade', `Upgrade → ${esc(get(D.units, to).name)} (${upgradeCost(s, u)}●)`, 'In your territory');
+    // Phase 10: religion, trade, air, admirals.
+    if (def.religious === 'prophet' && !pl.religion) actions += b('prophet', 'Found religion', 'Found a religion in this city', 'data-m="found"');
+    if (def.religious === 'prophet' && pl.religion && !s.religions[pl.religion]?.enhanced) actions += b('prophet', 'Enhance religion', '', 'data-m="enhance"');
+    if (def.religious === 'missionary' || def.religious === 'prophet') actions += b('spread', `Spread religion${u.charges ? ` (${u.charges})` : ''}`, 'In or next to a city');
+    if (def.religious === 'inquisitor') actions += b('heresy', 'Remove other religions', 'In one of your cities');
+    if (def.religious) actions += b('target', 'Debate', 'Theological combat with an adjacent rival religious unit', 'data-k="theological"');
+    if (def.trade) actions += b('routes', 'Trade route…', 'Open a trade route from this city');
+    if (plunderable(s, u)) actions += b('plunder', 'Plunder caravan', 'Take the gold of an enemy caravan here');
+    if (def.domain === 'air' && !def.nuke) actions += b('target', 'Strike', `Range ${def.range}`, 'data-k="strike"');
+    if (def.domain === 'air' && def.nuke) actions += b('target', 'Launch nuclear strike', `Range ${def.range}, blast ${def.nuke}`, 'data-k="nuke"');
+    if (def.domain === 'air') actions += b('target', 'Rebase', 'Move to another city or carrier', 'data-k="rebase"');
+    if (def.greatPerson === 'admiral') actions += b('admiral', 'Heal fleet', 'Heals nearby ships, using up the admiral');
     for (const m of giftTargets(s, u.id)) actions += b('gift-unit', `Gift to ${esc(s.players[m].name)}`, 'Give this unit to the city-state for influence', `data-m="${m}"`);
     actions += b('next-unit', 'Next (.)', 'Next unit needing orders');
     actions += b('delete', 'Disband', 'Remove this unit');
@@ -285,6 +301,18 @@ function renderCity(s: GameState): void {
   }
   const gpp = cityGreatPeople(s, c);
   if (own && Object.keys(gpp).length) body += `<div class="note">Great people points: ${Object.entries(gpp).map(([k, v]) => `${esc(k)} +${fmt(v)}`).join(', ')}</div>`;
+  // Religion.
+  const fol = Object.entries(c.followers ?? {}).filter(([, v]) => v > 0);
+  if (fol.length) body += `<div class="note">Religion: ${fol.map(([r, v]) => `${esc(s.religions[r]?.name ?? r)} ${v}`).join(', ')} (of ${c.pop}) — majority ${esc(s.religions[majority(c) ?? '']?.name ?? 'none')}</div>`;
+  if (own) {
+    const fi = faithItems(s, c).filter((o) => !o.why);
+    if (fi.length)
+      body += `<h4>Buy with faith (✦ ${Math.round(pl.faith)})</h4><div class="items">${fi
+        .map((o) => `<div class="item"><span class="name">${esc(itemDef(o.item).name)}</span><button data-a="buy-faith" data-k="${o.item.kind}" data-id="${o.item.id}" ${pl.faith < o.cost ? 'disabled' : ''}>${o.cost}✦</button></div>`)
+        .join('')}</div>`;
+    const routes = s.tradeRoutes.filter((r) => r.from === c.id || r.to === c.id);
+    if (routes.length) body += `<div class="note">Trade routes: ${routes.map((r) => `${esc(s.cities[r.from]?.name ?? '?')} → ${esc(s.cities[r.to]?.name ?? '?')} (${r.until - s.turn} turns)`).join(', ')}</div>`;
+  }
   const wonders = c.buildings.filter((b) => get(D.buildings, b).wonder);
   if (wonders.length) body += `<h4>Wonders</h4><div class="note">${wonders.map((b) => `<span title="${esc(buildingSummary(b))}">${esc(get(D.buildings, b).name)}</span>`).join(', ')}</div>`;
   body += `<h4>Buildings</h4><div class="note">${c.buildings.filter((b) => !get(D.buildings, b).wonder).map((b) => esc(get(D.buildings, b).name)).join(', ') || 'none yet'}</div>`;
@@ -377,6 +405,9 @@ function renderModal(s: GameState): void {
   else if (st.panel === 'leader' && s.players[st.diploWith]) html = leaderHtml(s, st.diploWith);
   else if (st.panel === 'trade' && st.tradeDeal) html = tradeHtml(s, st.tradeDeal);
   else if (st.panel === 'citystate' && s.players[st.diploWith]?.isMinor) html = cityStateHtml(s, st.diploWith);
+  else if (st.panel === 'religion') html = religionHtml(s);
+  else if (st.panel === 'prophet' && s.units[st.panelUnit]) html = prophetHtml(s, st.panelUnit, st.prophetMode);
+  else if (st.panel === 'routes' && s.units[st.panelUnit]) html = routesHtml(s, st.panelUnit);
   show(el, !!html);
   setHtml(el, html);
   if (endgame) drawEndgame(s, st.endTab, st.endStat, st.replayTurn);
@@ -911,6 +942,52 @@ export function installHudEvents(centerOn: (tile: number) => void): void {
         break;
       case 'end-turn':
         endTurn();
+        break;
+      case 'pantheon':
+        act({ type: 'pantheon', belief: target.dataset.id! });
+        break;
+      case 'reform':
+        act({ type: 'reform', belief: target.dataset.id! });
+        break;
+      case 'prophet':
+        if (unit !== null) set({ panel: 'prophet', panelUnit: unit, prophetMode: target.dataset.m as 'found' | 'enhance' });
+        break;
+      case 'do-found': {
+        const v = (id: string) => (document.getElementById(id) as HTMLInputElement | HTMLSelectElement).value;
+        if (act({ type: 'foundReligion', unit: Number(target.dataset.u), name: v('rel-name'), founder: v('bel-founder'), follower: v('bel-follower') })) set({ panel: 'religion' });
+        break;
+      }
+      case 'do-enhance': {
+        const v = (id: string) => (document.getElementById(id) as HTMLSelectElement).value;
+        if (act({ type: 'enhanceReligion', unit: Number(target.dataset.u), follower: v('bel-follower'), enhancer: v('bel-enhancer') })) set({ panel: 'religion' });
+        break;
+      }
+      case 'spread':
+        if (unit !== null) act({ type: 'spreadReligion', unit });
+        break;
+      case 'heresy':
+        if (unit !== null) act({ type: 'removeHeresy', unit });
+        break;
+      case 'routes':
+        if (unit !== null) set({ panel: 'routes', panelUnit: unit });
+        break;
+      case 'do-route':
+        if (act({ type: 'tradeRoute', unit: Number(target.dataset.u), to: Number(target.dataset.c), carries: target.dataset.k as 'gold' })) set({ panel: 'none' });
+        break;
+      case 'plunder':
+        if (unit !== null) act({ type: 'plunder', unit });
+        break;
+      case 'admiral':
+        if (unit !== null) act({ type: 'admiralHeal', unit });
+        break;
+      case 'target':
+        if (unit !== null) {
+          set({ targeting: { kind: target.dataset.k as 'strike', unit } });
+          toast('Click a target on the map (Esc to cancel).');
+        }
+        break;
+      case 'buy-faith':
+        if (city !== null) act({ type: 'buyFaith', city, item: { kind: target.dataset.k as 'unit', id: target.dataset.id! } });
         break;
       case 'leader':
         set({ panel: 'leader', diploWith: Number(target.dataset.p) });

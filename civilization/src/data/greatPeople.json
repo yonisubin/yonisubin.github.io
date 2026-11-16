@@ -40,5 +40,17 @@
   "name": "Great General",
   "unit": "great_general",
   "source": "combat"
+ },
+ {
+  "id": "prophet",
+  "name": "Great Prophet",
+  "unit": "great_prophet",
+  "source": "faith"
+ },
+ {
+  "id": "admiral",
+  "name": "Great Admiral",
+  "unit": "great_admiral",
+  "source": "naval"
  }
 ]

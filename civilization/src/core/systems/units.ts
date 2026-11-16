@@ -24,11 +24,19 @@ import { recomputeVisibility, reveal } from './visibility';
 import { availableTechs, learnTech } from './research';
 import { isPassableLand } from '../../mapgen/generate';
 import { playerEffects, sum } from './effects';
+import { airCapacity, isCoastalTile } from './domain';
 import { questEvent } from './citystates';
 
 /** Full movement points per turn (base + promotions + effects such as +1 for mounted units). */
 export const fullMoves = (s: GameState, u: Unit): number => {
   const def = unitDef(u);
+  // Aircraft get one action (strike or rebase) per turn.
+  if (def.domain === 'air') return D.rules.moveScale;
+  // Embarked land units move like transports.
+  if (def.domain === 'land' && D.terrains.get(s.map.tiles[u.tile].terrain)!.water) {
+    const lvl = s.players[u.owner].techs.includes('steam_power') ? 2 : s.players[u.owner].techs.includes('navigation') ? 1 : 0;
+    return (D.rules.naval.embarkMoves + lvl) * D.rules.moveScale;
+  }
   let m = def.moves;
   for (const p of u.promotions) m += D.promotions.get(p)!.moves;
   if (s.players[u.owner] && !s.players[u.owner].isBarbarian)
@@ -75,10 +83,17 @@ export function removeUnit(s: GameState, u: Unit): void {
 
 /** Is there room for this unit on the tile (one military + one civilian per tile)? */
 export function hasRoom(s: GameState, u: Unit | string, tile: number, owner: number): boolean {
-  const civ = typeof u === 'string' ? get(D.units, u).class === 'civilian' : isCivilian(u);
+  const def = typeof u === 'string' ? get(D.units, u) : unitDef(u);
   const self = typeof u === 'string' ? -1 : u.id;
+  // Aircraft only need a free slot in a city or on a carrier.
+  if (def.domain === 'air') {
+    const here = unitsAt(s, tile).filter((o) => o.id !== self && o.owner === owner && unitDef(o).domain === 'air').length;
+    return here < airCapacity(s, owner, tile);
+  }
+  const civ = def.class === 'civilian';
   for (const o of unitsAt(s, tile)) {
     if (o.id === self) continue;
+    if (unitDef(o).domain === 'air') continue;
     if (o.owner !== owner) return false;
     if (isCivilian(o) === civ) return false;
   }
@@ -87,8 +102,21 @@ export function hasRoom(s: GameState, u: Unit | string, tile: number, owner: num
 
 /** Nearest land tile around `tile` where a unit of this type fits (for spawning). */
 export function freeTileNear(s: GameState, type: string, owner: number, tile: number, radius = 3): number {
+  const def = get(D.units, type);
   for (const i of within(dims(s), tile, radius)) {
     const t = tileAt(s, i);
+    if (def.domain === 'air') {
+      if (hasRoom(s, type, i, owner)) return i;
+      continue;
+    }
+    if (def.domain === 'sea') {
+      // Ships appear in the coastal city or on the water next to it.
+      const water = D.terrains.get(t.terrain)!.water && (t.terrain !== 'ocean' || def.ocean);
+      const portCity = cityAt(s, i)?.owner === owner && isCoastalTile(s, i);
+      if (!water && !portCity) continue;
+      if (hasRoom(s, type, i, owner)) return i;
+      continue;
+    }
     if (!isPassableLand(t)) continue;
     const c = cityAt(s, i);
     if (c && c.owner !== owner) continue;
@@ -186,6 +214,13 @@ export function buildOptions(s: GameState, u: Unit): BuildOption[] {
   if (!unitDef(u).canBuild) return [];
   const pl = s.players[u.owner];
   const t = tileAt(s, u.tile);
+  // Work boats: fishing boats on a sea resource in your waters (uses up the boat).
+  if (unitDef(u).domain === 'sea') {
+    const r = t.resource ? D.resources.get(t.resource) : undefined;
+    if (!r || t.owner !== u.owner || t.improvement || !hasTech(pl, r.revealTech)) return [];
+    const imp = D.improvements.get(r.improvement);
+    return imp && imp.water && hasTech(pl, imp.tech) ? [{ job: imp.id, name: imp.name, turns: 0 }] : [];
+  }
   if (!isPassableLand(t)) return [];
   const out: BuildOption[] = [];
   const w = D.rules.work;
@@ -196,7 +231,7 @@ export function buildOptions(s: GameState, u: Unit): BuildOption[] {
   const own = t.owner === u.owner;
   if (own && !t.pillaged) {
     for (const imp of D.improvements.values()) {
-      if (t.improvement === imp.id) continue;
+      if (t.improvement === imp.id || imp.water || imp.greatPerson) continue;
       if (!hasTech(pl, imp.tech)) continue;
       const landOk = imp.terrains.includes('any_land') || imp.terrains.includes(t.terrain);
       if (!landOk) continue;
@@ -230,7 +265,7 @@ export function workJobs(s: GameState, p: number): void {
   }
 }
 
-function finishJob(s: GameState, u: Unit, job: string): void {
+export function finishJob(s: GameState, u: Unit, job: string): void {
   const t = tileAt(s, u.tile);
   if (job === 'road') {
     t.road = true;

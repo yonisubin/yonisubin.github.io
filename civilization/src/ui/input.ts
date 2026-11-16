@@ -189,7 +189,8 @@ export function installInput(view: MapView, canvas: HTMLCanvasElement, tooltip: 
         break;
       }
       case 'Escape':
-        if (st.panel !== 'none') set({ panel: 'none' });
+        if (st.targeting) set({ targeting: null });
+        else if (st.panel !== 'none') set({ panel: 'none' });
         else if (st.cityAttack) set({ cityAttack: false });
         else if (st.selCity !== null) selectCity(null);
         else selectUnit(null);
@@ -222,6 +223,18 @@ export function installInput(view: MapView, canvas: HTMLCanvasElement, tooltip: 
         if (confirm(`Buy this tile for ${cost} gold?`)) act({ type: 'buyTile', city: c.id, tile });
         return;
       }
+    }
+    // A unit waiting for a target (air strike, rebase, nuke, debate).
+    if (st.targeting) {
+      const t = st.targeting;
+      const kind = t.kind === 'strike' ? 'airStrike' : t.kind === 'theological' ? 'theological' : t.kind;
+      if (t.kind === 'nuke' && !confirm('Launch a nuclear weapon? Everything in the blast will be destroyed.')) {
+        set({ targeting: null });
+        return;
+      }
+      act({ type: kind, unit: t.unit, to: tile } as never);
+      set({ targeting: null });
+      return;
     }
     const sel = st.selUnit !== null ? s.units[st.selUnit] : undefined;
     const mine = sel && sel.owner === p ? sel : undefined;

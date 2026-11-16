@@ -36,6 +36,8 @@ import { hasFreshWater } from '../core/systems/yields';
 import { adoptablePolicies, canPickPolicy } from '../core/systems/policies';
 import { greatPersonUses } from '../core/systems/greatpeople';
 import { aiDiplomacy } from './diplomacy';
+import { aiFaith, phase10UnitScore, phase10UnitTurn } from './phase10';
+import { isCoastal } from '../core/systems/effects';
 import { siteScore } from '../mapgen/generate';
 
 const personality = (s: GameState, p: number): PersonalityData => get(D.factions, s.players[p].faction).leader.personality;
@@ -45,6 +47,7 @@ export function aiTurn(s: GameState, p: number): void {
   if (!pl.alive) return;
   chooseResearch(s, p);
   choosePolicies(s, p);
+  aiFaith(s, p);
   for (const id of [...pl.pendingCaptures]) decideCaptureAI(s, p, id);
   aiDiplomacy(s, p);
   for (const c of playerCities(s, p)) if (!c.queue.length && !c.puppet && !c.razing) chooseProduction(s, p, c);
@@ -58,7 +61,9 @@ export function aiTurn(s: GameState, p: number): void {
       applyAction(s, p, { type: 'promote', unit: u.id, promotion: u.hp < 50 || !opts.length ? 'heal' : opts[0] });
     }
     const def = unitDef(u);
-    if (def.greatPerson) {
+    if (phase10UnitTurn(s, p, u)) {
+      // Ships, aircraft, traders, work boats, religious units and admirals.
+    } else if (def.greatPerson) {
       greatPersonTurn(s, p, u);
     } else if (def.spaceshipPart) {
       const cap = capitalOf(s, p);
@@ -212,6 +217,8 @@ function chooseProduction(s: GameState, p: number, c: City): void {
     } else if (item.kind === 'unit' && get(D.units, item.id).spaceshipPart) {
       // Race for the stars once the Apollo Program is done.
       v = 70 + pers.science * 3;
+    } else if (item.kind === 'unit' && phase10UnitScore(s, p, item.id, isCoastal(s, c), war) !== null) {
+      v = phase10UnitScore(s, p, item.id, isCoastal(s, c), war)!;
     } else if (item.kind === 'unit') {
       const u = get(D.units, item.id);
       if (u.canFound) v = cities.length + settlers < targetCities && happy > 0 && c.pop >= 2 && s.turn > 3 ? 55 + pers.expansion : 0;

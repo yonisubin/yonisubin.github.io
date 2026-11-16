@@ -3,9 +3,35 @@ import { EFFECT_POST, EFFECT_SOURCES } from './systems/effects';
 import { cityStateEffects, patronageEffects, allyResources, setCityStateWarHook, setLuxuryCheck } from './systems/citystates';
 import { LUXURY_HOOKS, luxuryCounts } from './systems/diplomacy';
 import type { GameState } from './state';
+import { CITY_EFFECT_SOURCES } from './systems/effects';
+import { majority, religionCityEffects, religionHappiness, religionPlayerEffects } from './systems/religion';
+import { HAPPINESS_HOOKS } from './systems/happiness';
+import { CITY_HOOKS } from './systems/yields';
+import { cityRouteYields } from './systems/trade';
+import { SCORE_HOOKS } from './systems/economy';
+import { OPINION_HOOKS } from './systems/diplomacy';
+import { capitalOf } from './query';
+
+function capitalReligion(s: GameState, p: number): string | null {
+  const c = capitalOf(s, p);
+  return c ? majority(c) : null;
+}
 
 export function installHooks(setWar: (s: GameState, a: number, b: number, war: boolean) => void): void {
   EFFECT_SOURCES.push(cityStateEffects);
+  EFFECT_SOURCES.push(religionPlayerEffects);
+  CITY_EFFECT_SOURCES.push(religionCityEffects);
+  HAPPINESS_HOOKS.push((s, p) => [religionHappiness(s, p), 0]);
+  CITY_HOOKS.push((s, c, y) => {
+    for (const [k, v] of Object.entries(cityRouteYields(s, c))) (y as unknown as Record<string, number>)[k] += v;
+  });
+  SCORE_HOOKS.push((s, p) => (s.players[p].religion ? D.rules.score.perReligion : 0));
+  OPINION_HOOKS.push((s, a, b) => {
+    const ra = capitalReligion(s, a), rb = capitalReligion(s, b);
+    if (!ra || !rb) return [];
+    const zeal = (D.factions.get(s.players[a].faction)?.leader.personality.religion ?? 5) / 5;
+    return [{ label: ra === rb ? 'Shared faith' : 'Different faith', value: (ra === rb ? D.rules.religion.opinionSame : D.rules.religion.opinionDifferent) * zeal }];
+  });
   EFFECT_POST.push(patronageEffects);
   LUXURY_HOOKS.push((s, p, out) => {
     for (const [k, v] of Object.entries(allyResources(s, p, 'luxury'))) out[k] = (out[k] ?? 0) + v;

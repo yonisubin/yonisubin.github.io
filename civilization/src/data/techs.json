@@ -22,7 +22,8 @@
   "cost": 35,
   "prereqs": [
    "agriculture"
-  ]
+  ],
+  "tradeRoutes": 1
  },
  {
   "id": "archery",
@@ -49,7 +50,8 @@
   "cost": 55,
   "prereqs": [
    "pottery"
-  ]
+  ],
+  "tradeRoutes": 1
  },
  {
   "id": "calendar",
@@ -112,7 +114,8 @@
   "cost": 85,
   "prereqs": [
    "sailing"
-  ]
+  ],
+  "embark": "coast"
  },
  {
   "id": "horseback_riding",
@@ -181,7 +184,8 @@
    "mathematics",
    "construction"
   ],
-  "bridges": true
+  "bridges": true,
+  "tradeRoutes": 1
  },
  {
   "id": "iron_working",
@@ -313,7 +317,8 @@
   "prereqs": [
    "compass",
    "education"
-  ]
+  ],
+  "embark": "ocean"
  },
  {
   "id": "acoustics",
@@ -331,7 +336,8 @@
   "cost": 780,
   "prereqs": [
    "chivalry"
-  ]
+  ],
+  "tradeRoutes": 1
  },
  {
   "id": "printing_press",
@@ -609,7 +615,8 @@
   "prereqs": [
    "railroad",
    "dynamite"
-  ]
+  ],
+  "tradeRoutes": 1
  },
  {
   "id": "penicillin",
@@ -759,7 +766,8 @@
   "prereqs": [
    "telecommunications",
    "ecology"
-  ]
+  ],
+  "tradeRoutes": 1
  },
  {
   "id": "particle_physics",

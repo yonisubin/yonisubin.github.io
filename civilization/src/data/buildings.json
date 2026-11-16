@@ -89,8 +89,11 @@
   "cost": 40,
   "maintenance": 1,
   "tech": "pottery",
-  "happiness": 1,
-  "focus": "happiness"
+  "happiness": 0,
+  "focus": "happiness",
+  "yields": {
+   "faith": 1
+  }
  },
  {
   "id": "colosseum",
@@ -107,9 +110,9 @@
   "cost": 100,
   "maintenance": 2,
   "tech": "philosophy",
-  "happiness": 2,
+  "happiness": 1,
   "yields": {
-   "culture": 1
+   "faith": 2
   },
   "requires": {
    "building": "shrine"
@@ -1555,5 +1558,123 @@
   "requires": {
    "allCities": "workshop"
   }
+ },
+ {
+  "id": "lighthouse",
+  "name": "Lighthouse",
+  "cost": 75,
+  "maintenance": 1,
+  "focus": "growth",
+  "tech": "sailing",
+  "waterYields": {
+   "food": 1
+  },
+  "requires": {
+   "coast": true
+  }
+ },
+ {
+  "id": "harbor",
+  "name": "Harbor",
+  "cost": 120,
+  "maintenance": 2,
+  "focus": "gold",
+  "tech": "compass",
+  "waterYields": {
+   "food": 1
+  },
+  "requires": {
+   "coast": true
+  },
+  "routeRangePct": 50
+ },
+ {
+  "id": "seaport",
+  "name": "Seaport",
+  "cost": 250,
+  "maintenance": 2,
+  "focus": "production",
+  "tech": "navigation",
+  "waterYields": {
+   "production": 1
+  },
+  "requires": {
+   "coast": true,
+   "building": "harbor"
+  }
+ },
+ {
+  "id": "caravansary",
+  "name": "Caravansary",
+  "cost": 120,
+  "maintenance": 1,
+  "focus": "gold",
+  "tech": "horseback_riding",
+  "yields": {
+   "gold": 2
+  },
+  "routeRangePct": 50
+ },
+ {
+  "id": "airport",
+  "name": "Airport",
+  "cost": 350,
+  "maintenance": 3,
+  "focus": "military",
+  "tech": "radar",
+  "airSlots": 6
+ },
+ {
+  "id": "prayer_hall",
+  "name": "Prayer Hall",
+  "cost": 0,
+  "maintenance": 0,
+  "focus": "happiness",
+  "yields": {
+   "faith": 2,
+   "culture": 1
+  },
+  "happiness": 2,
+  "faithCost": 200,
+  "belief": true
+ },
+ {
+  "id": "star_sanctum",
+  "name": "Star Sanctum",
+  "cost": 0,
+  "maintenance": 0,
+  "focus": "happiness",
+  "yields": {
+   "faith": 3
+  },
+  "happiness": 1,
+  "faithCost": 200,
+  "belief": true
+ },
+ {
+  "id": "bell_garden",
+  "name": "Bell Garden",
+  "cost": 0,
+  "maintenance": 0,
+  "focus": "happiness",
+  "yields": {
+   "faith": 2
+  },
+  "happiness": 3,
+  "faithCost": 200,
+  "belief": true
+ },
+ {
+  "id": "pilgrim_tower",
+  "name": "Pilgrim Tower",
+  "cost": 0,
+  "maintenance": 0,
+  "focus": "culture",
+  "yields": {
+   "faith": 2,
+   "culture": 2
+  },
+  "faithCost": 200,
+  "belief": true
  }
 ]

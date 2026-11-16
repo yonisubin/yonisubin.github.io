@@ -1,8 +1,90 @@
 [
-  { "id": "forest", "name": "Forest", "replace": { "food": 1, "production": 1 }, "move": 2, "defense": 25, "blocksSight": true, "chopProduction": 20, "removeTech": "mining", "color": "#2f5a2c" },
-  { "id": "jungle", "name": "Jungle", "replace": { "food": 1 }, "move": 2, "defense": 25, "blocksSight": true, "chopProduction": 0, "removeTech": "bronze_working", "color": "#1f6b3a" },
-  { "id": "marsh", "name": "Marsh", "add": { "food": -1 }, "move": 2, "defense": -15, "blocksSight": false, "chopProduction": 0, "removeTech": "masonry", "color": "#5d7a5a" },
-  { "id": "floodplains", "name": "Flood plains", "add": { "food": 2 }, "move": 1, "defense": -10, "blocksSight": false, "chopProduction": 0, "color": "#c9c070" },
-  { "id": "oasis", "name": "Oasis", "replace": { "food": 3, "gold": 1 }, "move": 1, "defense": -10, "blocksSight": false, "freshWater": true, "chopProduction": 0, "color": "#5aa05a" },
-  { "id": "ice", "name": "Ice", "replace": {}, "move": 1, "defense": 0, "blocksSight": false, "impassable": true, "chopProduction": 0, "color": "#dfeff5" }
+ {
+  "id": "forest",
+  "name": "Forest",
+  "replace": {
+   "food": 1,
+   "production": 1
+  },
+  "move": 2,
+  "defense": 25,
+  "blocksSight": true,
+  "chopProduction": 20,
+  "removeTech": "mining",
+  "color": "#2f5a2c"
+ },
+ {
+  "id": "jungle",
+  "name": "Jungle",
+  "replace": {
+   "food": 1
+  },
+  "move": 2,
+  "defense": 25,
+  "blocksSight": true,
+  "chopProduction": 0,
+  "removeTech": "bronze_working",
+  "color": "#1f6b3a"
+ },
+ {
+  "id": "marsh",
+  "name": "Marsh",
+  "add": {
+   "food": -1
+  },
+  "move": 2,
+  "defense": -15,
+  "blocksSight": false,
+  "chopProduction": 0,
+  "removeTech": "masonry",
+  "color": "#5d7a5a"
+ },
+ {
+  "id": "floodplains",
+  "name": "Flood plains",
+  "add": {
+   "food": 2
+  },
+  "move": 1,
+  "defense": -10,
+  "blocksSight": false,
+  "chopProduction": 0,
+  "color": "#c9c070"
+ },
+ {
+  "id": "oasis",
+  "name": "Oasis",
+  "replace": {
+   "food": 3,
+   "gold": 1
+  },
+  "move": 1,
+  "defense": -10,
+  "blocksSight": false,
+  "freshWater": true,
+  "chopProduction": 0,
+  "color": "#5aa05a"
+ },
+ {
+  "id": "ice",
+  "name": "Ice",
+  "replace": {},
+  "move": 1,
+  "defense": 0,
+  "blocksSight": false,
+  "impassable": true,
+  "chopProduction": 0,
+  "color": "#dfeff5"
+ },
+ {
+  "id": "fallout",
+  "name": "Fallout",
+  "replace": {},
+  "move": 2,
+  "defense": 0,
+  "blocksSight": false,
+  "chopProduction": 0,
+  "removeTech": "atomic_theory",
+  "color": "#a0c040"
+ }
 ]

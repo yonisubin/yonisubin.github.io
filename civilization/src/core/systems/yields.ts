@@ -104,6 +104,8 @@ export function tileYields(s: GameState, i: number, p: number): YieldSet {
           if (mod.improvement === t.improvement && (!mod.freshWaterOnly || hasFreshWater(s, i))) y[mod.yield] += mod.amount;
   }
   if (t.river) y.gold += D.rules.riverGold;
+  // Harbors and lighthouses improve the water tiles their city works.
+  if (ter.water && t.cityId >= 0 && s.cities[t.cityId]) for (const b of s.cities[t.cityId].buildings) addY(y, D.buildings.get(b)?.waterYields);
   if (p >= 0) {
     for (const e of playerEffects(s, p)) if (e.type === 'tile_yield' && e.yield && tileMatches(s, i, e.where)) y[e.yield] += e.amount;
     for (const h of TILE_HOOKS) h(s, i, p, y);

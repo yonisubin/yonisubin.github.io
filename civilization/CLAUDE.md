@@ -52,11 +52,12 @@ Phase 8: one effects system (`core/systems/effects.ts`: every bonus from abiliti
 
 Phase 9: diplomacy (`core/systems/diplomacy.ts`: embassies, open borders, defensive pacts, research agreements, friendship, denouncing, trade deals valued by the AI in gold, warmongering, and the opinion model behind each AI's mood), AI diplomacy (`ai/diplomacy.ts`), the leader / trade / proposal screens (`ui/diplomacy.ts`), and 24 original city-states (`data/cityStates.json`, `core/systems/citystates.ts`: influence, friend/ally bonuses, allies' resources and wars, quests, gifts, pledges, bullying; their AI in `ai/minor.ts`).
 
+Phase 10: domains (`core/systems/domain.ts`: ships on water — some only on the coast — land units embarking after Optics/Astronomy, aircraft in cities and on carriers), naval units, work boats and fishing boats, harbors and lighthouses, Great Admirals; aircraft, interception and nuclear weapons (`core/systems/air.ts`, the Nuclear Program world project); trade routes with caravans and cargo ships (`core/systems/trade.ts`); faith and religion (`core/systems/religion.ts`, `data/beliefs.json`: pantheons, founding/enhancing/reforming, follower beliefs, pressure, missionaries, inquisitors, theological combat, buying with faith). AI for all of it in `ai/phase10.ts`.
+
 Extension points for later phases: `EFFECT_SOURCES`, `TILE_HOOKS`, `CITY_HOOKS`, `HAPPINESS_HOOKS`, `GOLD_HOOKS`, `COMBAT_HOOKS`, `GP_USE_HOOKS`/`GP_DO_HOOKS`, `EFFECT_TEXT`, and `VICTORY_CHECKS` (core/game.ts), `SCORE_HOOKS` (core/systems/economy.ts), `MIGRATIONS` (core/migrate.ts, fills new fields in old saves), `VICTORY_ROWS` (ui/hud.ts).
 
 Deliberate simplifications so far (say so before changing them):
 - At peace, a major civilization's land is closed unless it gave you open borders; city-states' land is always open.
-- Techs go up to the Renaissance (41). No naval units or embarkation yet, so units stay on their landmass.
 - Puppets pick their own buildings.
 - Barbarians sack cities (steal gold) instead of capturing them.
 - `applyAction` mutates the state in place instead of returning a new one (see Architecture rules).

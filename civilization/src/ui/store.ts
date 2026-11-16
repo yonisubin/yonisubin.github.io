@@ -3,7 +3,7 @@
 import { createStore } from 'zustand/vanilla';
 import type { Deal, GameState } from '../core/state';
 
-export type Panel = 'none' | 'tech' | 'relations' | 'menu' | 'help' | 'victory' | 'policies' | 'leader' | 'trade' | 'citystate';
+export type Panel = 'none' | 'tech' | 'relations' | 'menu' | 'help' | 'victory' | 'policies' | 'leader' | 'trade' | 'citystate' | 'religion' | 'prophet' | 'routes';
 
 export interface UIState {
   game: GameState | null;
@@ -26,6 +26,10 @@ export interface UIState {
   /** Diplomacy: the other player shown in the leader / city-state panel, and the deal being built. */
   diploWith: number;
   tradeDeal: Deal | null;
+  /** A unit waiting for a target tile (air strike, rebase, nuke, debate) and the prophet mode. */
+  targeting: { kind: 'strike' | 'rebase' | 'nuke' | 'theological'; unit: number } | null;
+  prophetMode: 'found' | 'enhance';
+  panelUnit: number;
 }
 
 export const store = createStore<UIState>()(() => ({
@@ -46,6 +50,9 @@ export const store = createStore<UIState>()(() => ({
   replayTurn: 0,
   diploWith: -1,
   tradeDeal: null,
+  targeting: null,
+  prophetMode: 'found',
+  panelUnit: -1,
 }));
 
 export const ui = () => store.getState();

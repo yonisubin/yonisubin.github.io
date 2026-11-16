@@ -64,6 +64,9 @@ export interface Unit {
   path: number[];
   /** Automated exploring (AI or the player's "explore" order). */
   exploring: boolean;
+  /** Religious units and missiles: uses left; the religion a religious unit spreads. */
+  charges?: number;
+  religion?: string;
 }
 
 export interface QueueItem {
@@ -113,6 +116,9 @@ export interface City {
   specialists: Record<string, number>;
   /** Specialists the player asked for (kept when citizens are reassigned). */
   manualSpecialists: Record<string, number>;
+  /** Citizens following each religion, and pressure building toward the next conversion. */
+  followers: Record<string, number>;
+  pressure: Record<string, number>;
 }
 
 export interface Notification {
@@ -208,6 +214,10 @@ export interface Player {
   /** Great person points and how many of each type were born. */
   gpPoints: Record<string, number>;
   gpCount: Record<string, number>;
+  /** Faith saved; the pantheon belief; the religion this player founded. */
+  faith: number;
+  pantheon: string | null;
+  religion: string | null;
 }
 
 export interface TurnStats {
@@ -270,6 +280,32 @@ export interface Proposal {
   text: string;
 }
 
+export interface Religion {
+  id: string;
+  name: string;
+  founder: number;
+  holyCity: number;
+  /** Founder, follower, (enhancer, second follower, reformation) belief ids. */
+  beliefs: string[];
+  enhanced: boolean;
+}
+
+export interface TradeRoute {
+  id: number;
+  owner: number;
+  from: number;
+  to: number;
+  kind: 'land' | 'sea';
+  /** Internal routes carry food or production; others make gold (and science). */
+  carries: 'gold' | 'food' | 'production';
+  until: number;
+  /** Tiles from origin to destination; the caravan's position on it moves each turn. */
+  path: number[];
+  pos: number;
+  dir: 1 | -1;
+  unit: string;
+}
+
 export interface Diplomacy {
   /** war[a][b] — symmetric. */
   war: boolean[][];
@@ -328,6 +364,10 @@ export interface GameState {
   replay: { turn: number; owners: string }[];
   /** Notable events (cities founded and taken, wars, wonders...) for the replay. */
   events: GameEvent[];
+  religions: Record<string, Religion>;
+  tradeRoutes: TradeRoute[];
+  /** World projects completed (the Nuclear Program): id → player. */
+  worldProjects: Record<string, number>;
   /** World wonders built: wonder id → city id. */
   wonders: Record<string, number>;
   /** Bumped whenever a player's effects change (policies, wonders...), to refresh caches. */
@@ -367,6 +407,20 @@ export type Action =
   | { type: 'giftUnit'; unit: number; minor: number }
   | { type: 'pledge'; minor: number }
   | { type: 'bully'; minor: number; kind: 'gold' | 'worker' }
+  | { type: 'rebase'; unit: number; to: number }
+  | { type: 'airStrike'; unit: number; to: number }
+  | { type: 'nuke'; unit: number; to: number }
+  | { type: 'tradeRoute'; unit: number; to: number; carries?: 'gold' | 'food' | 'production' }
+  | { type: 'plunder'; unit: number }
+  | { type: 'pantheon'; belief: string }
+  | { type: 'foundReligion'; unit: number; name: string; founder: string; follower: string }
+  | { type: 'enhanceReligion'; unit: number; follower: string; enhancer: string }
+  | { type: 'reform'; belief: string }
+  | { type: 'spreadReligion'; unit: number }
+  | { type: 'removeHeresy'; unit: number }
+  | { type: 'theological'; unit: number; to: number }
+  | { type: 'buyFaith'; city: number; item: QueueItem }
+  | { type: 'admiralHeal'; unit: number }
   | { type: 'declareWar'; target: number }
   | { type: 'makePeace'; target: number };
 

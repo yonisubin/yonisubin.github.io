@@ -65,9 +65,13 @@ export function playerEffects(s: GameState, p: number): Fx[] {
   return out;
 }
 
+/** City-local effect sources from later phases (follower beliefs...). */
+export const CITY_EFFECT_SOURCES: ((s: GameState, c: City) => Fx[])[] = [];
+
 /** Effects that apply to a city: the empire's plus its own wonders' local effects. */
 export function cityEffects(s: GameState, c: City): Fx[] {
   const out = [...playerEffects(s, c.owner)];
+  for (const src of CITY_EFFECT_SOURCES) out.push(...src(s, c));
   for (const b of c.buildings) {
     const def = get(D.buildings, b);
     for (const e of def.cityEffects) out.push({ ...e, scope: 'this', source: def.name });

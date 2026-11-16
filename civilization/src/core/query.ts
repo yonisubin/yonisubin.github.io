@@ -56,8 +56,9 @@ export function cityAt(s: GameState, tile: number): City | undefined {
   return undefined;
 }
 
+/** The military unit on a tile (aircraft based there don't count). */
 export function militaryAt(s: GameState, tile: number): Unit | undefined {
-  return unitsAt(s, tile).find(isMilitary);
+  return unitsAt(s, tile).find((u) => isMilitary(u) && unitDef(u).domain !== 'air');
 }
 export function civilianAt(s: GameState, tile: number): Unit | undefined {
   return unitsAt(s, tile).find(isCivilian);

@@ -285,5 +285,46 @@
   ],
   "greatPerson": true,
   "color": "#808890"
+ },
+ {
+  "id": "fishing_boats",
+  "name": "Fishing boats",
+  "yields": {
+   "food": 1
+  },
+  "buildTurns": 0,
+  "tech": "sailing",
+  "terrains": [
+   "coast",
+   "ocean",
+   "lake"
+  ],
+  "resourceOnly": true,
+  "water": true,
+  "color": "#c8e0f0"
+ },
+ {
+  "id": "holy_site",
+  "name": "Holy Site",
+  "yields": {
+   "faith": 6
+  },
+  "buildTurns": 0,
+  "terrains": [
+   "any_land"
+  ],
+  "features": [
+   "forest",
+   "jungle",
+   "marsh",
+   "floodplains"
+  ],
+  "clears": [
+   "forest",
+   "jungle",
+   "marsh"
+  ],
+  "greatPerson": true,
+  "color": "#f0f0c0"
  }
 ]

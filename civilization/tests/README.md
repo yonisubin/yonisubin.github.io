@@ -21,6 +21,7 @@ Playwright is not a dependency; install it once if needed:
 | `victory.test.cjs` | 80 techs, Wealth, Apollo Program and spaceship parts, Future Tech, science victory, end screen (graphs, replay), Hall of Fame |
 | `phase8.test.cjs` | policies (openers, prerequisites, exclusions, finishers), golden ages, specialists, great people, world and national wonders, the policies panel |
 | `diplomacy.test.cjs` | city-states (influence, friend/ally, quests, bullying), deals with an AI (embassies, open borders, research agreements), denouncing and opinion, defensive pacts, proposals, the diplomacy screens |
+| `phase10.test.cjs` | embarkation, ships, work boats, lighthouse, trade routes, pantheon and religion, missionaries, aircraft, nukes |
 | `ui.test.cjs` | Play now, B founds a city, End Turn prompts for research then production, the turn runs in the worker, tooltips, tech tree |
 
 `window.flatten(state, tile, radius)` (installed by `harness.cjs`) turns an area into empty

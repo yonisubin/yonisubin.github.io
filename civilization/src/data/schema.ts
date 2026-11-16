@@ -97,6 +97,8 @@ export const Improvement = z
     clears: z.array(z.string()).default([]),
     /** Extra food when next to fresh water (river, lake, oasis). */
     freshWaterFood: z.number().default(0),
+    /** Goes on water tiles (built by a Work Boat). */
+    water: z.boolean().default(false),
     /** Built instantly by a great person (Academy, Manufactory...). */
     greatPerson: z.boolean().default(false),
     /** Only on one of `features` (lumber mill: forest only). */
@@ -105,7 +107,7 @@ export const Improvement = z
   })
   .strict();
 
-export const UnitClass = z.enum(['civilian', 'recon', 'melee', 'ranged', 'mounted', 'siege']);
+export const UnitClass = z.enum(['civilian', 'recon', 'melee', 'ranged', 'mounted', 'siege', 'naval_melee', 'naval_ranged', 'air']);
 export type UnitClassId = z.infer<typeof UnitClass>;
 
 export const Unit = z
@@ -134,7 +136,27 @@ export const Unit = z
     /** Barbarians may field it (the best one their era allows). */
     barbarian: z.boolean().default(false),
     /** AI hint for what the unit is for. */
-    role: z.enum(['settle', 'work', 'explore', 'defense', 'attack', 'ranged', 'siege', 'fast', 'spaceship', 'great_person']),
+    role: z.enum(['settle', 'work', 'explore', 'defense', 'attack', 'ranged', 'siege', 'fast', 'spaceship', 'great_person', 'work_sea', 'naval', 'air', 'trade', 'religious']),
+    /** Where it moves: land (default), sea or air. */
+    domain: z.enum(['land', 'sea', 'air']).default('land'),
+    /** Ships that may enter ocean tiles (others stay on the coast). */
+    ocean: z.boolean().default(false),
+    /** Hidden unless an enemy unit is next to it (submarines). */
+    stealth: z.boolean().default(false),
+    /** Aircraft a carrier can hold. */
+    carries: z.number().default(0),
+    /** Intercepts air strikes within interceptRange (fighters: their range). */
+    intercept: z.boolean().default(false),
+    interceptRange: z.number().default(0),
+    /** One-use air unit; nuke = blast radius. */
+    missile: z.boolean().default(false),
+    nuke: z.number().default(0),
+    /** Trade units: which kind of route they make. */
+    trade: z.enum(['land', 'sea']).optional(),
+    /** Religious units, bought with faith; charges = uses. */
+    religious: z.enum(['missionary', 'inquisitor', 'prophet']).optional(),
+    faithCost: z.number().default(0),
+    charges: z.number().default(0),
     /** Great person type (scientist, engineer...) and the tile improvement it can build. */
     greatPerson: z.string().optional(),
     gpImprovement: z.string().optional(),
@@ -199,6 +221,15 @@ export const Building = z
     cityEffects: z.array(z.lazy(() => Effect)).default([]),
     /** Great person points per turn, by type. */
     greatPeople: z.record(z.string(), z.number()).default({}),
+    /** Extra yields on the water tiles this city works (harbor, lighthouse). */
+    waterYields: Yields.default({}),
+    /** Trade routes from this city reach further (per cent). */
+    routeRangePct: z.number().default(0),
+    /** Aircraft that can be based here (beyond the city's own slots). */
+    airSlots: z.number().default(0),
+    /** Bought with faith (religious buildings unlocked by a follower belief). */
+    faithCost: z.number().default(0),
+    belief: z.boolean().default(false),
   })
   .strict();
 
@@ -225,6 +256,10 @@ export const Tech = z
     repeatable: z.boolean().default(false),
     /** Reveals the whole map when learned. */
     revealsMap: z.boolean().default(false),
+    /** Extra trade route slots. */
+    tradeRoutes: z.number().default(0),
+    /** Land units may embark onto coast / ocean tiles. */
+    embark: z.enum(['coast', 'ocean']).optional(),
   })
   .strict();
 
@@ -390,6 +425,18 @@ export const CityState = z
   })
   .strict();
 
+export const Belief = z
+  .object({
+    id,
+    name: z.string(),
+    kind: z.enum(['pantheon', 'founder', 'follower', 'enhancer', 'reformation']),
+    description: z.string(),
+    effects: z.array(z.lazy(() => Effect)),
+    /** Follower beliefs that unlock a building bought with faith. */
+    building: z.string().optional(),
+  })
+  .strict();
+
 export const Project = z
   .object({
     id,
@@ -398,6 +445,8 @@ export const Project = z
     tech: z.string().optional(),
     /** Each player can complete it once. */
     oncePerPlayer: z.boolean().default(false),
+    /** Only one player in the world can complete it (its effect is global). */
+    oncePerWorld: z.boolean().default(false),
     /** A process never completes: it turns production into gold or science. */
     process: z.enum(['gold', 'science']).optional(),
     description: z.string(),
@@ -540,6 +589,10 @@ export const Rules = z
       })
       .strict(),
     nationalWonderPerCityPct: z.number(),
+    religion: z.record(z.string(), z.number()),
+    trade: z.record(z.string(), z.number()),
+    naval: z.object({ embarkStrength: z.array(z.number()), embarkMoves: z.number(), admiralAura: z.number(), admiralHeal: z.number() }).strict(),
+    air: z.record(z.string(), z.number()),
     diplomacy: z
       .object({
         dealTurns: z.number(),
