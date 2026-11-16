@@ -3,7 +3,7 @@
 import { createStore } from 'zustand/vanilla';
 import type { GameState } from '../core/state';
 
-export type Panel = 'none' | 'tech' | 'relations' | 'menu' | 'help';
+export type Panel = 'none' | 'tech' | 'relations' | 'menu' | 'help' | 'victory';
 
 export interface UIState {
   game: GameState | null;
@@ -18,6 +18,11 @@ export interface UIState {
   /** City ranged-attack targeting mode. */
   cityAttack: boolean;
   toast: string | null;
+  /** End-of-game screen: closed by the player, current tab, graph stat, replay turn. */
+  endClosed: boolean;
+  endTab: string;
+  endStat: string;
+  replayTurn: number;
 }
 
 export const store = createStore<UIState>()(() => ({
@@ -32,6 +37,10 @@ export const store = createStore<UIState>()(() => ({
   lens: false,
   cityAttack: false,
   toast: null,
+  endClosed: false,
+  endTab: 'summary',
+  endStat: 'score',
+  replayTurn: 0,
 }));
 
 export const ui = () => store.getState();

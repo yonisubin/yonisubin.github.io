@@ -56,7 +56,7 @@
   "roadMaintenance": 1,
   "happiness": {
     "perCity": 3,
-    "perCitizen": 1,
+    "perCitizen": 0.75,
     "occupiedPerCitizen": 0.5,
     "puppetCityPct": 50,
     "luxury": 4,
@@ -121,7 +121,8 @@
     "campRewardPerEra": 15,
     "maxUnitsPerCamp": 2,
     "aggroRadius": 7,
-    "firstSpawnTurn": 12
+    "firstSpawnTurn": 12,
+    "stopEra": 4
   },
   "ruinsPerLandTiles": 45,
   "startUnits": [
@@ -136,7 +137,13 @@
     "perCitizen": 4,
     "perLandTile": 1,
     "perTech": 4,
-    "perBuilding": 1
+    "perBuilding": 1,
+    "perWonder": 25,
+    "perPolicy": 4,
+    "perGreatWork": 4,
+    "perFutureTech": 10,
+    "perReligion": 20,
+    "spaceshipPart": 10
   },
   "peaceTurns": 10,
   "autosaveEveryTurns": 5,
@@ -149,5 +156,12 @@
       "marsh": 5
     }
   },
-  "upgradeGoldPerProduction": 2
+  "upgradeGoldPerProduction": 2,
+  "spaceship": {
+    "booster": 3,
+    "cockpit": 1,
+    "stasis": 1,
+    "engine": 1
+  },
+  "processPct": 25
 }

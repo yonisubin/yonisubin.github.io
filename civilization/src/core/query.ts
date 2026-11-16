@@ -97,3 +97,9 @@ export function yearOf(s: GameState, turn = s.turn): string {
   if (turn > t) year += turn - t;
   return year < 0 ? `${-year} BC` : `${year} AD`;
 }
+
+/** Record a notable event for the replay (kept short: the last 400). */
+export function logEvent(s: GameState, text: string, tile?: number, player?: number): void {
+  s.events.push({ turn: s.turn, text, tile, player });
+  if (s.events.length > 400) s.events.splice(0, s.events.length - 400);
+}

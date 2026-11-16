@@ -128,7 +128,12 @@ export const Unit = z
     /** Barbarians may field it (the best one their era allows). */
     barbarian: z.boolean().default(false),
     /** AI hint for what the unit is for. */
-    role: z.enum(['settle', 'work', 'explore', 'defense', 'attack', 'ranged', 'siege', 'fast']),
+    role: z.enum(['settle', 'work', 'explore', 'defense', 'attack', 'ranged', 'siege', 'fast', 'spaceship']),
+    /** Can only be built in a city with this building / after this project. */
+    requiresBuilding: z.string().optional(),
+    requiresProject: z.string().optional(),
+    /** Spaceship part kind (booster, cockpit, stasis, engine): delivered to the capital. */
+    spaceshipPart: z.string().optional(),
     /** Unique units: the faction that gets it, and which unit it replaces. */
     faction: z.string().optional(),
     replaces: z.string().optional(),
@@ -161,6 +166,8 @@ export const Building = z
         river: z.boolean().optional(),
         mountain: z.boolean().optional(),
         building: z.string().optional(),
+        /** Uses one copy of a strategic resource. */
+        resource: z.string().optional(),
       })
       .strict()
       .default({}),
@@ -192,6 +199,10 @@ export const Tech = z
     tileMods: z.array(TileMod).default([]),
     /** Roads over rivers stop costing the whole move (bridges). */
     bridges: z.boolean().default(false),
+    /** Can be researched again and again (Future Tech). */
+    repeatable: z.boolean().default(false),
+    /** Reveals the whole map when learned. */
+    revealsMap: z.boolean().default(false),
   })
   .strict();
 
@@ -290,6 +301,22 @@ export const Difficulty = z
     /** Combat bonus for humans vs barbarians, AIs vs barbarians. */
     humanVsBarbarianPct: z.number(),
     aiVsBarbarianPct: z.number(),
+    /** Final-score multiplier (Hall of Fame). */
+    scoreMult: z.number(),
+  })
+  .strict();
+
+export const Project = z
+  .object({
+    id,
+    name: z.string(),
+    cost: z.number(),
+    tech: z.string().optional(),
+    /** Each player can complete it once. */
+    oncePerPlayer: z.boolean().default(false),
+    /** A process never completes: it turns production into gold or science. */
+    process: z.enum(['gold', 'science']).optional(),
+    description: z.string(),
   })
   .strict();
 
@@ -404,6 +431,8 @@ export const Rules = z
         maxUnitsPerCamp: z.number(),
         aggroRadius: z.number(),
         firstSpawnTurn: z.number(),
+        /** No new camps once most players reach this era. */
+        stopEra: z.number(),
       })
       .strict(),
     work: z.object({ roadTurns: z.number(), repairTurns: z.number(), removeTurns: z.record(z.string(), z.number()) }).strict(),
@@ -418,9 +447,19 @@ export const Rules = z
         perLandTile: z.number(),
         perTech: z.number(),
         perBuilding: z.number(),
+        perWonder: z.number(),
+        perPolicy: z.number(),
+        perGreatWork: z.number(),
+        perFutureTech: z.number(),
+        perReligion: z.number(),
+        spaceshipPart: z.number(),
       })
       .strict(),
     peaceTurns: z.number(),
+    /** Spaceship parts needed for a science victory, by kind. */
+    spaceship: z.record(z.string(), z.number()),
+    /** Per-cent of production a process (Wealth/Research) converts. */
+    processPct: z.number(),
     autosaveEveryTurns: z.number(),
   })
   .strict();

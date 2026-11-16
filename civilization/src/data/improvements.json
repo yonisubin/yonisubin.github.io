@@ -1,10 +1,171 @@
 [
-  { "id": "farm", "name": "Farm", "yields": { "food": 1 }, "buildTurns": 5, "tech": "agriculture", "terrains": ["grassland", "plains", "desert", "tundra"], "features": ["forest", "jungle", "marsh", "floodplains"], "clears": ["forest", "jungle", "marsh"], "freshWaterFood": 1, "color": "#d8c060" },
-  { "id": "mine", "name": "Mine", "yields": { "production": 1 }, "buildTurns": 6, "tech": "mining", "terrains": ["grassland", "plains", "desert", "tundra", "snow"], "features": ["forest", "jungle", "marsh"], "clears": ["forest", "jungle", "marsh"], "hills": "only", "color": "#605850" },
-  { "id": "pasture", "name": "Pasture", "yields": {}, "buildTurns": 5, "tech": "animal_husbandry", "terrains": ["any_land"], "resourceOnly": true, "color": "#b09060" },
-  { "id": "plantation", "name": "Plantation", "yields": {}, "buildTurns": 5, "tech": "calendar", "terrains": ["any_land"], "features": ["forest", "jungle", "marsh", "floodplains"], "resourceOnly": true, "color": "#70a040" },
-  { "id": "camp", "name": "Camp", "yields": {}, "buildTurns": 5, "tech": "trapping", "terrains": ["any_land"], "features": ["forest", "jungle", "marsh"], "resourceOnly": true, "color": "#806040" },
-  { "id": "quarry", "name": "Quarry", "yields": {}, "buildTurns": 6, "tech": "masonry", "terrains": ["any_land"], "resourceOnly": true, "color": "#a0a0a0" },
-  { "id": "lumber_mill", "name": "Lumber mill", "yields": { "production": 1 }, "buildTurns": 6, "tech": "construction", "terrains": ["any_land"], "features": ["forest"], "needsFeature": true, "color": "#8a5a30" },
-  { "id": "trading_post", "name": "Trading post", "yields": { "gold": 1 }, "buildTurns": 6, "tech": "trapping", "terrains": ["grassland", "plains", "desert", "tundra"], "features": ["forest", "jungle"], "hills": "any", "color": "#d0a040" }
+ {
+  "id": "farm",
+  "name": "Farm",
+  "yields": {
+   "food": 1
+  },
+  "buildTurns": 5,
+  "tech": "agriculture",
+  "terrains": [
+   "grassland",
+   "plains",
+   "desert",
+   "tundra"
+  ],
+  "features": [
+   "forest",
+   "jungle",
+   "marsh",
+   "floodplains"
+  ],
+  "clears": [
+   "forest",
+   "jungle",
+   "marsh"
+  ],
+  "freshWaterFood": 1,
+  "color": "#d8c060"
+ },
+ {
+  "id": "mine",
+  "name": "Mine",
+  "yields": {
+   "production": 1
+  },
+  "buildTurns": 6,
+  "tech": "mining",
+  "terrains": [
+   "grassland",
+   "plains",
+   "desert",
+   "tundra",
+   "snow"
+  ],
+  "features": [
+   "forest",
+   "jungle",
+   "marsh"
+  ],
+  "clears": [
+   "forest",
+   "jungle",
+   "marsh"
+  ],
+  "hills": "only",
+  "color": "#605850"
+ },
+ {
+  "id": "pasture",
+  "name": "Pasture",
+  "yields": {},
+  "buildTurns": 5,
+  "tech": "animal_husbandry",
+  "terrains": [
+   "any_land"
+  ],
+  "resourceOnly": true,
+  "color": "#b09060"
+ },
+ {
+  "id": "plantation",
+  "name": "Plantation",
+  "yields": {},
+  "buildTurns": 5,
+  "tech": "calendar",
+  "terrains": [
+   "any_land"
+  ],
+  "features": [
+   "forest",
+   "jungle",
+   "marsh",
+   "floodplains"
+  ],
+  "resourceOnly": true,
+  "color": "#70a040"
+ },
+ {
+  "id": "camp",
+  "name": "Camp",
+  "yields": {},
+  "buildTurns": 5,
+  "tech": "trapping",
+  "terrains": [
+   "any_land"
+  ],
+  "features": [
+   "forest",
+   "jungle",
+   "marsh"
+  ],
+  "resourceOnly": true,
+  "color": "#806040"
+ },
+ {
+  "id": "quarry",
+  "name": "Quarry",
+  "yields": {},
+  "buildTurns": 6,
+  "tech": "masonry",
+  "terrains": [
+   "any_land"
+  ],
+  "resourceOnly": true,
+  "color": "#a0a0a0"
+ },
+ {
+  "id": "lumber_mill",
+  "name": "Lumber mill",
+  "yields": {
+   "production": 1
+  },
+  "buildTurns": 6,
+  "tech": "construction",
+  "terrains": [
+   "any_land"
+  ],
+  "features": [
+   "forest"
+  ],
+  "needsFeature": true,
+  "color": "#8a5a30"
+ },
+ {
+  "id": "trading_post",
+  "name": "Trading post",
+  "yields": {
+   "gold": 1
+  },
+  "buildTurns": 6,
+  "tech": "trapping",
+  "terrains": [
+   "grassland",
+   "plains",
+   "desert",
+   "tundra"
+  ],
+  "features": [
+   "forest",
+   "jungle"
+  ],
+  "hills": "any",
+  "color": "#d0a040"
+ },
+ {
+  "id": "oil_well",
+  "name": "Oil well",
+  "yields": {},
+  "buildTurns": 8,
+  "tech": "biology",
+  "terrains": [
+   "any_land"
+  ],
+  "features": [
+   "jungle",
+   "marsh"
+  ],
+  "resourceOnly": true,
+  "color": "#303030"
+ }
 ]

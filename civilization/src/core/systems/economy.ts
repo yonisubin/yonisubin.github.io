@@ -94,6 +94,11 @@ export function strategicResources(s: GameState, p: number): Record<string, { to
     const need = unitDef(u).resource;
     if (need && out[need]) out[need].used++;
   }
+  for (const c of playerCities(s, p))
+    for (const b of c.buildings) {
+      const need = get(D.buildings, b).requires.resource;
+      if (need && out[need]) out[need].used++;
+    }
   return out;
 }
 
@@ -102,6 +107,12 @@ export function score(s: GameState, p: number): number {
   let v = 0;
   for (const c of playerCities(s, p)) v += sc.perCity + c.pop * sc.perCitizen + c.buildings.length * sc.perBuilding;
   for (const t of s.map.tiles) if (t.owner === p) v += sc.perLandTile;
-  v += s.players[p].techs.length * sc.perTech;
+  const pl = s.players[p];
+  v += pl.techs.length * sc.perTech + pl.futureTechs * sc.perFutureTech;
+  for (const n of Object.values(pl.spaceship)) v += n * sc.spaceshipPart;
+  for (const h of SCORE_HOOKS) v += h(s, p);
   return Math.round(v);
 }
+
+/** Extra score sources added by later systems (wonders, policies, great works, religion). */
+export const SCORE_HOOKS: ((s: GameState, p: number) => number)[] = [];

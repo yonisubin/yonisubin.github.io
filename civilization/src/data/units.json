@@ -1,32 +1,760 @@
 [
-  { "id": "settler", "name": "Settler", "class": "civilian", "cost": 80, "strength": 0, "moves": 2, "canFound": true, "role": "settle", "glyph": "⌂" },
-  { "id": "worker", "name": "Worker", "class": "civilian", "cost": 60, "strength": 0, "moves": 2, "canBuild": true, "role": "work", "glyph": "⚒" },
-  { "id": "scout", "name": "Scout", "class": "recon", "cost": 25, "strength": 4, "moves": 2, "ignoresTerrainCost": true, "role": "explore", "glyph": "◎" },
-
-  { "id": "warrior", "name": "Warrior", "class": "melee", "cost": 40, "strength": 8, "moves": 2, "upgradesTo": "spearman", "obsoleteTech": "bronze_working", "barbarian": true, "role": "defense", "glyph": "⚔" },
-  { "id": "spearman", "name": "Spearman", "class": "melee", "cost": 56, "strength": 11, "moves": 2, "tech": "bronze_working", "upgradesTo": "pikeman", "obsoleteTech": "civil_service", "bonuses": [{ "vs": "mounted", "percent": 100 }], "barbarian": true, "role": "defense", "glyph": "↑" },
-  { "id": "swordsman", "name": "Swordsman", "class": "melee", "cost": 75, "strength": 14, "moves": 2, "tech": "iron_working", "resource": "iron", "upgradesTo": "longswordsman", "obsoleteTech": "steel", "barbarian": true, "role": "attack", "glyph": "†" },
-  { "id": "pikeman", "name": "Pikeman", "class": "melee", "cost": 90, "strength": 16, "moves": 2, "tech": "civil_service", "upgradesTo": "musketman", "obsoleteTech": "gunpowder", "bonuses": [{ "vs": "mounted", "percent": 100 }], "barbarian": true, "role": "defense", "glyph": "⇑" },
-  { "id": "longswordsman", "name": "Longswordsman", "class": "melee", "cost": 120, "strength": 21, "moves": 2, "tech": "steel", "resource": "iron", "upgradesTo": "musketman", "obsoleteTech": "gunpowder", "barbarian": true, "role": "attack", "glyph": "‡" },
-  { "id": "musketman", "name": "Musketman", "class": "melee", "cost": 150, "strength": 24, "moves": 2, "tech": "gunpowder", "role": "defense", "glyph": "¦" },
-
-  { "id": "archer", "name": "Archer", "class": "ranged", "cost": 40, "strength": 5, "ranged": 7, "range": 2, "moves": 2, "tech": "archery", "upgradesTo": "composite_bowman", "obsoleteTech": "construction", "barbarian": true, "role": "ranged", "glyph": "➶" },
-  { "id": "composite_bowman", "name": "Composite Bowman", "class": "ranged", "cost": 75, "strength": 7, "ranged": 11, "range": 2, "moves": 2, "tech": "construction", "upgradesTo": "crossbowman", "obsoleteTech": "machinery", "barbarian": true, "role": "ranged", "glyph": "➹" },
-  { "id": "crossbowman", "name": "Crossbowman", "class": "ranged", "cost": 120, "strength": 13, "ranged": 18, "range": 2, "moves": 2, "tech": "machinery", "barbarian": true, "role": "ranged", "glyph": "✛" },
-
-  { "id": "chariot_archer", "name": "Chariot Archer", "class": "mounted", "cost": 56, "strength": 6, "ranged": 10, "range": 2, "moves": 4, "tech": "the_wheel", "resource": "horses", "upgradesTo": "knight", "obsoleteTech": "chivalry", "role": "fast", "glyph": "⊛" },
-  { "id": "horseman", "name": "Horseman", "class": "mounted", "cost": 75, "strength": 12, "moves": 4, "tech": "horseback_riding", "resource": "horses", "upgradesTo": "knight", "obsoleteTech": "chivalry", "bonuses": [{ "vs": "city", "percent": -33 }], "moveAfterAttack": true, "barbarian": true, "role": "fast", "glyph": "♞" },
-  { "id": "knight", "name": "Knight", "class": "mounted", "cost": 120, "strength": 20, "moves": 4, "tech": "chivalry", "resource": "horses", "upgradesTo": "lancer", "obsoleteTech": "metallurgy", "bonuses": [{ "vs": "city", "percent": -33 }], "moveAfterAttack": true, "barbarian": true, "role": "fast", "glyph": "♘" },
-  { "id": "lancer", "name": "Lancer", "class": "mounted", "cost": 185, "strength": 25, "moves": 4, "tech": "metallurgy", "resource": "horses", "bonuses": [{ "vs": "mounted", "percent": 50 }, { "vs": "city", "percent": -33 }], "moveAfterAttack": true, "role": "fast", "glyph": "⚡" },
-
-  { "id": "catapult", "name": "Catapult", "class": "siege", "cost": 75, "strength": 7, "ranged": 8, "range": 2, "moves": 2, "tech": "mathematics", "upgradesTo": "trebuchet", "obsoleteTech": "physics", "bonuses": [{ "vs": "city", "percent": 100 }], "mustSetUp": true, "role": "siege", "glyph": "☄" },
-  { "id": "trebuchet", "name": "Trebuchet", "class": "siege", "cost": 120, "strength": 12, "ranged": 14, "range": 2, "moves": 2, "tech": "physics", "upgradesTo": "cannon", "obsoleteTech": "chemistry", "bonuses": [{ "vs": "city", "percent": 100 }], "mustSetUp": true, "role": "siege", "glyph": "☄" },
-  { "id": "cannon", "name": "Cannon", "class": "siege", "cost": 185, "strength": 14, "ranged": 20, "range": 2, "moves": 2, "tech": "chemistry", "bonuses": [{ "vs": "city", "percent": 75 }], "mustSetUp": true, "role": "siege", "glyph": "●" },
-
-  { "id": "thornguard", "name": "Thornguard", "class": "melee", "cost": 56, "strength": 13, "moves": 2, "tech": "bronze_working", "upgradesTo": "pikeman", "obsoleteTech": "civil_service", "bonuses": [{ "vs": "mounted", "percent": 100 }], "role": "defense", "faction": "verdant", "replaces": "spearman", "glyph": "↟" },
-  { "id": "ram_thrower", "name": "Ram-Thrower", "class": "siege", "cost": 75, "strength": 8, "ranged": 10, "range": 2, "moves": 2, "tech": "mathematics", "upgradesTo": "trebuchet", "obsoleteTech": "physics", "bonuses": [{ "vs": "city", "percent": 100 }], "mustSetUp": true, "role": "siege", "faction": "iron", "replaces": "catapult", "glyph": "☄" },
-  { "id": "dune_rider", "name": "Dune Rider", "class": "mounted", "cost": 75, "strength": 13, "moves": 5, "tech": "horseback_riding", "resource": "horses", "upgradesTo": "knight", "obsoleteTech": "chivalry", "bonuses": [{ "vs": "city", "percent": -33 }], "moveAfterAttack": true, "role": "fast", "faction": "sunwake", "replaces": "horseman", "glyph": "♞" },
-  { "id": "starshot", "name": "Starshot", "class": "ranged", "cost": 40, "strength": 5, "ranged": 8, "range": 2, "moves": 2, "sight": 3, "tech": "archery", "upgradesTo": "composite_bowman", "obsoleteTech": "construction", "role": "ranged", "faction": "starlit", "replaces": "archer", "glyph": "✶" },
-  { "id": "ice_reaver", "name": "Ice Reaver", "class": "melee", "cost": 40, "strength": 10, "moves": 2, "upgradesTo": "spearman", "obsoleteTech": "bronze_working", "role": "attack", "faction": "frostfang", "replaces": "warrior", "glyph": "❄" },
-  { "id": "terrace_guard", "name": "Terrace Guard", "class": "melee", "cost": 90, "strength": 19, "moves": 2, "tech": "civil_service", "upgradesTo": "musketman", "obsoleteTech": "gunpowder", "bonuses": [{ "vs": "mounted", "percent": 100 }], "role": "defense", "faction": "mesa", "replaces": "pikeman", "glyph": "⇈" }
+ {
+  "id": "settler",
+  "name": "Settler",
+  "class": "civilian",
+  "cost": 80,
+  "strength": 0,
+  "moves": 2,
+  "canFound": true,
+  "role": "settle",
+  "glyph": "\u2302"
+ },
+ {
+  "id": "worker",
+  "name": "Worker",
+  "class": "civilian",
+  "cost": 60,
+  "strength": 0,
+  "moves": 2,
+  "canBuild": true,
+  "role": "work",
+  "glyph": "\u2692"
+ },
+ {
+  "id": "scout",
+  "name": "Scout",
+  "class": "recon",
+  "cost": 25,
+  "strength": 4,
+  "moves": 2,
+  "ignoresTerrainCost": true,
+  "role": "explore",
+  "glyph": "\u25ce",
+  "upgradesTo": "explorer",
+  "obsoleteTech": "navigation"
+ },
+ {
+  "id": "warrior",
+  "name": "Warrior",
+  "class": "melee",
+  "cost": 40,
+  "strength": 8,
+  "moves": 2,
+  "upgradesTo": "spearman",
+  "obsoleteTech": "bronze_working",
+  "barbarian": true,
+  "role": "defense",
+  "glyph": "\u2694"
+ },
+ {
+  "id": "spearman",
+  "name": "Spearman",
+  "class": "melee",
+  "cost": 56,
+  "strength": 11,
+  "moves": 2,
+  "tech": "bronze_working",
+  "upgradesTo": "pikeman",
+  "obsoleteTech": "civil_service",
+  "bonuses": [
+   {
+    "vs": "mounted",
+    "percent": 100
+   }
+  ],
+  "barbarian": true,
+  "role": "defense",
+  "glyph": "\u2191"
+ },
+ {
+  "id": "swordsman",
+  "name": "Swordsman",
+  "class": "melee",
+  "cost": 75,
+  "strength": 14,
+  "moves": 2,
+  "tech": "iron_working",
+  "resource": "iron",
+  "upgradesTo": "longswordsman",
+  "obsoleteTech": "steel",
+  "barbarian": true,
+  "role": "attack",
+  "glyph": "\u2020"
+ },
+ {
+  "id": "pikeman",
+  "name": "Pikeman",
+  "class": "melee",
+  "cost": 90,
+  "strength": 16,
+  "moves": 2,
+  "tech": "civil_service",
+  "upgradesTo": "musketman",
+  "obsoleteTech": "gunpowder",
+  "bonuses": [
+   {
+    "vs": "mounted",
+    "percent": 100
+   }
+  ],
+  "barbarian": true,
+  "role": "defense",
+  "glyph": "\u21d1"
+ },
+ {
+  "id": "longswordsman",
+  "name": "Longswordsman",
+  "class": "melee",
+  "cost": 120,
+  "strength": 21,
+  "moves": 2,
+  "tech": "steel",
+  "resource": "iron",
+  "upgradesTo": "musketman",
+  "obsoleteTech": "gunpowder",
+  "barbarian": true,
+  "role": "attack",
+  "glyph": "\u2021"
+ },
+ {
+  "id": "musketman",
+  "name": "Musketman",
+  "class": "melee",
+  "cost": 150,
+  "strength": 24,
+  "moves": 2,
+  "tech": "gunpowder",
+  "role": "defense",
+  "glyph": "\u00a6",
+  "upgradesTo": "rifleman",
+  "obsoleteTech": "rifling"
+ },
+ {
+  "id": "archer",
+  "name": "Archer",
+  "class": "ranged",
+  "cost": 40,
+  "strength": 5,
+  "ranged": 7,
+  "range": 2,
+  "moves": 2,
+  "tech": "archery",
+  "upgradesTo": "composite_bowman",
+  "obsoleteTech": "construction",
+  "barbarian": true,
+  "role": "ranged",
+  "glyph": "\u27b6"
+ },
+ {
+  "id": "composite_bowman",
+  "name": "Composite Bowman",
+  "class": "ranged",
+  "cost": 75,
+  "strength": 7,
+  "ranged": 11,
+  "range": 2,
+  "moves": 2,
+  "tech": "construction",
+  "upgradesTo": "crossbowman",
+  "obsoleteTech": "machinery",
+  "barbarian": true,
+  "role": "ranged",
+  "glyph": "\u27b9"
+ },
+ {
+  "id": "crossbowman",
+  "name": "Crossbowman",
+  "class": "ranged",
+  "cost": 120,
+  "strength": 13,
+  "ranged": 18,
+  "range": 2,
+  "moves": 2,
+  "tech": "machinery",
+  "barbarian": true,
+  "role": "ranged",
+  "glyph": "\u271b",
+  "upgradesTo": "gatling_gun",
+  "obsoleteTech": "industrialization"
+ },
+ {
+  "id": "chariot_archer",
+  "name": "Chariot Archer",
+  "class": "mounted",
+  "cost": 56,
+  "strength": 6,
+  "ranged": 10,
+  "range": 2,
+  "moves": 4,
+  "tech": "the_wheel",
+  "resource": "horses",
+  "upgradesTo": "knight",
+  "obsoleteTech": "chivalry",
+  "role": "fast",
+  "glyph": "\u229b"
+ },
+ {
+  "id": "horseman",
+  "name": "Horseman",
+  "class": "mounted",
+  "cost": 75,
+  "strength": 12,
+  "moves": 4,
+  "tech": "horseback_riding",
+  "resource": "horses",
+  "upgradesTo": "knight",
+  "obsoleteTech": "chivalry",
+  "bonuses": [
+   {
+    "vs": "city",
+    "percent": -33
+   }
+  ],
+  "moveAfterAttack": true,
+  "barbarian": true,
+  "role": "fast",
+  "glyph": "\u265e"
+ },
+ {
+  "id": "knight",
+  "name": "Knight",
+  "class": "mounted",
+  "cost": 120,
+  "strength": 20,
+  "moves": 4,
+  "tech": "chivalry",
+  "resource": "horses",
+  "upgradesTo": "lancer",
+  "obsoleteTech": "metallurgy",
+  "bonuses": [
+   {
+    "vs": "city",
+    "percent": -33
+   }
+  ],
+  "moveAfterAttack": true,
+  "barbarian": true,
+  "role": "fast",
+  "glyph": "\u2658"
+ },
+ {
+  "id": "lancer",
+  "name": "Lancer",
+  "class": "mounted",
+  "cost": 185,
+  "strength": 25,
+  "moves": 4,
+  "tech": "metallurgy",
+  "resource": "horses",
+  "bonuses": [
+   {
+    "vs": "mounted",
+    "percent": 50
+   },
+   {
+    "vs": "city",
+    "percent": -33
+   }
+  ],
+  "moveAfterAttack": true,
+  "role": "fast",
+  "glyph": "\u26a1",
+  "upgradesTo": "anti_tank_gun",
+  "obsoleteTech": "combustion"
+ },
+ {
+  "id": "catapult",
+  "name": "Catapult",
+  "class": "siege",
+  "cost": 75,
+  "strength": 7,
+  "ranged": 8,
+  "range": 2,
+  "moves": 2,
+  "tech": "mathematics",
+  "upgradesTo": "trebuchet",
+  "obsoleteTech": "physics",
+  "bonuses": [
+   {
+    "vs": "city",
+    "percent": 100
+   }
+  ],
+  "mustSetUp": true,
+  "role": "siege",
+  "glyph": "\u2604"
+ },
+ {
+  "id": "trebuchet",
+  "name": "Trebuchet",
+  "class": "siege",
+  "cost": 120,
+  "strength": 12,
+  "ranged": 14,
+  "range": 2,
+  "moves": 2,
+  "tech": "physics",
+  "upgradesTo": "cannon",
+  "obsoleteTech": "chemistry",
+  "bonuses": [
+   {
+    "vs": "city",
+    "percent": 100
+   }
+  ],
+  "mustSetUp": true,
+  "role": "siege",
+  "glyph": "\u2604"
+ },
+ {
+  "id": "cannon",
+  "name": "Cannon",
+  "class": "siege",
+  "cost": 185,
+  "strength": 14,
+  "ranged": 20,
+  "range": 2,
+  "moves": 2,
+  "tech": "chemistry",
+  "bonuses": [
+   {
+    "vs": "city",
+    "percent": 75
+   }
+  ],
+  "mustSetUp": true,
+  "role": "siege",
+  "glyph": "\u25cf",
+  "upgradesTo": "artillery",
+  "obsoleteTech": "dynamite"
+ },
+ {
+  "id": "thornguard",
+  "name": "Thornguard",
+  "class": "melee",
+  "cost": 56,
+  "strength": 13,
+  "moves": 2,
+  "tech": "bronze_working",
+  "upgradesTo": "pikeman",
+  "obsoleteTech": "civil_service",
+  "bonuses": [
+   {
+    "vs": "mounted",
+    "percent": 100
+   }
+  ],
+  "role": "defense",
+  "faction": "verdant",
+  "replaces": "spearman",
+  "glyph": "\u219f"
+ },
+ {
+  "id": "ram_thrower",
+  "name": "Ram-Thrower",
+  "class": "siege",
+  "cost": 75,
+  "strength": 8,
+  "ranged": 10,
+  "range": 2,
+  "moves": 2,
+  "tech": "mathematics",
+  "upgradesTo": "trebuchet",
+  "obsoleteTech": "physics",
+  "bonuses": [
+   {
+    "vs": "city",
+    "percent": 100
+   }
+  ],
+  "mustSetUp": true,
+  "role": "siege",
+  "faction": "iron",
+  "replaces": "catapult",
+  "glyph": "\u2604"
+ },
+ {
+  "id": "dune_rider",
+  "name": "Dune Rider",
+  "class": "mounted",
+  "cost": 75,
+  "strength": 13,
+  "moves": 5,
+  "tech": "horseback_riding",
+  "resource": "horses",
+  "upgradesTo": "knight",
+  "obsoleteTech": "chivalry",
+  "bonuses": [
+   {
+    "vs": "city",
+    "percent": -33
+   }
+  ],
+  "moveAfterAttack": true,
+  "role": "fast",
+  "faction": "sunwake",
+  "replaces": "horseman",
+  "glyph": "\u265e"
+ },
+ {
+  "id": "starshot",
+  "name": "Starshot",
+  "class": "ranged",
+  "cost": 40,
+  "strength": 5,
+  "ranged": 8,
+  "range": 2,
+  "moves": 2,
+  "sight": 3,
+  "tech": "archery",
+  "upgradesTo": "composite_bowman",
+  "obsoleteTech": "construction",
+  "role": "ranged",
+  "faction": "starlit",
+  "replaces": "archer",
+  "glyph": "\u2736"
+ },
+ {
+  "id": "ice_reaver",
+  "name": "Ice Reaver",
+  "class": "melee",
+  "cost": 40,
+  "strength": 10,
+  "moves": 2,
+  "upgradesTo": "spearman",
+  "obsoleteTech": "bronze_working",
+  "role": "attack",
+  "faction": "frostfang",
+  "replaces": "warrior",
+  "glyph": "\u2744"
+ },
+ {
+  "id": "terrace_guard",
+  "name": "Terrace Guard",
+  "class": "melee",
+  "cost": 90,
+  "strength": 19,
+  "moves": 2,
+  "tech": "civil_service",
+  "upgradesTo": "musketman",
+  "obsoleteTech": "gunpowder",
+  "bonuses": [
+   {
+    "vs": "mounted",
+    "percent": 100
+   }
+  ],
+  "role": "defense",
+  "faction": "mesa",
+  "replaces": "pikeman",
+  "glyph": "\u21c8"
+ },
+ {
+  "id": "explorer",
+  "name": "Explorer",
+  "class": "recon",
+  "cost": 56,
+  "strength": 6,
+  "moves": 3,
+  "tech": "navigation",
+  "role": "explore",
+  "glyph": "\u25c9",
+  "ignoresTerrainCost": true,
+  "upgradesTo": "paratrooper",
+  "obsoleteTech": "radar"
+ },
+ {
+  "id": "paratrooper",
+  "name": "Paratrooper",
+  "class": "recon",
+  "cost": 300,
+  "strength": 40,
+  "moves": 3,
+  "tech": "radar",
+  "role": "explore",
+  "glyph": "\u2602",
+  "ignoresTerrainCost": true
+ },
+ {
+  "id": "rifleman",
+  "name": "Rifleman",
+  "class": "melee",
+  "cost": 200,
+  "strength": 34,
+  "moves": 2,
+  "tech": "rifling",
+  "role": "defense",
+  "glyph": "\u00b6",
+  "upgradesTo": "infantry",
+  "obsoleteTech": "replaceable_parts",
+  "barbarian": true
+ },
+ {
+  "id": "cavalry",
+  "name": "Cavalry",
+  "class": "mounted",
+  "cost": 225,
+  "strength": 34,
+  "moves": 4,
+  "tech": "military_science",
+  "role": "fast",
+  "glyph": "\u265e",
+  "resource": "horses",
+  "bonuses": [
+   {
+    "vs": "city",
+    "percent": -33
+   }
+  ],
+  "moveAfterAttack": true,
+  "upgradesTo": "tank",
+  "obsoleteTech": "combustion"
+ },
+ {
+  "id": "gatling_gun",
+  "name": "Gatling Gun",
+  "class": "ranged",
+  "cost": 225,
+  "strength": 30,
+  "moves": 2,
+  "tech": "industrialization",
+  "role": "ranged",
+  "glyph": "\u2042",
+  "ranged": 30,
+  "range": 1,
+  "upgradesTo": "machine_gun",
+  "obsoleteTech": "ballistics"
+ },
+ {
+  "id": "artillery",
+  "name": "Artillery",
+  "class": "siege",
+  "cost": 250,
+  "strength": 21,
+  "moves": 2,
+  "tech": "dynamite",
+  "role": "siege",
+  "glyph": "\u2739",
+  "ranged": 32,
+  "range": 3,
+  "bonuses": [
+   {
+    "vs": "city",
+    "percent": 10
+   }
+  ],
+  "mustSetUp": true,
+  "upgradesTo": "rocket_artillery",
+  "obsoleteTech": "rocketry"
+ },
+ {
+  "id": "infantry",
+  "name": "Infantry",
+  "class": "melee",
+  "cost": 320,
+  "strength": 50,
+  "moves": 2,
+  "tech": "replaceable_parts",
+  "role": "defense",
+  "glyph": "\u25a3",
+  "upgradesTo": "mech_infantry",
+  "obsoleteTech": "mobile_tactics"
+ },
+ {
+  "id": "machine_gun",
+  "name": "Machine Gun",
+  "class": "ranged",
+  "cost": 350,
+  "strength": 60,
+  "moves": 2,
+  "tech": "ballistics",
+  "role": "ranged",
+  "glyph": "\u2051",
+  "ranged": 60,
+  "range": 1,
+  "upgradesTo": "bazooka",
+  "obsoleteTech": "nuclear_fission"
+ },
+ {
+  "id": "anti_tank_gun",
+  "name": "Anti-Tank Gun",
+  "class": "melee",
+  "cost": 300,
+  "strength": 50,
+  "moves": 2,
+  "tech": "combustion",
+  "role": "defense",
+  "glyph": "\u22a5",
+  "bonuses": [
+   {
+    "vs": "mounted",
+    "percent": 100
+   }
+  ]
+ },
+ {
+  "id": "tank",
+  "name": "Tank",
+  "class": "mounted",
+  "cost": 375,
+  "strength": 70,
+  "moves": 5,
+  "tech": "combustion",
+  "role": "fast",
+  "glyph": "\u25d8",
+  "resource": "oil",
+  "bonuses": [
+   {
+    "vs": "city",
+    "percent": -10
+   }
+  ],
+  "moveAfterAttack": true,
+  "upgradesTo": "modern_armor",
+  "obsoleteTech": "lasers"
+ },
+ {
+  "id": "bazooka",
+  "name": "Bazooka",
+  "class": "ranged",
+  "cost": 375,
+  "strength": 72,
+  "moves": 2,
+  "tech": "nuclear_fission",
+  "role": "ranged",
+  "glyph": "\u22b8",
+  "ranged": 72,
+  "range": 1,
+  "bonuses": [
+   {
+    "vs": "mounted",
+    "percent": 50
+   }
+  ]
+ },
+ {
+  "id": "rocket_artillery",
+  "name": "Rocket Artillery",
+  "class": "siege",
+  "cost": 425,
+  "strength": 45,
+  "moves": 3,
+  "tech": "rocketry",
+  "role": "siege",
+  "glyph": "\u21f6",
+  "ranged": 60,
+  "range": 3,
+  "resource": "aluminum",
+  "bonuses": [
+   {
+    "vs": "city",
+    "percent": 10
+   }
+  ],
+  "mustSetUp": true
+ },
+ {
+  "id": "mech_infantry",
+  "name": "Mechanized Infantry",
+  "class": "melee",
+  "cost": 375,
+  "strength": 90,
+  "moves": 3,
+  "tech": "mobile_tactics",
+  "role": "defense",
+  "glyph": "\u25a4"
+ },
+ {
+  "id": "modern_armor",
+  "name": "Modern Armor",
+  "class": "mounted",
+  "cost": 425,
+  "strength": 100,
+  "moves": 5,
+  "tech": "lasers",
+  "role": "fast",
+  "glyph": "\u25d9",
+  "resource": "aluminum",
+  "bonuses": [
+   {
+    "vs": "city",
+    "percent": -10
+   }
+  ],
+  "moveAfterAttack": true
+ },
+ {
+  "id": "titan_walker",
+  "name": "Titan Walker",
+  "class": "mounted",
+  "cost": 625,
+  "strength": 130,
+  "moves": 3,
+  "tech": "nuclear_fusion",
+  "role": "attack",
+  "glyph": "\u2699",
+  "resource": "uranium",
+  "moveAfterAttack": true
+ },
+ {
+  "id": "ss_booster",
+  "name": "Rocket Booster",
+  "class": "civilian",
+  "cost": 750,
+  "strength": 0,
+  "moves": 2,
+  "tech": "advanced_ballistics",
+  "role": "spaceship",
+  "glyph": "\u2708",
+  "resource": "aluminum",
+  "requiresBuilding": "factory",
+  "requiresProject": "apollo_program",
+  "spaceshipPart": "booster"
+ },
+ {
+  "id": "ss_cockpit",
+  "name": "Crew Capsule",
+  "class": "civilian",
+  "cost": 750,
+  "strength": 0,
+  "moves": 2,
+  "tech": "satellites",
+  "role": "spaceship",
+  "glyph": "\u2708",
+  "resource": "aluminum",
+  "requiresBuilding": "factory",
+  "requiresProject": "apollo_program",
+  "spaceshipPart": "cockpit"
+ },
+ {
+  "id": "ss_stasis",
+  "name": "Sleep Chamber",
+  "class": "civilian",
+  "cost": 750,
+  "strength": 0,
+  "moves": 2,
+  "tech": "particle_physics",
+  "role": "spaceship",
+  "glyph": "\u2708",
+  "resource": "aluminum",
+  "requiresBuilding": "factory",
+  "requiresProject": "apollo_program",
+  "spaceshipPart": "stasis"
+ },
+ {
+  "id": "ss_engine",
+  "name": "Star Engine",
+  "class": "civilian",
+  "cost": 750,
+  "strength": 0,
+  "moves": 2,
+  "tech": "nuclear_fusion",
+  "role": "spaceship",
+  "glyph": "\u2708",
+  "resource": "aluminum",
+  "requiresBuilding": "factory",
+  "requiresProject": "apollo_program",
+  "spaceshipPart": "engine"
+ }
 ]

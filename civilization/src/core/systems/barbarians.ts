@@ -50,9 +50,11 @@ export function barbarianSpawns(s: GameState): void {
       s.camps[key] = s.turn;
     }
   }
-  // Occasionally a new camp in the fog.
+  // Occasionally a new camp in the fog (until most players are in the industrial age).
   const size = D.mapSizes.get(s.settings.mapSize)!;
-  if (Object.keys(s.camps).length < size.barbarianCamps * 1.5 && rand(s) * 100 < b.newCampChancePct / 4) {
+  const eras = majorPlayers(s).filter((p) => p.alive).map(eraOf).sort((a, z) => a - z);
+  const lateGame = (eras[Math.floor(eras.length / 2)] ?? 0) >= b.stopEra;
+  if (!lateGame && Object.keys(s.camps).length < size.barbarianCamps * 1.5 && rand(s) * 100 < b.newCampChancePct / 4) {
     const n = s.map.tiles.length;
     for (let tries = 0; tries < 40; tries++) {
       const i = randInt(s, n);

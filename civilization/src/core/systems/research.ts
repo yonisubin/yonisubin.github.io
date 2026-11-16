@@ -5,7 +5,7 @@ import { costMult, notify, playerCities } from '../query';
 import type { GameState, Player } from '../state';
 
 export function availableTechs(pl: Player): string[] {
-  return [...D.techs.values()].filter((t) => !pl.techs.includes(t.id) && t.prereqs.every((p) => pl.techs.includes(p))).map((t) => t.id);
+  return [...D.techs.values()].filter((t) => (t.repeatable || !pl.techs.includes(t.id)) && t.prereqs.every((p) => pl.techs.includes(p))).map((t) => t.id);
 }
 
 export function techCost(s: GameState, p: number, tech: string): number {
@@ -26,7 +26,7 @@ export function techCost(s: GameState, p: number, tech: string): number {
 export function techPath(pl: Player, target: string): string[] {
   const out: string[] = [];
   const visit = (id: string) => {
-    if (pl.techs.includes(id) || out.includes(id)) return;
+    if ((pl.techs.includes(id) && !(id === target && D.techs.get(id)!.repeatable)) || out.includes(id)) return;
     const t = get(D.techs, id);
     // Visit cheaper prerequisites first so the path reads naturally.
     for (const p of [...t.prereqs].sort((a, b) => get(D.techs, a).cost - get(D.techs, b).cost)) visit(p);
@@ -39,7 +39,7 @@ export function techPath(pl: Player, target: string): string[] {
 export function setResearch(s: GameState, p: number, target: string): string | null {
   const pl = s.players[p];
   if (!D.techs.has(target)) return 'unknown tech';
-  if (pl.techs.includes(target)) return 'already known';
+  if (pl.techs.includes(target) && !D.techs.get(target)!.repeatable) return 'already known';
   const path = techPath(pl, target);
   pl.research = path[0];
   pl.researchQueue = path.slice(1);
@@ -48,15 +48,27 @@ export function setResearch(s: GameState, p: number, target: string): string | n
 
 export function learnTech(s: GameState, p: number, tech: string): void {
   const pl = s.players[p];
+  const def = get(D.techs, tech);
+  if (def.repeatable) {
+    // Future Tech: counts for score and keeps being researched.
+    pl.futureTechs++;
+    if (!pl.techs.includes(tech)) pl.techs.push(tech);
+    delete pl.techProgress[tech];
+    notify(s, p, `Researched ${def.name} ${pl.futureTechs}.`, 'good');
+    return;
+  }
   if (pl.techs.includes(tech)) return;
   pl.techs.push(tech);
   delete pl.techProgress[tech];
+  if (def.revealsMap) pl.explored = pl.explored.map(() => 1);
   pl.researchQueue = pl.researchQueue.filter((t) => t !== tech);
   if (pl.research === tech) pl.research = pl.researchQueue.shift() ?? null;
   const t = get(D.techs, tech);
   const unlocks = describeUnlocks(tech, pl.faction);
   notify(s, p, `Researched ${t.name}.${unlocks.length ? ' Unlocks: ' + unlocks.join(', ') + '.' : ''}`, 'good');
 }
+
+const t0 = (id: string) => get(D.techs, id);
 
 /** Names of what a tech unlocks for a faction. */
 export function describeUnlocks(tech: string, faction: string): string[] {
@@ -75,7 +87,9 @@ export function describeUnlocks(tech: string, faction: string): string[] {
   }
   for (const i of D.improvements.values()) if (i.tech === tech) out.push(i.name);
   for (const r of D.resources.values()) if (r.revealTech === tech) out.push(`reveals ${r.name}`);
+  for (const p of D.projects.values()) if (p.tech === tech) out.push(p.name);
   if (tech === 'the_wheel') out.push('Roads');
+  if (t0(tech).revealsMap) out.push('reveals the whole map');
   const t = get(D.techs, tech);
   if (t.bridges) out.push('river bridges');
   for (const m of t.tileMods) out.push(`+${m.amount} ${m.yield} on ${get(D.improvements, m.improvement).name}s`);

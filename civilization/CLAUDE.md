@@ -46,7 +46,9 @@ civilization/tests/  # Playwright checks through window.hexborne
 
 ## Status
 
-Phases 1–6 of the plan at the end of the spec are built: map + generator (Continents, Pangaea) + fog + camera + tooltips; units, A*, ZOC, 1UPT, Settlers, Workers; cities (growth, queue, buildings, borders, gold, buying); research + tech tree, happiness + luxuries; combat, promotions, barbarians, ruins; AI, end-turn loop (AI in a Web Worker), save/load. Score is live and the domination and time victories are checked (end screens are minimal; phase 7 adds the rest).
+Phases 1–6 of the plan at the end of the spec are built: map + generator (Continents, Pangaea) + fog + camera + tooltips; units, A*, ZOC, 1UPT, Settlers, Workers; cities (growth, queue, buildings, borders, gold, buying); research + tech tree, happiness + luxuries; combat, promotions, barbarians, ruins; AI, end-turn loop (AI in a Web Worker), save/load. Phase 7: 80 techs (Ancient → Information, repeatable Future Tech), late-era units, buildings and strategic resources (coal, oil, aluminum, uranium), projects (Apollo Program) and processes (Wealth, Research), spaceship parts carried to the capital and the science victory, victory toggles and turn limit, per-turn statistics, a territory replay, the end-of-game screen (summary, graphs, replay) and the Hall of Fame (localStorage `civ:hallOfFame`).
+
+Extension points for later phases: `VICTORY_CHECKS` (core/game.ts), `SCORE_HOOKS` (core/systems/economy.ts), `MIGRATIONS` (core/migrate.ts, fills new fields in old saves), `VICTORY_ROWS` (ui/hud.ts).
 
 Deliberate simplifications so far (say so before changing them):
 - Diplomacy is a war/peace switch (Relations panel) until phase 9. At peace, foreign territory is closed (no open borders yet).

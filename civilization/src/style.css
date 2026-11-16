@@ -134,3 +134,9 @@ summary { cursor: pointer; color: var(--accent); margin-bottom: 8px; }
   #city { top: auto; height: 55vh; bottom: 0; right: 0; left: 0; width: auto; border-radius: 12px 12px 0 0; }
   body:has(#city:not([style*="none"])) #corner { display: none; }
 }
+
+/* End of game */
+.endgame .end-body { flex: 1; overflow: auto; }
+.endgame canvas { width: 100%; max-height: 55vh; object-fit: contain; background: #0d1119; border: 1px solid var(--line); border-radius: 8px; }
+.endgame input[type=range] { flex: 1; }
+.splash { width: min(420px, 100%); display: block; margin: 0 auto 8px; }

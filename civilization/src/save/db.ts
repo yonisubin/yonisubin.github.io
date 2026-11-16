@@ -1,6 +1,7 @@
 // Saves in IndexedDB (database "hexborne", store "saves", keyed by name). Each record keeps a
 // small summary for the load list plus the whole GameState as JSON.
 import type { GameState } from '../core/state';
+import { migrate } from '../core/migrate';
 
 export interface SaveSummary {
   name: string;
@@ -55,7 +56,7 @@ export async function loadGame(name: string): Promise<GameState | null> {
   if (!rec) return null;
   const s = JSON.parse(rec.state) as GameState;
   if (s.version !== 1 || !s.map || !Array.isArray(s.players)) throw new Error('This save is from an incompatible version.');
-  return s;
+  return migrate(s);
 }
 
 export async function listSaves(): Promise<SaveSummary[]> {

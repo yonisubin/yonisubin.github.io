@@ -54,7 +54,10 @@ export function aiTurn(s: GameState, p: number): void {
       applyAction(s, p, { type: 'promote', unit: u.id, promotion: u.hp < 50 || !opts.length ? 'heal' : opts[0] });
     }
     const def = unitDef(u);
-    if (def.canFound) settlerTurn(s, p, u);
+    if (def.spaceshipPart) {
+      const cap = capitalOf(s, p);
+      if (cap) applyAction(s, p, { type: 'move', unit: u.id, to: cap.tile });
+    } else if (def.canFound) settlerTurn(s, p, u);
     else if (def.canBuild) workerTurn(s, p, u, reserved);
     else if (def.class === 'recon') scoutTurn(s, p, u);
     else militaryTurn(s, p, u);
@@ -151,7 +154,13 @@ function chooseProduction(s: GameState, p: number, c: City): void {
   const score = (item: QueueItem): number => {
     const cost = itemCost(s, p, item);
     let v = 0;
-    if (item.kind === 'unit') {
+    if (item.kind === 'project') {
+      const pr = get(D.projects, item.id);
+      v = pr.process ? 0.5 : 60 + pers.science * 3;
+    } else if (item.kind === 'unit' && get(D.units, item.id).spaceshipPart) {
+      // Race for the stars once the Apollo Program is done.
+      v = 70 + pers.science * 3;
+    } else if (item.kind === 'unit') {
       const u = get(D.units, item.id);
       if (u.canFound) v = cities.length + settlers < targetCities && happy > 0 && c.pop >= 2 && s.turn > 3 ? 55 + pers.expansion : 0;
       else if (u.canBuild) v = workers < Math.max(1, cities.length) ? 45 : workers < cities.length * 1.5 ? 12 : 0;

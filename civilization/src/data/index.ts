@@ -15,6 +15,7 @@ import difficulty from './difficulty.json';
 import pace from './pace.json';
 import mapSizes from './mapSizes.json';
 import ruins from './ruins.json';
+import projects from './projects.json';
 import rules from './rules.json';
 
 export type TerrainDef = z.infer<typeof S.Terrain>;
@@ -31,6 +32,7 @@ export type PaceDef = z.infer<typeof S.Pace>;
 export type MapSizeDef = z.infer<typeof S.MapSize>;
 export type RuinDef = z.infer<typeof S.Ruin>;
 export type RulesDef = z.infer<typeof S.Rules>;
+export type ProjectDef = z.infer<typeof S.Project>;
 
 /** Parse a list file and index it by id; throws with the file name and path on any error. */
 function table<T extends { id: string }>(name: string, schema: z.ZodType<T>, raw: unknown): Map<string, T> {
@@ -61,6 +63,7 @@ export const D = {
   pace: table('pace', S.Pace, pace),
   mapSizes: table('mapSizes', S.MapSize, mapSizes),
   ruins: table('ruins', S.Ruin, ruins),
+  projects: table('projects', S.Project, projects),
   rules: parsedRules.data,
 };
 
@@ -85,12 +88,15 @@ export function get<T>(map: Map<string, T>, id: string): T {
     need(D.resources, u.resource, `unit ${u.id} resource`);
     need(D.factions, u.faction, `unit ${u.id} faction`);
     need(D.units, u.replaces, `unit ${u.id} replaces`);
+    need(D.buildings, u.requiresBuilding, `unit ${u.id} requiresBuilding`);
+    need(D.projects, u.requiresProject, `unit ${u.id} requiresProject`);
   }
   for (const b of D.buildings.values()) {
     need(D.techs, b.tech, `building ${b.id} tech`);
     need(D.buildings, b.requires.building, `building ${b.id} requires`);
     need(D.factions, b.faction, `building ${b.id} faction`);
     need(D.buildings, b.replaces, `building ${b.id} replaces`);
+    need(D.resources, b.requires.resource, `building ${b.id} requires resource`);
   }
   for (const r of D.resources.values()) {
     need(D.improvements, r.improvement, `resource ${r.id} improvement`);
@@ -105,6 +111,7 @@ export function get<T>(map: Map<string, T>, id: string): T {
   for (const f of D.features.values()) need(D.techs, f.removeTech, `feature ${f.id} removeTech`);
   for (const p of D.promotions.values()) for (const r of p.requires) need(D.promotions, r, `promotion ${p.id} requires`);
   for (const r of D.ruins.values()) need(D.units, r.unit, `ruin ${r.id} unit`);
+  for (const p of D.projects.values()) need(D.techs, p.tech, `project ${p.id} tech`);
   for (const u of D.rules.startUnits) need(D.units, u, 'rules startUnits');
   for (const d of D.difficulty.values()) for (const u of d.aiExtraUnits) need(D.units, u, `difficulty ${d.id}`);
   if (errs.length) throw new Error(`data cross-reference errors:\n${errs.join('\n')}`);

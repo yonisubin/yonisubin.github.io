@@ -1,0 +1,26 @@
+[
+ {
+  "id": "apollo_program",
+  "name": "Apollo Program",
+  "cost": 1500,
+  "tech": "rocketry",
+  "oncePerPlayer": true,
+  "description": "Opens the way to space: lets your cities build spaceship parts."
+ },
+ {
+  "id": "wealth",
+  "name": "Wealth",
+  "cost": 0,
+  "tech": "currency",
+  "process": "gold",
+  "description": "Turns a quarter of this city's production into gold each turn."
+ },
+ {
+  "id": "research",
+  "name": "Research",
+  "cost": 0,
+  "tech": "education",
+  "process": "science",
+  "description": "Turns a quarter of this city's production into science each turn."
+ }
+]

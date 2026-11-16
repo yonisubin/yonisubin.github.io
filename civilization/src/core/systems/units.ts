@@ -11,6 +11,7 @@ import {
   eraOf,
   hasTech,
   isCivilian,
+  logEvent,
   militaryAt,
   notify,
   playerCities,
@@ -251,8 +252,25 @@ function finishJob(s: GameState, u: Unit, job: string): void {
 
 // ---- Entering tiles: civilians, camps, ruins ----
 
+/** A spaceship part that reaches its owner's capital is added to the ship. */
+export function deliverSpaceshipPart(s: GameState, u: Unit): boolean {
+  const part = unitDef(u).spaceshipPart;
+  if (!part) return false;
+  const c = cityAt(s, u.tile);
+  if (!c || c.owner !== u.owner || !c.isCapital) return false;
+  const pl = s.players[u.owner];
+  pl.spaceship[part] = (pl.spaceship[part] ?? 0) + 1;
+  removeUnit(s, u);
+  const done = Object.entries(D.rules.spaceship).reduce((a, [k, n]) => a + Math.min(n, pl.spaceship[k] ?? 0), 0);
+  const total = Object.values(D.rules.spaceship).reduce((a, n) => a + n, 0);
+  logEvent(s, `The ${pl.name} added a ${unitDef(u).name} to their spaceship (${done}/${total}).`, c.tile, u.owner);
+  for (const q of s.players) notify(s, q.id, q.id === u.owner ? `${unitDef(u).name} installed: spaceship ${done}/${total}.` : `The ${pl.name} added a part to their spaceship (${done}/${total}).`, q.id === u.owner ? 'good' : 'bad', c.tile);
+  return true;
+}
+
 /** Called after unit u moved onto its tile. */
 export function onEnterTile(s: GameState, u: Unit): void {
+  if (deliverSpaceshipPart(s, u)) return;
   const t = tileAt(s, u.tile);
   // Capture enemy civilians alone on the tile.
   if (!isCivilian(u)) {

@@ -1,6 +1,6 @@
 // Cities: founding, territory (culture borders and buying tiles), citizens, growth, the
 // production queue (with overflow and gold purchases), defence, capture and razing.
-import { D, get, type BuildingDef, type UnitDef } from '../../data';
+import { D, get, type BuildingDef, type ProjectDef, type UnitDef } from '../../data';
 import { YIELD_KEYS } from '../../data/schema';
 import { distance, neighbors, within } from '../hex';
 import {
@@ -10,6 +10,7 @@ import {
   dims,
   hasTech,
   isCivilian,
+  logEvent,
   militaryAt,
   notify,
   playerCities,
@@ -22,7 +23,8 @@ import { isPassableLand, tileValue } from '../../mapgen/generate';
 import { strategicResources } from './economy';
 import { happinessOf } from './happiness';
 import { cityYields, hasBuilding, tileYields } from './yields';
-import { createUnit, freeTileNear, removeUnit } from './units';
+import { createUnit, deliverSpaceshipPart, freeTileNear, removeUnit } from './units';
+import { addScience } from './research';
 import { recomputeAllVisibility } from './visibility';
 import type { StrengthReport } from './combat';
 
@@ -99,6 +101,7 @@ export function foundCity(s: GameState, p: number, tile: number): City {
   pl.hadCity = true;
   assignCitizens(s, c);
   notify(s, p, `${c.name} was founded${first ? ' — your capital' : ''}.`, 'good', tile);
+  logEvent(s, `The ${pl.name} founded ${c.name}.`, tile, p);
   recomputeAllVisibility(s);
   return c;
 }
@@ -223,9 +226,12 @@ export function tileBuyCost(s: GameState, c: City, i: number): number {
 
 // ---- Production ----
 
-export function itemDef(item: QueueItem): UnitDef | BuildingDef {
-  return item.kind === 'unit' ? get(D.units, item.id) : get(D.buildings, item.id);
+export function itemDef(item: QueueItem): UnitDef | BuildingDef | ProjectDef {
+  return item.kind === 'unit' ? get(D.units, item.id) : item.kind === 'project' ? get(D.projects, item.id) : get(D.buildings, item.id);
 }
+
+/** Processes (Wealth, Research) never finish: they convert production every turn. */
+export const isProcess = (item: QueueItem | undefined) => !!item && item.kind === 'project' && !!D.projects.get(item.id)?.process;
 
 export function itemCost(s: GameState, p: number, item: QueueItem): number {
   return Math.max(1, Math.round(itemDef(item).cost * costMult(s, p)));
@@ -236,7 +242,7 @@ export function buyCost(s: GameState, c: City, item: QueueItem): number {
   const progress = c.queue[0] && c.queue[0].kind === item.kind && c.queue[0].id === item.id ? c.production : 0;
   const remaining = Math.max(1, itemCost(s, c.owner, item) - progress);
   let g = b.multiplier * Math.pow(remaining, b.exponent);
-  if (item.kind === 'building') g *= b.buildingPct / 100;
+  if (item.kind !== 'unit') g *= b.buildingPct / 100;
   return Math.round(g);
 }
 
@@ -255,6 +261,16 @@ export function cannotBuild(s: GameState, c: City, item: QueueItem): string | nu
       if (!r || r.total - r.used < 1) return `needs ${get(D.resources, u.resource).name}`;
     }
     if (u.id === 'settler' && happinessOf(s, c.owner).net <= D.rules.happiness.veryUnhappy) return 'your people are too unhappy';
+    if (u.requiresProject && !pl.projects.includes(u.requiresProject)) return `needs the ${get(D.projects, u.requiresProject).name}`;
+    if (u.requiresBuilding && !hasBuilding(c, u.requiresBuilding)) return `needs a ${get(D.buildings, u.requiresBuilding).name}`;
+    return null;
+  }
+  if (item.kind === 'project') {
+    const pr = D.projects.get(item.id);
+    if (!pr) return 'unknown project';
+    if (!hasTech(pl, pr.tech)) return `needs ${get(D.techs, pr.tech!).name}`;
+    if (pr.oncePerPlayer && pl.projects.includes(pr.id)) return 'already completed';
+    if (pr.oncePerPlayer && playerCities(s, c.owner).some((o) => o.id !== c.id && o.queue[0]?.id === pr.id)) return 'already under way in another city';
     return null;
   }
   const b = D.buildings.get(item.id);
@@ -267,6 +283,10 @@ export function cannotBuild(s: GameState, c: City, item: QueueItem): string | nu
   if (b.requires.building && !hasBuilding(c, b.requires.building)) return `needs a ${get(D.buildings, b.requires.building).name}`;
   if (b.requires.river && !tileAt(s, c.tile).river) return 'needs a river';
   if (b.requires.mountain && !neighbors(dims(s), c.tile).some((n) => tileAt(s, n).terrain === 'mountain')) return 'needs a mountain next to the city';
+  if (b.requires.resource) {
+    const r = strategicResources(s, c.owner)[b.requires.resource];
+    if (!r || r.total - r.used < 1) return `needs ${get(D.resources, b.requires.resource).name}`;
+  }
   return null;
 }
 
@@ -275,6 +295,7 @@ export function buildableItems(s: GameState, c: City): QueueItem[] {
   const out: QueueItem[] = [];
   for (const u of D.units.values()) if (!cannotBuild(s, c, { kind: 'unit', id: u.id })) out.push({ kind: 'unit', id: u.id });
   for (const b of D.buildings.values()) if (!cannotBuild(s, c, { kind: 'building', id: b.id })) out.push({ kind: 'building', id: b.id });
+  for (const p of D.projects.values()) if (!cannotBuild(s, c, { kind: 'project', id: p.id })) out.push({ kind: 'project', id: p.id });
   return out;
 }
 
@@ -285,6 +306,13 @@ export function cityXp(c: City): number {
 
 /** Put a finished item into the world. Returns false if there was no room (try again next turn). */
 function completeItem(s: GameState, c: City, item: QueueItem): boolean {
+  if (item.kind === 'project') {
+    const pr = get(D.projects, item.id);
+    s.players[c.owner].projects.push(pr.id);
+    logEvent(s, `The ${s.players[c.owner].name} completed the ${pr.name}.`, c.tile, c.owner);
+    for (const pl of s.players) notify(s, pl.id, pl.id === c.owner ? `${c.name} completed the ${pr.name}!` : `The ${s.players[c.owner].name} completed the ${pr.name}.`, pl.id === c.owner ? 'good' : 'info', c.tile);
+    return true;
+  }
   if (item.kind === 'building') {
     c.buildings.push(item.id);
     if (get(D.buildings, item.id).hp) c.hp += get(D.buildings, item.id).hp;
@@ -293,8 +321,9 @@ function completeItem(s: GameState, c: City, item: QueueItem): boolean {
   }
   const at = freeTileNear(s, item.id, c.owner, c.tile, 2);
   if (at < 0) return false;
-  createUnit(s, item.id, c.owner, at, cityXp(c));
+  const u = createUnit(s, item.id, c.owner, at, cityXp(c));
   notify(s, c.owner, `${c.name} trained a ${get(D.units, item.id).name}.`, 'good', c.tile);
+  if (c.isCapital) deliverSpaceshipPart(s, u);
   return true;
 }
 
@@ -302,6 +331,7 @@ export function buyItem(s: GameState, c: City, item: QueueItem): string | null {
   const why = cannotBuild(s, c, item);
   if (why) return why;
   if (c.resistance > 0 || c.puppet) return 'this city cannot buy right now';
+  if (item.kind === 'project') return 'projects cannot be bought';
   const cost = buyCost(s, c, item);
   const pl = s.players[c.owner];
   if (pl.gold < cost) return `needs ${cost} gold`;
@@ -355,19 +385,28 @@ export function processCity(s: GameState, c: City, happiness: number): void {
     options.sort((a, b) => itemCost(s, c.owner, a) - itemCost(s, c.owner, b));
     if (options.length) c.queue.push(options[0]);
   }
-  c.production += r.total.production;
-  if (c.queue.length) {
+  if (isProcess(c.queue[0])) {
+    // Wealth / Research: part of the production becomes gold or science; nothing accumulates.
+    const pr = get(D.projects, c.queue[0].id);
+    const amount = (r.total.production * D.rules.processPct) / 100;
+    if (pr.process === 'gold') s.players[c.owner].gold += Math.round(amount);
+    else addScience(s, c.owner, amount);
+  } else c.production += r.total.production;
+  if (c.queue.length && !isProcess(c.queue[0])) {
     const item = c.queue[0];
     const why = cannotBuild(s, c, item);
-    if (why === 'already built') c.queue.shift();
-    else if (!why) {
+    if (why) {
+      // It can't be built any more (obsolete, a resource was lost, built elsewhere...): drop it
+      // and keep the production for the next item.
+      c.queue.shift();
+      if (why !== 'already built') notify(s, c.owner, `${c.name} can no longer build ${itemDef(item).name} (${why}).`, 'bad', c.tile);
+    } else {
       const cost = itemCost(s, c.owner, item);
       if (c.production >= cost && completeItem(s, c, item)) {
         c.production = Math.min(c.production - cost, cost * D.rules.overflowCap);
         c.queue.shift();
       }
     }
-    // Otherwise blocked (e.g. a resource was lost): production waits.
   }
 
   // Borders.
@@ -420,6 +459,7 @@ export function captureCity(s: GameState, c: City, by: number): void {
       u.job = null;
     } else removeUnit(s, u);
   }
+  logEvent(s, `The ${s.players[by].name} captured ${c.name} from the ${s.players[from].name}.`, c.tile, by);
   notify(s, from, `${c.name} has fallen to the ${s.players[by].name}!`, 'bad', c.tile);
   notify(s, by, `You captured ${c.name}!`, 'good', c.tile);
   for (const pl of s.players) if (pl.id !== from && pl.id !== by && pl.met.includes(by)) notify(s, pl.id, `The ${s.players[by].name} captured ${c.name}.`, 'info');
@@ -460,6 +500,7 @@ export function destroyCity(s: GameState, c: City): void {
   tileAt(s, c.tile).road = true;
   delete s.cities[c.id];
   notify(s, c.owner, `${c.name} has been razed to the ground.`, 'info', c.tile);
+  logEvent(s, `${c.name} was razed.`, c.tile, c.owner);
   checkElimination(s, c.originalOwner);
 }
 

@@ -1,32 +1,647 @@
 [
-  { "id": "wheat", "name": "Wheat", "kind": "bonus", "yields": { "food": 1 }, "improvement": "farm", "improvedYields": { "food": 1 }, "terrains": ["plains", "grassland"], "features": ["floodplains"], "color": "#e8c84a" },
-  { "id": "cattle", "name": "Cattle", "kind": "bonus", "yields": { "food": 1 }, "improvement": "pasture", "improvedYields": { "food": 1 }, "terrains": ["grassland"], "color": "#a0623a" },
-  { "id": "sheep", "name": "Sheep", "kind": "bonus", "yields": { "food": 1 }, "improvement": "pasture", "improvedYields": { "food": 1 }, "terrains": ["grassland", "plains", "desert", "tundra"], "hills": true, "hillsOnly": true, "color": "#efefe6" },
-  { "id": "deer", "name": "Deer", "kind": "bonus", "yields": { "food": 1 }, "improvement": "camp", "improvedYields": { "food": 1 }, "terrains": ["tundra", "grassland", "plains"], "features": ["forest"], "hills": true, "color": "#9b6b3d" },
-  { "id": "bananas", "name": "Bananas", "kind": "bonus", "yields": { "food": 1 }, "improvement": "plantation", "improvedYields": { "food": 1 }, "terrains": ["grassland", "plains"], "features": ["jungle"], "color": "#f4e04d" },
-  { "id": "fish", "name": "Fish", "kind": "bonus", "yields": { "food": 2 }, "improvement": "none", "improvedYields": {}, "terrains": ["coast", "lake"], "color": "#b9d8e8" },
-  { "id": "stone", "name": "Stone", "kind": "bonus", "yields": { "production": 1 }, "improvement": "quarry", "improvedYields": { "production": 1 }, "terrains": ["grassland", "plains", "desert", "tundra"], "hills": true, "color": "#b0aca4" },
-
-  { "id": "horses", "name": "Horses", "kind": "strategic", "yields": { "production": 1 }, "revealTech": "animal_husbandry", "improvement": "pasture", "improvedYields": { "production": 1 }, "terrains": ["grassland", "plains", "tundra"], "quantity": 2, "color": "#7a4a2a" },
-  { "id": "iron", "name": "Iron", "kind": "strategic", "yields": { "production": 1 }, "revealTech": "bronze_working", "improvement": "mine", "improvedYields": { "production": 1 }, "terrains": ["grassland", "plains", "desert", "tundra", "snow"], "features": ["forest", "jungle", "marsh"], "hills": true, "quantity": 2, "color": "#5a5f6a" },
-
-  { "id": "silk", "name": "Silk", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "plantation", "improvedYields": { "gold": 1 }, "terrains": ["grassland", "plains"], "features": ["forest"], "color": "#e4a0c8" },
-  { "id": "spices", "name": "Spices", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "plantation", "improvedYields": { "gold": 1 }, "terrains": ["grassland", "plains"], "features": ["jungle"], "color": "#d0602a" },
-  { "id": "dyes", "name": "Dyes", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "plantation", "improvedYields": { "gold": 1 }, "terrains": ["grassland", "plains"], "features": ["jungle", "forest"], "color": "#7a3ac0" },
-  { "id": "wine", "name": "Wine", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "plantation", "improvedYields": { "gold": 1 }, "terrains": ["grassland", "plains"], "color": "#8a1f3a" },
-  { "id": "incense", "name": "Incense", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "plantation", "improvedYields": { "gold": 1 }, "terrains": ["desert", "plains"], "color": "#c8b090" },
-  { "id": "cotton", "name": "Cotton", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "plantation", "improvedYields": { "gold": 1 }, "terrains": ["grassland", "plains", "desert"], "color": "#f5f2e8" },
-  { "id": "citrus", "name": "Citrus", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "plantation", "improvedYields": { "gold": 1 }, "terrains": ["grassland", "plains"], "features": ["jungle"], "color": "#f0a020" },
-  { "id": "sugar", "name": "Sugar", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "plantation", "improvedYields": { "gold": 1 }, "terrains": ["grassland", "plains"], "features": ["floodplains", "marsh"], "color": "#e0e0d0" },
-  { "id": "furs", "name": "Furs", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "camp", "improvedYields": { "gold": 1 }, "terrains": ["tundra"], "features": ["forest"], "color": "#8a6a4a" },
-  { "id": "ivory", "name": "Ivory", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "camp", "improvedYields": { "gold": 1 }, "terrains": ["plains", "grassland"], "color": "#f0e8d0" },
-  { "id": "truffles", "name": "Truffles", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "camp", "improvedYields": { "gold": 1 }, "terrains": ["grassland", "plains"], "features": ["forest", "jungle", "marsh"], "color": "#5a4030" },
-  { "id": "gold_ore", "name": "Gold ore", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "mine", "improvedYields": { "gold": 1 }, "terrains": ["grassland", "plains", "desert"], "hills": true, "color": "#f2c230" },
-  { "id": "silver", "name": "Silver", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "mine", "improvedYields": { "gold": 1 }, "terrains": ["tundra", "desert", "snow"], "hills": true, "color": "#c8ccd4" },
-  { "id": "gems", "name": "Gems", "kind": "luxury", "yields": { "gold": 3 }, "improvement": "mine", "improvedYields": { "gold": 1 }, "terrains": ["grassland", "plains", "desert", "tundra"], "features": ["jungle"], "hills": true, "color": "#30c0b0" },
-  { "id": "copper", "name": "Copper", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "mine", "improvedYields": { "gold": 1 }, "terrains": ["grassland", "plains", "desert", "tundra"], "hills": true, "color": "#c0703a" },
-  { "id": "salt", "name": "Salt", "kind": "luxury", "yields": { "food": 1, "gold": 1 }, "improvement": "mine", "improvedYields": { "gold": 1 }, "terrains": ["plains", "desert", "tundra"], "color": "#f4f4f4" },
-  { "id": "marble", "name": "Marble", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "quarry", "improvedYields": { "production": 1 }, "terrains": ["grassland", "plains", "desert", "tundra"], "hills": true, "color": "#e8e0e8" },
-  { "id": "pearls", "name": "Pearls", "kind": "luxury", "yields": { "gold": 2 }, "improvement": "none", "improvedYields": {}, "terrains": ["coast"], "color": "#f0f0ff" },
-  { "id": "whales", "name": "Whales", "kind": "luxury", "yields": { "food": 1, "gold": 1 }, "improvement": "none", "improvedYields": {}, "terrains": ["coast"], "color": "#405a7a" }
+ {
+  "id": "wheat",
+  "name": "Wheat",
+  "kind": "bonus",
+  "yields": {
+   "food": 1
+  },
+  "improvement": "farm",
+  "improvedYields": {
+   "food": 1
+  },
+  "terrains": [
+   "plains",
+   "grassland"
+  ],
+  "features": [
+   "floodplains"
+  ],
+  "color": "#e8c84a"
+ },
+ {
+  "id": "cattle",
+  "name": "Cattle",
+  "kind": "bonus",
+  "yields": {
+   "food": 1
+  },
+  "improvement": "pasture",
+  "improvedYields": {
+   "food": 1
+  },
+  "terrains": [
+   "grassland"
+  ],
+  "color": "#a0623a"
+ },
+ {
+  "id": "sheep",
+  "name": "Sheep",
+  "kind": "bonus",
+  "yields": {
+   "food": 1
+  },
+  "improvement": "pasture",
+  "improvedYields": {
+   "food": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains",
+   "desert",
+   "tundra"
+  ],
+  "hills": true,
+  "hillsOnly": true,
+  "color": "#efefe6"
+ },
+ {
+  "id": "deer",
+  "name": "Deer",
+  "kind": "bonus",
+  "yields": {
+   "food": 1
+  },
+  "improvement": "camp",
+  "improvedYields": {
+   "food": 1
+  },
+  "terrains": [
+   "tundra",
+   "grassland",
+   "plains"
+  ],
+  "features": [
+   "forest"
+  ],
+  "hills": true,
+  "color": "#9b6b3d"
+ },
+ {
+  "id": "bananas",
+  "name": "Bananas",
+  "kind": "bonus",
+  "yields": {
+   "food": 1
+  },
+  "improvement": "plantation",
+  "improvedYields": {
+   "food": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains"
+  ],
+  "features": [
+   "jungle"
+  ],
+  "color": "#f4e04d"
+ },
+ {
+  "id": "fish",
+  "name": "Fish",
+  "kind": "bonus",
+  "yields": {
+   "food": 2
+  },
+  "improvement": "none",
+  "improvedYields": {},
+  "terrains": [
+   "coast",
+   "lake"
+  ],
+  "color": "#b9d8e8"
+ },
+ {
+  "id": "stone",
+  "name": "Stone",
+  "kind": "bonus",
+  "yields": {
+   "production": 1
+  },
+  "improvement": "quarry",
+  "improvedYields": {
+   "production": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains",
+   "desert",
+   "tundra"
+  ],
+  "hills": true,
+  "color": "#b0aca4"
+ },
+ {
+  "id": "horses",
+  "name": "Horses",
+  "kind": "strategic",
+  "yields": {
+   "production": 1
+  },
+  "revealTech": "animal_husbandry",
+  "improvement": "pasture",
+  "improvedYields": {
+   "production": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains",
+   "tundra"
+  ],
+  "quantity": 2,
+  "color": "#7a4a2a"
+ },
+ {
+  "id": "iron",
+  "name": "Iron",
+  "kind": "strategic",
+  "yields": {
+   "production": 1
+  },
+  "revealTech": "bronze_working",
+  "improvement": "mine",
+  "improvedYields": {
+   "production": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains",
+   "desert",
+   "tundra",
+   "snow"
+  ],
+  "features": [
+   "forest",
+   "jungle",
+   "marsh"
+  ],
+  "hills": true,
+  "quantity": 2,
+  "color": "#5a5f6a"
+ },
+ {
+  "id": "coal",
+  "name": "Coal",
+  "kind": "strategic",
+  "yields": {
+   "production": 1
+  },
+  "revealTech": "industrialization",
+  "improvement": "mine",
+  "improvedYields": {
+   "production": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains",
+   "desert",
+   "tundra"
+  ],
+  "features": [
+   "forest",
+   "jungle",
+   "marsh"
+  ],
+  "hills": true,
+  "quantity": 3,
+  "color": "#2a2a2a"
+ },
+ {
+  "id": "oil",
+  "name": "Oil",
+  "kind": "strategic",
+  "yields": {
+   "production": 1
+  },
+  "revealTech": "biology",
+  "improvement": "oil_well",
+  "improvedYields": {
+   "production": 1
+  },
+  "terrains": [
+   "desert",
+   "tundra",
+   "snow",
+   "plains",
+   "grassland"
+  ],
+  "features": [
+   "jungle",
+   "marsh"
+  ],
+  "quantity": 3,
+  "color": "#101018"
+ },
+ {
+  "id": "aluminum",
+  "name": "Aluminum",
+  "kind": "strategic",
+  "yields": {
+   "production": 1
+  },
+  "revealTech": "electricity",
+  "improvement": "mine",
+  "improvedYields": {
+   "production": 1
+  },
+  "terrains": [
+   "desert",
+   "plains",
+   "tundra"
+  ],
+  "hills": true,
+  "quantity": 3,
+  "color": "#b8c4cc"
+ },
+ {
+  "id": "uranium",
+  "name": "Uranium",
+  "kind": "strategic",
+  "yields": {
+   "production": 1
+  },
+  "revealTech": "atomic_theory",
+  "improvement": "mine",
+  "improvedYields": {
+   "production": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains",
+   "desert",
+   "tundra",
+   "snow"
+  ],
+  "features": [
+   "forest",
+   "jungle",
+   "marsh"
+  ],
+  "hills": true,
+  "quantity": 2,
+  "color": "#7ad04a"
+ },
+ {
+  "id": "silk",
+  "name": "Silk",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "plantation",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains"
+  ],
+  "features": [
+   "forest"
+  ],
+  "color": "#e4a0c8"
+ },
+ {
+  "id": "spices",
+  "name": "Spices",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "plantation",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains"
+  ],
+  "features": [
+   "jungle"
+  ],
+  "color": "#d0602a"
+ },
+ {
+  "id": "dyes",
+  "name": "Dyes",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "plantation",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains"
+  ],
+  "features": [
+   "jungle",
+   "forest"
+  ],
+  "color": "#7a3ac0"
+ },
+ {
+  "id": "wine",
+  "name": "Wine",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "plantation",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains"
+  ],
+  "color": "#8a1f3a"
+ },
+ {
+  "id": "incense",
+  "name": "Incense",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "plantation",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "desert",
+   "plains"
+  ],
+  "color": "#c8b090"
+ },
+ {
+  "id": "cotton",
+  "name": "Cotton",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "plantation",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains",
+   "desert"
+  ],
+  "color": "#f5f2e8"
+ },
+ {
+  "id": "citrus",
+  "name": "Citrus",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "plantation",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains"
+  ],
+  "features": [
+   "jungle"
+  ],
+  "color": "#f0a020"
+ },
+ {
+  "id": "sugar",
+  "name": "Sugar",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "plantation",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains"
+  ],
+  "features": [
+   "floodplains",
+   "marsh"
+  ],
+  "color": "#e0e0d0"
+ },
+ {
+  "id": "furs",
+  "name": "Furs",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "camp",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "tundra"
+  ],
+  "features": [
+   "forest"
+  ],
+  "color": "#8a6a4a"
+ },
+ {
+  "id": "ivory",
+  "name": "Ivory",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "camp",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "plains",
+   "grassland"
+  ],
+  "color": "#f0e8d0"
+ },
+ {
+  "id": "truffles",
+  "name": "Truffles",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "camp",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains"
+  ],
+  "features": [
+   "forest",
+   "jungle",
+   "marsh"
+  ],
+  "color": "#5a4030"
+ },
+ {
+  "id": "gold_ore",
+  "name": "Gold ore",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "mine",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains",
+   "desert"
+  ],
+  "hills": true,
+  "color": "#f2c230"
+ },
+ {
+  "id": "silver",
+  "name": "Silver",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "mine",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "tundra",
+   "desert",
+   "snow"
+  ],
+  "hills": true,
+  "color": "#c8ccd4"
+ },
+ {
+  "id": "gems",
+  "name": "Gems",
+  "kind": "luxury",
+  "yields": {
+   "gold": 3
+  },
+  "improvement": "mine",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains",
+   "desert",
+   "tundra"
+  ],
+  "features": [
+   "jungle"
+  ],
+  "hills": true,
+  "color": "#30c0b0"
+ },
+ {
+  "id": "copper",
+  "name": "Copper",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "mine",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains",
+   "desert",
+   "tundra"
+  ],
+  "hills": true,
+  "color": "#c0703a"
+ },
+ {
+  "id": "salt",
+  "name": "Salt",
+  "kind": "luxury",
+  "yields": {
+   "food": 1,
+   "gold": 1
+  },
+  "improvement": "mine",
+  "improvedYields": {
+   "gold": 1
+  },
+  "terrains": [
+   "plains",
+   "desert",
+   "tundra"
+  ],
+  "color": "#f4f4f4"
+ },
+ {
+  "id": "marble",
+  "name": "Marble",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "quarry",
+  "improvedYields": {
+   "production": 1
+  },
+  "terrains": [
+   "grassland",
+   "plains",
+   "desert",
+   "tundra"
+  ],
+  "hills": true,
+  "color": "#e8e0e8"
+ },
+ {
+  "id": "pearls",
+  "name": "Pearls",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "none",
+  "improvedYields": {},
+  "terrains": [
+   "coast"
+  ],
+  "color": "#f0f0ff"
+ },
+ {
+  "id": "whales",
+  "name": "Whales",
+  "kind": "luxury",
+  "yields": {
+   "food": 1,
+   "gold": 1
+  },
+  "improvement": "none",
+  "improvedYields": {},
+  "terrains": [
+   "coast"
+  ],
+  "color": "#405a7a"
+ }
 ]

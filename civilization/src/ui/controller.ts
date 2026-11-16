@@ -145,7 +145,7 @@ function afterTurn(s: GameState): void {
 
 export function startGame(o: NewGameOptions): void {
   const s = newGame(o);
-  set({ game: s, setup: false, panel: 'none', selCity: null, selUnit: null });
+  set({ game: s, setup: false, panel: 'none', selCity: null, selUnit: null, endClosed: false, endTab: 'summary', replayTurn: 0 });
   bump();
   nextUnit();
   saveGame('Autosave', s).catch(() => {});
@@ -167,7 +167,7 @@ export async function load(name: string): Promise<boolean> {
       toast(`No save called “${name}”.`);
       return false;
     }
-    set({ game: s, setup: false, panel: 'none', selCity: null, selUnit: null, busy: false });
+    set({ game: s, setup: false, panel: 'none', selCity: null, selUnit: null, busy: false, endClosed: false, endTab: 'summary', replayTurn: 0 });
     bump();
     toast(`Loaded “${name}” (turn ${s.turn}).`);
     return true;

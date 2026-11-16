@@ -22,7 +22,8 @@ import { growthNeeded } from './core/systems/yields';
 import { foundCity } from './core/systems/cities';
 import { createUnit } from './core/systems/units';
 import { recomputeAllVisibility } from './core/systems/visibility';
-import { setWar } from './core/game';
+import { setWar, checkVictory } from './core/game';
+import { addScience } from './core/systems/research';
 import './style.css';
 
 async function main(): Promise<void> {
@@ -163,7 +164,7 @@ async function main(): Promise<void> {
     },
     set,
     /** Core functions for formula and rule checks. */
-    core: { neighbor, distance, findPath, damage, growthNeeded, foundCity, createUnit, recomputeAllVisibility, setWar, newGame, runEndTurn },
+    core: { checkVictory, addScience, neighbor, distance, findPath, damage, growthNeeded, foundCity, createUnit, recomputeAllVisibility, setWar, newGame, runEndTurn },
   };
   (window as unknown as { hexborne: typeof api }).hexborne = api;
 }

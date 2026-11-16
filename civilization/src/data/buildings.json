@@ -1,30 +1,565 @@
 [
-  { "id": "palace", "name": "Palace", "cost": 0, "maintenance": 0, "yields": { "production": 3, "science": 3, "gold": 3, "culture": 1 }, "defense": 2.5, "auto": true, "focus": "production" },
-  { "id": "monument", "name": "Monument", "cost": 40, "maintenance": 1, "yields": { "culture": 2 }, "focus": "culture" },
-  { "id": "granary", "name": "Granary", "cost": 60, "maintenance": 1, "tech": "pottery", "yields": { "food": 2 }, "focus": "growth" },
-  { "id": "barracks", "name": "Barracks", "cost": 75, "maintenance": 1, "tech": "bronze_working", "xp": 15, "focus": "military" },
-  { "id": "walls", "name": "Walls", "cost": 75, "maintenance": 1, "tech": "masonry", "defense": 5, "hp": 50, "focus": "defense" },
-  { "id": "library", "name": "Library", "cost": 75, "maintenance": 1, "tech": "writing", "perPop": { "science": 0.5 }, "focus": "science" },
-  { "id": "water_mill", "name": "Water Mill", "cost": 75, "maintenance": 2, "tech": "the_wheel", "yields": { "food": 2, "production": 1 }, "requires": { "river": true }, "focus": "growth" },
-  { "id": "shrine", "name": "Shrine", "cost": 40, "maintenance": 1, "tech": "pottery", "happiness": 1, "focus": "happiness" },
-  { "id": "colosseum", "name": "Colosseum", "cost": 100, "maintenance": 1, "tech": "construction", "happiness": 3, "focus": "happiness" },
-  { "id": "temple", "name": "Temple", "cost": 100, "maintenance": 2, "tech": "philosophy", "happiness": 2, "yields": { "culture": 1 }, "requires": { "building": "shrine" }, "focus": "happiness" },
-  { "id": "market", "name": "Market", "cost": 100, "maintenance": 0, "tech": "currency", "yields": { "gold": 2 }, "percent": { "gold": 25 }, "focus": "gold" },
-  { "id": "amphitheater", "name": "Amphitheater", "cost": 100, "maintenance": 1, "tech": "drama", "yields": { "culture": 3 }, "requires": { "building": "monument" }, "focus": "culture" },
-  { "id": "courthouse", "name": "Courthouse", "cost": 100, "maintenance": 1, "tech": "mathematics", "endsOccupation": true, "focus": "happiness" },
-  { "id": "aqueduct", "name": "Aqueduct", "cost": 100, "maintenance": 1, "tech": "engineering", "growthKeep": 40, "focus": "growth" },
-  { "id": "workshop", "name": "Workshop", "cost": 100, "maintenance": 2, "tech": "metal_casting", "yields": { "production": 2 }, "percent": { "production": 10 }, "focus": "production" },
-  { "id": "university", "name": "University", "cost": 160, "maintenance": 3, "tech": "education", "yields": { "science": 2 }, "percent": { "science": 33 }, "requires": { "building": "library" }, "focus": "science" },
-  { "id": "castle", "name": "Castle", "cost": 160, "maintenance": 0, "tech": "chivalry", "defense": 7, "hp": 25, "requires": { "building": "walls" }, "focus": "defense" },
-  { "id": "armory", "name": "Armory", "cost": 160, "maintenance": 1, "tech": "steel", "xp": 15, "requires": { "building": "barracks" }, "focus": "military" },
-  { "id": "bank", "name": "Bank", "cost": 200, "maintenance": 0, "tech": "banking", "yields": { "gold": 2 }, "percent": { "gold": 25 }, "requires": { "building": "market" }, "focus": "gold" },
-  { "id": "observatory", "name": "Observatory", "cost": 200, "maintenance": 0, "tech": "astronomy", "percent": { "science": 50 }, "requires": { "mountain": true }, "focus": "science" },
-  { "id": "opera_house", "name": "Opera House", "cost": 200, "maintenance": 2, "tech": "acoustics", "yields": { "culture": 4 }, "requires": { "building": "amphitheater" }, "focus": "culture" },
-
-  { "id": "seedvault", "name": "Seedvault", "cost": 50, "maintenance": 1, "tech": "pottery", "yields": { "food": 3 }, "faction": "verdant", "replaces": "granary", "focus": "growth" },
-  { "id": "warhall", "name": "Warhall", "cost": 75, "maintenance": 1, "tech": "bronze_working", "xp": 20, "yields": { "culture": 1 }, "faction": "iron", "replaces": "barracks", "focus": "military" },
-  { "id": "sunbazaar", "name": "Sunbazaar", "cost": 100, "maintenance": 0, "tech": "currency", "yields": { "gold": 4 }, "percent": { "gold": 25 }, "faction": "sunwake", "replaces": "market", "focus": "gold" },
-  { "id": "athenaeum", "name": "Athenaeum", "cost": 75, "maintenance": 1, "tech": "writing", "yields": { "science": 1, "culture": 1 }, "perPop": { "science": 0.5 }, "faction": "starlit", "replaces": "library", "focus": "science" },
-  { "id": "saga_stone", "name": "Saga Stone", "cost": 40, "maintenance": 1, "yields": { "culture": 3 }, "happiness": 1, "faction": "frostfang", "replaces": "monument", "focus": "culture" },
-  { "id": "cliff_bastion", "name": "Cliff Bastion", "cost": 75, "maintenance": 1, "tech": "masonry", "defense": 8, "hp": 75, "faction": "mesa", "replaces": "walls", "focus": "defense" }
+ {
+  "id": "palace",
+  "name": "Palace",
+  "cost": 0,
+  "maintenance": 0,
+  "yields": {
+   "production": 3,
+   "science": 3,
+   "gold": 3,
+   "culture": 1
+  },
+  "defense": 2.5,
+  "auto": true,
+  "focus": "production"
+ },
+ {
+  "id": "monument",
+  "name": "Monument",
+  "cost": 40,
+  "maintenance": 1,
+  "yields": {
+   "culture": 2
+  },
+  "focus": "culture"
+ },
+ {
+  "id": "granary",
+  "name": "Granary",
+  "cost": 60,
+  "maintenance": 1,
+  "tech": "pottery",
+  "yields": {
+   "food": 2
+  },
+  "focus": "growth"
+ },
+ {
+  "id": "barracks",
+  "name": "Barracks",
+  "cost": 75,
+  "maintenance": 1,
+  "tech": "bronze_working",
+  "xp": 15,
+  "focus": "military"
+ },
+ {
+  "id": "walls",
+  "name": "Walls",
+  "cost": 75,
+  "maintenance": 1,
+  "tech": "masonry",
+  "defense": 5,
+  "hp": 50,
+  "focus": "defense"
+ },
+ {
+  "id": "library",
+  "name": "Library",
+  "cost": 75,
+  "maintenance": 1,
+  "tech": "writing",
+  "perPop": {
+   "science": 0.5
+  },
+  "focus": "science"
+ },
+ {
+  "id": "water_mill",
+  "name": "Water Mill",
+  "cost": 75,
+  "maintenance": 2,
+  "tech": "the_wheel",
+  "yields": {
+   "food": 2,
+   "production": 1
+  },
+  "requires": {
+   "river": true
+  },
+  "focus": "growth"
+ },
+ {
+  "id": "shrine",
+  "name": "Shrine",
+  "cost": 40,
+  "maintenance": 1,
+  "tech": "pottery",
+  "happiness": 1,
+  "focus": "happiness"
+ },
+ {
+  "id": "colosseum",
+  "name": "Colosseum",
+  "cost": 100,
+  "maintenance": 1,
+  "tech": "construction",
+  "happiness": 3,
+  "focus": "happiness"
+ },
+ {
+  "id": "temple",
+  "name": "Temple",
+  "cost": 100,
+  "maintenance": 2,
+  "tech": "philosophy",
+  "happiness": 2,
+  "yields": {
+   "culture": 1
+  },
+  "requires": {
+   "building": "shrine"
+  },
+  "focus": "happiness"
+ },
+ {
+  "id": "market",
+  "name": "Market",
+  "cost": 100,
+  "maintenance": 0,
+  "tech": "currency",
+  "yields": {
+   "gold": 2
+  },
+  "percent": {
+   "gold": 25
+  },
+  "focus": "gold"
+ },
+ {
+  "id": "amphitheater",
+  "name": "Amphitheater",
+  "cost": 100,
+  "maintenance": 1,
+  "tech": "drama",
+  "yields": {
+   "culture": 3
+  },
+  "requires": {
+   "building": "monument"
+  },
+  "focus": "culture"
+ },
+ {
+  "id": "courthouse",
+  "name": "Courthouse",
+  "cost": 100,
+  "maintenance": 1,
+  "tech": "mathematics",
+  "endsOccupation": true,
+  "focus": "happiness"
+ },
+ {
+  "id": "aqueduct",
+  "name": "Aqueduct",
+  "cost": 100,
+  "maintenance": 1,
+  "tech": "engineering",
+  "growthKeep": 40,
+  "focus": "growth"
+ },
+ {
+  "id": "workshop",
+  "name": "Workshop",
+  "cost": 100,
+  "maintenance": 2,
+  "tech": "metal_casting",
+  "yields": {
+   "production": 2
+  },
+  "percent": {
+   "production": 10
+  },
+  "focus": "production"
+ },
+ {
+  "id": "university",
+  "name": "University",
+  "cost": 160,
+  "maintenance": 3,
+  "tech": "education",
+  "yields": {
+   "science": 2
+  },
+  "percent": {
+   "science": 33
+  },
+  "requires": {
+   "building": "library"
+  },
+  "focus": "science"
+ },
+ {
+  "id": "castle",
+  "name": "Castle",
+  "cost": 160,
+  "maintenance": 0,
+  "tech": "chivalry",
+  "defense": 7,
+  "hp": 25,
+  "requires": {
+   "building": "walls"
+  },
+  "focus": "defense"
+ },
+ {
+  "id": "armory",
+  "name": "Armory",
+  "cost": 160,
+  "maintenance": 1,
+  "tech": "steel",
+  "xp": 15,
+  "requires": {
+   "building": "barracks"
+  },
+  "focus": "military"
+ },
+ {
+  "id": "bank",
+  "name": "Bank",
+  "cost": 200,
+  "maintenance": 0,
+  "tech": "banking",
+  "yields": {
+   "gold": 2
+  },
+  "percent": {
+   "gold": 25
+  },
+  "requires": {
+   "building": "market"
+  },
+  "focus": "gold"
+ },
+ {
+  "id": "observatory",
+  "name": "Observatory",
+  "cost": 200,
+  "maintenance": 0,
+  "tech": "astronomy",
+  "percent": {
+   "science": 50
+  },
+  "requires": {
+   "mountain": true
+  },
+  "focus": "science"
+ },
+ {
+  "id": "opera_house",
+  "name": "Opera House",
+  "cost": 200,
+  "maintenance": 2,
+  "tech": "acoustics",
+  "yields": {
+   "culture": 4
+  },
+  "requires": {
+   "building": "amphitheater"
+  },
+  "focus": "culture"
+ },
+ {
+  "id": "seedvault",
+  "name": "Seedvault",
+  "cost": 50,
+  "maintenance": 1,
+  "tech": "pottery",
+  "yields": {
+   "food": 3
+  },
+  "faction": "verdant",
+  "replaces": "granary",
+  "focus": "growth"
+ },
+ {
+  "id": "warhall",
+  "name": "Warhall",
+  "cost": 75,
+  "maintenance": 1,
+  "tech": "bronze_working",
+  "xp": 20,
+  "yields": {
+   "culture": 1
+  },
+  "faction": "iron",
+  "replaces": "barracks",
+  "focus": "military"
+ },
+ {
+  "id": "sunbazaar",
+  "name": "Sunbazaar",
+  "cost": 100,
+  "maintenance": 0,
+  "tech": "currency",
+  "yields": {
+   "gold": 4
+  },
+  "percent": {
+   "gold": 25
+  },
+  "faction": "sunwake",
+  "replaces": "market",
+  "focus": "gold"
+ },
+ {
+  "id": "athenaeum",
+  "name": "Athenaeum",
+  "cost": 75,
+  "maintenance": 1,
+  "tech": "writing",
+  "yields": {
+   "science": 1,
+   "culture": 1
+  },
+  "perPop": {
+   "science": 0.5
+  },
+  "faction": "starlit",
+  "replaces": "library",
+  "focus": "science"
+ },
+ {
+  "id": "saga_stone",
+  "name": "Saga Stone",
+  "cost": 40,
+  "maintenance": 1,
+  "yields": {
+   "culture": 3
+  },
+  "happiness": 1,
+  "faction": "frostfang",
+  "replaces": "monument",
+  "focus": "culture"
+ },
+ {
+  "id": "cliff_bastion",
+  "name": "Cliff Bastion",
+  "cost": 75,
+  "maintenance": 1,
+  "tech": "masonry",
+  "defense": 8,
+  "hp": 75,
+  "faction": "mesa",
+  "replaces": "walls",
+  "focus": "defense"
+ },
+ {
+  "id": "public_school",
+  "name": "Public School",
+  "cost": 320,
+  "maintenance": 3,
+  "tech": "scientific_theory",
+  "focus": "science",
+  "yields": {
+   "science": 3
+  },
+  "perPop": {
+   "science": 0.5
+  },
+  "requires": {
+   "building": "university"
+  }
+ },
+ {
+  "id": "factory",
+  "name": "Factory",
+  "cost": 360,
+  "maintenance": 3,
+  "tech": "industrialization",
+  "focus": "production",
+  "yields": {
+   "production": 4
+  },
+  "percent": {
+   "production": 25
+  },
+  "requires": {
+   "building": "workshop",
+   "resource": "coal"
+  }
+ },
+ {
+  "id": "hospital",
+  "name": "Hospital",
+  "cost": 360,
+  "maintenance": 2,
+  "tech": "biology",
+  "focus": "growth",
+  "yields": {
+   "food": 5
+  },
+  "growthKeep": 25,
+  "requires": {
+   "building": "aqueduct"
+  }
+ },
+ {
+  "id": "zoo",
+  "name": "Zoo",
+  "cost": 300,
+  "maintenance": 2,
+  "tech": "biology",
+  "focus": "happiness",
+  "happiness": 2,
+  "requires": {
+   "building": "colosseum"
+  }
+ },
+ {
+  "id": "military_academy",
+  "name": "Military Academy",
+  "cost": 300,
+  "maintenance": 1,
+  "tech": "military_science",
+  "focus": "military",
+  "xp": 15,
+  "requires": {
+   "building": "barracks"
+  }
+ },
+ {
+  "id": "museum",
+  "name": "Museum",
+  "cost": 350,
+  "maintenance": 3,
+  "tech": "archaeology",
+  "focus": "culture",
+  "yields": {
+   "culture": 5
+  },
+  "requires": {
+   "building": "opera_house"
+  }
+ },
+ {
+  "id": "stock_exchange",
+  "name": "Stock Exchange",
+  "cost": 450,
+  "maintenance": 0,
+  "tech": "electricity",
+  "focus": "gold",
+  "yields": {
+   "gold": 3
+  },
+  "percent": {
+   "gold": 25
+  },
+  "requires": {
+   "building": "bank"
+  }
+ },
+ {
+  "id": "power_plant",
+  "name": "Power Plant",
+  "cost": 450,
+  "maintenance": 3,
+  "tech": "electricity",
+  "focus": "production",
+  "percent": {
+   "production": 20
+  },
+  "requires": {
+   "building": "factory"
+  }
+ },
+ {
+  "id": "stadium",
+  "name": "Stadium",
+  "cost": 450,
+  "maintenance": 2,
+  "tech": "refrigeration",
+  "focus": "happiness",
+  "happiness": 4,
+  "requires": {
+   "building": "zoo"
+  }
+ },
+ {
+  "id": "broadcast_tower",
+  "name": "Broadcast Tower",
+  "cost": 450,
+  "maintenance": 3,
+  "tech": "radio",
+  "focus": "culture",
+  "yields": {
+   "culture": 3
+  },
+  "percent": {
+   "culture": 33
+  },
+  "requires": {
+   "building": "museum"
+  }
+ },
+ {
+  "id": "research_lab",
+  "name": "Research Lab",
+  "cost": 500,
+  "maintenance": 3,
+  "tech": "plastics",
+  "focus": "science",
+  "yields": {
+   "science": 4
+  },
+  "percent": {
+   "science": 50
+  },
+  "requires": {
+   "building": "public_school"
+  }
+ },
+ {
+  "id": "arsenal",
+  "name": "Arsenal",
+  "cost": 400,
+  "maintenance": 0,
+  "tech": "railroad",
+  "focus": "defense",
+  "defense": 9,
+  "hp": 25,
+  "requires": {
+   "building": "castle"
+  }
+ },
+ {
+  "id": "medical_lab",
+  "name": "Medical Lab",
+  "cost": 500,
+  "maintenance": 3,
+  "tech": "penicillin",
+  "focus": "growth",
+  "growthKeep": 25,
+  "requires": {
+   "building": "hospital"
+  }
+ },
+ {
+  "id": "solar_plant",
+  "name": "Solar Plant",
+  "cost": 500,
+  "maintenance": 3,
+  "tech": "ecology",
+  "focus": "production",
+  "percent": {
+   "production": 15
+  },
+  "requires": {
+   "building": "factory"
+  }
+ },
+ {
+  "id": "military_base",
+  "name": "Military Base",
+  "cost": 450,
+  "maintenance": 0,
+  "tech": "telecommunications",
+  "focus": "defense",
+  "defense": 12,
+  "hp": 25,
+  "requires": {
+   "building": "arsenal"
+  }
+ }
 ]

@@ -1,10 +1,116 @@
 [
-  { "id": "settler", "name": "Settler", "humanHappiness": 15, "aiHappiness": 9, "humanUnhappinessPct": 60, "humanCostPct": 70, "aiCostPct": 120, "aiExtraUnits": [], "humanVsBarbarianPct": 100, "aiVsBarbarianPct": 0 },
-  { "id": "chieftain", "name": "Chieftain", "humanHappiness": 12, "aiHappiness": 9, "humanUnhappinessPct": 75, "humanCostPct": 80, "aiCostPct": 110, "aiExtraUnits": [], "humanVsBarbarianPct": 75, "aiVsBarbarianPct": 0 },
-  { "id": "warlord", "name": "Warlord", "humanHappiness": 11, "aiHappiness": 9, "humanUnhappinessPct": 85, "humanCostPct": 90, "aiCostPct": 105, "aiExtraUnits": [], "humanVsBarbarianPct": 50, "aiVsBarbarianPct": 0 },
-  { "id": "prince", "name": "Prince", "humanHappiness": 9, "aiHappiness": 9, "humanUnhappinessPct": 100, "humanCostPct": 100, "aiCostPct": 100, "aiExtraUnits": [], "humanVsBarbarianPct": 25, "aiVsBarbarianPct": 25 },
-  { "id": "king", "name": "King", "humanHappiness": 9, "aiHappiness": 11, "humanUnhappinessPct": 100, "humanCostPct": 100, "aiCostPct": 92, "aiExtraUnits": [], "humanVsBarbarianPct": 0, "aiVsBarbarianPct": 40 },
-  { "id": "emperor", "name": "Emperor", "humanHappiness": 9, "aiHappiness": 13, "humanUnhappinessPct": 100, "humanCostPct": 100, "aiCostPct": 85, "aiExtraUnits": ["warrior"], "humanVsBarbarianPct": 0, "aiVsBarbarianPct": 60 },
-  { "id": "immortal", "name": "Immortal", "humanHappiness": 9, "aiHappiness": 15, "humanUnhappinessPct": 100, "humanCostPct": 100, "aiCostPct": 77, "aiExtraUnits": ["warrior", "worker"], "humanVsBarbarianPct": 0, "aiVsBarbarianPct": 80 },
-  { "id": "deity", "name": "Deity", "humanHappiness": 9, "aiHappiness": 18, "humanUnhappinessPct": 100, "humanCostPct": 100, "aiCostPct": 66, "aiExtraUnits": ["settler", "warrior", "worker", "scout"], "humanVsBarbarianPct": 0, "aiVsBarbarianPct": 100 }
+ {
+  "id": "settler",
+  "name": "Settler",
+  "humanHappiness": 15,
+  "aiHappiness": 9,
+  "humanUnhappinessPct": 60,
+  "humanCostPct": 70,
+  "aiCostPct": 120,
+  "aiExtraUnits": [],
+  "humanVsBarbarianPct": 100,
+  "aiVsBarbarianPct": 0,
+  "scoreMult": 0.4
+ },
+ {
+  "id": "chieftain",
+  "name": "Chieftain",
+  "humanHappiness": 12,
+  "aiHappiness": 9,
+  "humanUnhappinessPct": 75,
+  "humanCostPct": 80,
+  "aiCostPct": 110,
+  "aiExtraUnits": [],
+  "humanVsBarbarianPct": 75,
+  "aiVsBarbarianPct": 0,
+  "scoreMult": 0.6
+ },
+ {
+  "id": "warlord",
+  "name": "Warlord",
+  "humanHappiness": 11,
+  "aiHappiness": 9,
+  "humanUnhappinessPct": 85,
+  "humanCostPct": 90,
+  "aiCostPct": 105,
+  "aiExtraUnits": [],
+  "humanVsBarbarianPct": 50,
+  "aiVsBarbarianPct": 0,
+  "scoreMult": 0.8
+ },
+ {
+  "id": "prince",
+  "name": "Prince",
+  "humanHappiness": 9,
+  "aiHappiness": 9,
+  "humanUnhappinessPct": 100,
+  "humanCostPct": 100,
+  "aiCostPct": 100,
+  "aiExtraUnits": [],
+  "humanVsBarbarianPct": 25,
+  "aiVsBarbarianPct": 25,
+  "scoreMult": 1.0
+ },
+ {
+  "id": "king",
+  "name": "King",
+  "humanHappiness": 9,
+  "aiHappiness": 11,
+  "humanUnhappinessPct": 100,
+  "humanCostPct": 100,
+  "aiCostPct": 92,
+  "aiExtraUnits": [],
+  "humanVsBarbarianPct": 0,
+  "aiVsBarbarianPct": 40,
+  "scoreMult": 1.2
+ },
+ {
+  "id": "emperor",
+  "name": "Emperor",
+  "humanHappiness": 9,
+  "aiHappiness": 13,
+  "humanUnhappinessPct": 100,
+  "humanCostPct": 100,
+  "aiCostPct": 85,
+  "aiExtraUnits": [
+   "warrior"
+  ],
+  "humanVsBarbarianPct": 0,
+  "aiVsBarbarianPct": 60,
+  "scoreMult": 1.4
+ },
+ {
+  "id": "immortal",
+  "name": "Immortal",
+  "humanHappiness": 9,
+  "aiHappiness": 15,
+  "humanUnhappinessPct": 100,
+  "humanCostPct": 100,
+  "aiCostPct": 77,
+  "aiExtraUnits": [
+   "warrior",
+   "worker"
+  ],
+  "humanVsBarbarianPct": 0,
+  "aiVsBarbarianPct": 80,
+  "scoreMult": 1.6
+ },
+ {
+  "id": "deity",
+  "name": "Deity",
+  "humanHappiness": 9,
+  "aiHappiness": 18,
+  "humanUnhappinessPct": 100,
+  "humanCostPct": 100,
+  "aiCostPct": 66,
+  "aiExtraUnits": [
+   "settler",
+   "warrior",
+   "worker",
+   "scout"
+  ],
+  "humanVsBarbarianPct": 0,
+  "aiVsBarbarianPct": 100,
+  "scoreMult": 1.8
+ }
 ]

@@ -13,7 +13,7 @@ import {
   playerUnits,
   unitDef,
 } from './query';
-import type { Action, ActionResult, GameState, Player, Settings } from './state';
+import type { Action, ActionResult, GameState, Player, Settings, VictoryKind } from './state';
 import { annexPuppet, assignCitizens, buyItem, canFoundAt, cannotBuild, checkElimination, claimTile, decideCapture, foundCity, processCity, tileBuyCost, claimableTiles } from './systems/cities';
 import { canAttack, canCityAttack, resolveAttack, resolveCityAttack } from './systems/combat';
 import { goldReport, score } from './systems/economy';
@@ -25,6 +25,9 @@ import { buildOptions, createUnit, disbandForDebt, freeTileNear, fullMoves, heal
 import { recomputeAllVisibility, recomputeVisibility } from './systems/visibility';
 import { barbarianSpawns, spawnRebels } from './systems/barbarians';
 import { playerYields } from './systems/yields';
+import { recordTurn } from './systems/stats';
+import { militaryStrength } from './power';
+import { logEvent } from './query';
 
 export interface NewGameOptions extends Partial<Settings> {
   /** Faction for the human player ('random' or an id). */
@@ -43,6 +46,8 @@ export function newGame(o: NewGameOptions = {}): GameState {
     barbarians: o.barbarians ?? true,
     ruins: o.ruins ?? true,
     spectator: o.spectator ?? false,
+    victories: { domination: true, science: true, culture: true, diplomatic: true, time: true, ...(o.victories ?? {}) },
+    maxTurns: o.maxTurns ?? get(D.pace, o.pace ?? 'standard').maxTurns,
   };
   const size = get(D.mapSizes, settings.mapSize);
   const civs = Math.max(2, Math.min(o.civs ?? size.civs, D.factions.size));
@@ -90,6 +95,9 @@ export function newGame(o: NewGameOptions = {}): GameState {
       notifications: [],
       hadCity: false,
       stats: [],
+      projects: [],
+      spaceship: {},
+      futureTechs: 0,
     };
   });
   players.push({
@@ -128,6 +136,8 @@ export function newGame(o: NewGameOptions = {}): GameState {
     camps: {},
     winner: null,
     human: settings.spectator ? -1 : 0,
+    replay: [],
+    events: [],
   };
   for (const c of map.camps) s.camps[c] = -99;
 
@@ -143,7 +153,7 @@ export function newGame(o: NewGameOptions = {}): GameState {
     }
   });
   recomputeAllVisibility(s);
-  for (const pl of players) if (!pl.isBarbarian) pl.stats.push({ turn: 0, score: 0 });
+  recordTurn(s);
   return s;
 }
 
@@ -359,6 +369,7 @@ export function setWar(s: GameState, a: number, b: number, war: boolean): void {
   const A = s.players[a], B = s.players[b];
   const f = D.factions.get(B.faction);
   const fa = D.factions.get(A.faction);
+  logEvent(s, war ? `The ${A.name} declared war on the ${B.name}.` : `The ${A.name} and the ${B.name} made peace.`, undefined, a);
   if (war) {
     notify(s, b, `The ${A.name} declared war on you! — "${fa?.lines.war ?? ''}"`, 'bad');
     notify(s, a, `You are at war with the ${B.name}. — "${f?.lines.war ?? ''}"`, 'bad');
@@ -384,15 +395,7 @@ function bounceUnit(s: GameState, uid: number): void {
   removeUnit(s, u);
 }
 
-/** Military strength: sum of unit strengths, weighted by health. */
-export function militaryStrength(s: GameState, p: number): number {
-  let v = 0;
-  for (const u of playerUnits(s, p)) {
-    const d = unitDef(u);
-    v += Math.max(d.strength, d.ranged) * (u.hp / 100);
-  }
-  return v;
-}
+export { militaryStrength };
 
 /** AI peace rule: after the treaty minimum, accept if losing or the war has dragged on. */
 export function aiAcceptsPeace(s: GameState, ai: number, other: number): boolean {
@@ -478,33 +481,54 @@ export function endTurn(s: GameState, hooks: TurnHooks = {}): void {
     checkElimination(s, pl.id);
   }
   recomputeAllVisibility(s);
-  for (const pl of majorPlayers(s)) if (pl.alive) pl.stats.push({ turn: s.turn, score: score(s, pl.id) });
+  recordTurn(s);
   checkVictory(s);
 }
 
+/** End the game: `p` wins. */
+export function declareWinner(s: GameState, p: number, kind: VictoryKind, how: string): void {
+  if (s.winner) return;
+  s.winner = { player: p, kind };
+  const pl = s.players[p];
+  logEvent(s, `The ${pl.name} won a ${kind} victory: ${how}`, undefined, p);
+  for (const q of majorPlayers(s)) notify(s, q.id, `The ${pl.name} ${how} — ${kind} victory!`, q.id === p ? 'good' : 'bad');
+}
+
+/** Has player p delivered every spaceship part? */
+export function spaceshipComplete(s: GameState, p: number): boolean {
+  const need = D.rules.spaceship;
+  const have = s.players[p].spaceship;
+  return Object.keys(need).every((k) => (have[k] ?? 0) >= need[k]);
+}
+
+/** Victory checks; later phases add their own to this list. */
+export const VICTORY_CHECKS: ((s: GameState) => void)[] = [];
+
 export function checkVictory(s: GameState): void {
   if (s.winner) return;
+  const v = s.settings.victories;
   const majors = majorPlayers(s);
-  const capitals = allCities(s).filter((c) => c.wasCapital);
-  for (const pl of majors) {
-    if (!pl.alive) continue;
-    // Domination: you hold every original capital (your own included).
-    const founders = majors.filter((q) => capitals.some((c) => c.originalOwner === q.id));
-    if (founders.length < 2) break;
-    if (founders.every((q) => capitals.some((c) => c.originalOwner === q.id && c.owner === pl.id))) {
-      s.winner = { player: pl.id, kind: 'domination' };
-      for (const q of majors) notify(s, q.id, `The ${pl.name} hold every capital: domination victory!`, q.id === pl.id ? 'good' : 'bad');
-      return;
-    }
-  }
   const alive = majors.filter((p) => p.alive);
-  if (alive.length === 1 && majors.length > 1) {
-    s.winner = { player: alive[0].id, kind: 'domination' };
-    return;
+  if (v.domination) {
+    const capitals = allCities(s).filter((c) => c.wasCapital);
+    const founders = majors.filter((q) => capitals.some((c) => c.originalOwner === q.id));
+    for (const pl of alive) {
+      // Domination: you hold every original capital (your own included).
+      if (founders.length >= 2 && founders.every((q) => capitals.some((c) => c.originalOwner === q.id && c.owner === pl.id))) {
+        return declareWinner(s, pl.id, 'domination', 'hold every original capital');
+      }
+    }
+    if (alive.length === 1 && majors.length > 1) return declareWinner(s, alive[0].id, 'domination', 'are the last civilization standing');
   }
-  if (s.turn >= get(D.pace, s.settings.pace).maxTurns) {
-    const best = alive.sort((a, b) => score(s, b.id) - score(s, a.id))[0];
-    if (best) s.winner = { player: best.id, kind: 'time' };
+  if (v.science) for (const pl of alive) if (spaceshipComplete(s, pl.id)) return declareWinner(s, pl.id, 'science', 'launched a ship to the stars');
+  for (const check of VICTORY_CHECKS) {
+    check(s);
+    if (s.winner) return;
+  }
+  if (s.turn >= s.settings.maxTurns) {
+    const best = [...alive].sort((a, b) => score(s, b.id) - score(s, a.id))[0];
+    if (best && v.time) declareWinner(s, best.id, 'time', `had the best score when time ran out`);
+    else if (best) s.winner = { player: best.id, kind: 'time' };
   }
 }
 

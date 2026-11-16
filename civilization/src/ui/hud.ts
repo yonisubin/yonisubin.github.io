@@ -17,6 +17,7 @@ import {
   claimableTiles,
   itemCost,
   itemDef,
+  isProcess,
   borderCost,
   tileBuyCost,
 } from '../core/systems/cities';
@@ -29,6 +30,7 @@ import { availableTechs, describeUnlocks, techCost } from '../core/systems/resea
 import { availablePromotions, buildOptions, upgradeCost, upgradeTarget } from '../core/systems/units';
 import { cityYields, playerYields, resourceVisible, tileYields } from '../core/systems/yields';
 import { deleteSave, listSaves, type SaveSummary } from '../save/db';
+import { drawEndgame, endgameHtml, hallOfFameHtml, recordHallOfFame } from './endgame';
 import { act, endTurn, endTurnLabel, load, nextUnit, quickSave, selectCity, selectUnit, startGame, toast } from './controller';
 import { set, ui } from './store';
 
@@ -106,6 +108,7 @@ function renderTop(s: GameState): void {
     <span class="spacer"></span>
     <span class="chip">Turn ${s.turn} · ${yearOf(s)}</span>
     <button class="chip" data-a="lens" title="Yield icons on tiles (Y)">${ui().lens ? '◉' : '○'} Yields</button>
+    <button class="chip" data-a="panel" data-p="victory">Victory</button>
     <button class="chip" data-a="panel" data-p="relations">Relations</button>
     <button class="chip" data-a="panel" data-p="menu">Menu</button>`,
   );
@@ -206,7 +209,9 @@ function renderCity(s: GameState): void {
   if (own) {
     const prod = t.production;
     const head = c.queue[0];
-    if (head) {
+    if (head && isProcess(head)) {
+      body += `<h4>Producing</h4><div class="prod"><b>${esc(itemDef(head).name)}</b> — ${D.rules.processPct}% of production becomes ${get(D.projects, head.id).process}</div>`;
+    } else if (head) {
       const cost = itemCost(s, c.owner, head);
       body += `<h4>Producing</h4><div class="prod"><b>${esc(itemDef(head).name)}</b> — ${fmt(c.production)}/${cost}, ${itemTurns(s, c, head, prod, c.production)} turns
         <div class="bar"><i style="width:${Math.min(100, (100 * c.production) / cost)}%"></i></div></div>`;
@@ -223,7 +228,7 @@ function renderCity(s: GameState): void {
         const progress = head && head.kind === q.kind && head.id === q.id ? c.production : 0;
         const turns = itemTurns(s, c, q, prod, progress);
         const gold = buyCost(s, c, q);
-        const desc = q.kind === 'unit' ? unitSummary(q.id) : buildingSummary(q.id);
+        const desc = q.kind === 'unit' ? unitSummary(q.id) : q.kind === 'project' ? get(D.projects, q.id).description : buildingSummary(q.id);
         return `<div class="item" title="${esc(desc)}"><button class="name" data-a="produce" data-k="${q.kind}" data-id="${q.id}">${esc(d.name)} <small>${turns}t</small></button>
           <button data-a="queue" data-k="${q.kind}" data-id="${q.id}" title="Add to queue">+</button>
           <button data-a="buy" data-k="${q.kind}" data-id="${q.id}" ${pl.gold < gold || c.resistance ? 'disabled' : ''} title="Buy now">${gold}●</button></div>`;
@@ -231,6 +236,15 @@ function renderCity(s: GameState): void {
       body += `<h4>Units</h4><div class="items">${items.filter((q) => q.kind === 'unit').map(row).join('')}</div>`;
       const blds = items.filter((q) => q.kind === 'building');
       if (blds.length) body += `<h4>Buildings</h4><div class="items">${blds.map(row).join('')}</div>`;
+      const projects = items.filter((q) => q.kind === 'project');
+      if (projects.length)
+        body += `<h4>Projects</h4><div class="items">${projects
+          .map((q) => {
+            const pr = get(D.projects, q.id);
+            if (!pr.process) return row(q);
+            return `<div class="item" title="${esc(pr.description)}"><button class="name" data-a="produce" data-k="project" data-id="${q.id}">${esc(pr.name)} <small>${pr.process}</small></button></div>`;
+          })
+          .join('')}</div>`;
       const locked = [...D.buildings.values()].filter((b) => !b.auto && !c.buildings.includes(b.id) && (!b.faction || b.faction === pl.faction) && cannotBuild(s, c, { kind: 'building', id: b.id })?.startsWith('needs'));
       if (locked.length) body += `<div class="note">Later: ${locked.slice(0, 6).map((b) => `${esc(b.name)} (${esc(cannotBuild(s, c, { kind: 'building', id: b.id })!)})`).join(', ')}</div>`;
     }
@@ -302,16 +316,11 @@ function renderModal(s: GameState): void {
   const st = ui();
   const pl = s.human >= 0 ? s.players[s.human] : s.players[0];
   let html = '';
-  if (s.winner && st.panel === 'none') {
-    const w = s.players[s.winner.player];
-    const won = s.winner.player === s.human;
-    const rows = s.players
-      .filter((p) => !p.isBarbarian)
-      .sort((a, b) => score(s, b.id) - score(s, a.id))
-      .map((p) => `<tr><td><span class="dot" style="background:${p.color}"></span>${esc(p.name)}</td><td>${score(s, p.id)}</td><td>${p.alive ? '' : 'destroyed'}</td></tr>`)
-      .join('');
-    html = `<div class="dialog"><h2>${won ? 'Victory!' : 'Defeat'}</h2><p>The ${esc(w.name)} won a ${s.winner.kind} victory on turn ${s.turn}.</p>
-      <table>${rows}</table><div class="row"><button class="primary" data-a="new-game">New game</button><button data-a="panel" data-p="menu">Menu</button></div></div>`;
+  let endgame = false;
+  if (s.winner && st.panel === 'none' && !st.endClosed) {
+    recordHallOfFame(s);
+    html = endgameHtml(s, st.endTab, st.endStat, st.replayTurn);
+    endgame = true;
   } else if (pl.pendingCaptures.length && st.panel === 'none' && s.cities[pl.pendingCaptures[0]]) {
     const c = s.cities[pl.pendingCaptures[0]];
     const noRaze = c.wasCapital && c.originalOwner !== c.owner;
@@ -325,8 +334,10 @@ function renderModal(s: GameState): void {
   else if (st.panel === 'relations') html = relations(s);
   else if (st.panel === 'menu') html = menu(s);
   else if (st.panel === 'help') html = help();
+  else if (st.panel === 'victory') html = victoryPanel(s);
   show(el, !!html);
   setHtml(el, html);
+  if (endgame) drawEndgame(s, st.endTab, st.endStat, st.replayTurn);
 }
 
 function techTree(s: GameState): string {
@@ -388,6 +399,31 @@ function techTree(s: GameState): string {
     <div class="tree"><div class="tree-inner" style="width:${width}px;height:${height}px"><svg width="${width}" height="${height}">${lines}</svg>${eraHeads}${boxes}</div></div></div>`;
 }
 
+function victoryPanel(s: GameState): string {
+  const v = s.settings.victories;
+  const majors = s.players.filter((p) => !p.isBarbarian);
+  const capitals = Object.values(s.cities).filter((c) => c.wasCapital);
+  const need = D.rules.spaceship;
+  const total = Object.values(need).reduce((a, n) => a + n, 0);
+  const rows = majors
+    .map((p) => {
+      const known = p.id === s.human || s.players[s.human]?.met.includes(p.id);
+      const held = capitals.filter((c) => c.owner === p.id).length;
+      const parts = Object.entries(need).reduce((a, [k, n]) => a + Math.min(n, p.spaceship[k] ?? 0), 0);
+      return `<tr><td><span class="dot" style="background:${known ? p.color : '#555'}"></span>${known ? esc(p.name) : 'Unknown'}</td>
+        <td>${p.alive ? held : '—'} / ${capitals.length}</td><td>${p.projects.includes('apollo_program') ? `${parts} / ${total}` : '—'}</td><td>${score(s, p.id)}</td></tr>`;
+    })
+    .join('');
+  const extra = VICTORY_ROWS.map((f) => f(s)).join('');
+  return `<div class="dialog"><div class="row head"><h2>Victory progress</h2><button class="x" data-a="panel" data-p="none">✕</button></div>
+    <p class="sub">Domination ${v.domination ? 'on' : 'off'}: hold every original capital. Science ${v.science ? 'on' : 'off'}: build the Apollo Program, then deliver ${total} spaceship parts to your capital.
+    Time ${v.time ? 'on' : 'off'}: best score on turn ${s.settings.maxTurns} (${s.settings.maxTurns - s.turn} turns left).</p>
+    <table><tr><th>Civilization</th><th>Capitals held</th><th>Spaceship</th><th>Score</th></tr>${rows}</table>${extra}</div>`;
+}
+
+/** Extra rows/sections for the victory panel, added by later phases. */
+export const VICTORY_ROWS: ((s: GameState) => string)[] = [];
+
 function relations(s: GameState): string {
   const p = s.human;
   const pl = s.players[p];
@@ -422,7 +458,7 @@ function menu(s: GameState): string {
     <div class="row"><input id="save-name" placeholder="Save name" value="Turn ${s.turn}"><button class="primary" data-a="save">Save</button>
     <button data-a="quick-save" title="Ctrl+S">Quick save</button><button data-a="quick-load" title="Ctrl+L">Quick load</button></div>
     <table>${list || '<tr><td class="sub">No saves yet.</td></tr>'}</table>
-    <div class="row"><button data-a="panel" data-p="help">Controls</button><button data-a="new-game">New game</button></div></div>`;
+    <div class="row"><button data-a="panel" data-p="help">Controls</button>${s.winner ? '<button data-a="summary">Game summary</button>' : ''}<button data-a="new-game">New game</button></div></div>`;
 }
 
 function help(): string {
@@ -458,9 +494,12 @@ function renderSetup(): void {
       <label>Seed<input id="o-seed" placeholder="random"></label>
       <label class="check"><input type="checkbox" id="o-barb" checked> Barbarians</label>
       <label class="check"><input type="checkbox" id="o-ruins" checked> Ancient ruins</label>
+      <label>Turn limit<input id="o-maxturns" type="number" min="50" max="1500" placeholder="by pace"></label>
     </div>
+    <div class="row">Victories: ${['domination', 'science', 'culture', 'diplomatic', 'time'].map((v) => `<label class="check"><input type="checkbox" id="o-v-${v}" checked> ${v}</label>`).join(' ')}</div>
     <div id="faction-info" class="sub"></div>
     <button class="primary" data-a="start">Start game</button></details>
+    <details><summary>Hall of Fame</summary>${hallOfFameHtml()}</details>
     ${saves.length ? `<details><summary>Load a saved game</summary><table>${saves.map((v) => `<tr><td>${esc(v.name)} <span class="sub">${esc(v.faction)}, turn ${v.turn}</span></td><td><button data-a="load" data-n="${esc(v.name)}">Load</button></td></tr>`).join('')}</table></details>` : ''}
   </div>`;
   const el = $('setup');
@@ -504,6 +543,8 @@ function readSetup() {
     seed: v('o-seed') || undefined,
     barbarians: c('o-barb'),
     ruins: c('o-ruins'),
+    maxTurns: Number(v('o-maxturns')) || undefined,
+    victories: { domination: c('o-v-domination'), science: c('o-v-science'), culture: c('o-v-culture'), diplomatic: c('o-v-diplomatic'), time: c('o-v-time') },
   };
 }
 
@@ -702,7 +743,33 @@ export function installHudEvents(centerOn: (tile: number) => void): void {
       case 'end-turn':
         endTurn();
         break;
+      case 'end-tab':
+        set({ endTab: target.dataset.t!, replayTurn: target.dataset.t === 'replay' ? 0 : st.replayTurn });
+        break;
+      case 'end-stat':
+        set({ endStat: target.dataset.t! });
+        break;
+      case 'end-close':
+        set({ endClosed: true });
+        break;
+      case 'summary':
+        set({ endClosed: false, panel: 'none' });
+        break;
+      case 'replay-play': {
+        const last = s.replay.length ? s.replay[s.replay.length - 1].turn : 0;
+        let t = st.replayTurn >= last ? 0 : st.replayTurn;
+        const timer = setInterval(() => {
+          t = Math.min(last, t + Math.max(1, Math.round(last / 120)));
+          set({ replayTurn: t });
+          if (t >= last || ui().endTab !== 'replay' || ui().endClosed) clearInterval(timer);
+        }, 60);
+        break;
+      }
     }
+  });
+  document.addEventListener('input', (e) => {
+    const t = e.target as HTMLInputElement;
+    if (t.id === 'replay-turn') set({ replayTurn: Number(t.value) });
   });
   document.addEventListener('change', (e) => {
     const t = e.target as HTMLElement;

@@ -67,7 +67,7 @@ export interface Unit {
 }
 
 export interface QueueItem {
-  kind: 'unit' | 'building';
+  kind: 'unit' | 'building' | 'project';
   id: string;
 }
 
@@ -153,9 +153,36 @@ export interface Player {
   notifications: Notification[];
   /** Turn when the player first had a city (for elimination). */
   hadCity: boolean;
-  /** Free tech picks pending (ruins). */
-  stats: { turn: number; score: number }[];
+  /** Per-turn statistics for the end-of-game graphs. */
+  stats: TurnStats[];
+  /** Completed projects (Apollo Program...). */
+  projects: string[];
+  /** Spaceship parts delivered to the capital, by kind. */
+  spaceship: Record<string, number>;
+  /** Times Future Tech was researched. */
+  futureTechs: number;
 }
+
+export interface TurnStats {
+  turn: number;
+  score: number;
+  pop: number;
+  military: number;
+  production: number;
+  gold: number;
+  science: number;
+  culture: number;
+  land: number;
+}
+
+export interface GameEvent {
+  turn: number;
+  text: string;
+  tile?: number;
+  player?: number;
+}
+
+export type VictoryKind = 'domination' | 'science' | 'culture' | 'diplomatic' | 'time';
 
 export interface Diplomacy {
   /** war[a][b] — symmetric. */
@@ -174,6 +201,10 @@ export interface Settings {
   ruins: boolean;
   /** All players are AI (headless simulations). */
   spectator: boolean;
+  /** Which victories can be won. */
+  victories: Record<VictoryKind, boolean>;
+  /** Turn limit (default: the pace's). */
+  maxTurns: number;
 }
 
 export interface GameState {
@@ -189,7 +220,11 @@ export interface GameState {
   diplomacy: Diplomacy;
   /** Turn each camp tile last spawned (camp tile index → turn). */
   camps: Record<string, number>;
-  winner: { player: number; kind: 'domination' | 'time' } | null;
+  winner: { player: number; kind: VictoryKind } | null;
+  /** Territory owners over time (run-length encoded), one entry per turn, for the replay. */
+  replay: { turn: number; owners: string }[];
+  /** Notable events (cities founded and taken, wars, wonders...) for the replay. */
+  events: GameEvent[];
   /** The human player id (0 normally; -1 in spectator games). */
   human: number;
 }
