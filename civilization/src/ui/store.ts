@@ -2,8 +2,9 @@
 // store holds a reference plus `rev`, a counter bumped after every change to trigger redraws.
 import { createStore } from 'zustand/vanilla';
 import type { Deal, GameState } from '../core/state';
+import type { NetUI } from '../net/session';
 
-export type Panel = 'none' | 'tech' | 'relations' | 'menu' | 'help' | 'victory' | 'policies' | 'leader' | 'trade' | 'citystate' | 'religion' | 'prophet' | 'routes' | 'culture' | 'congress' | 'spies';
+export type Panel = 'none' | 'chat' | 'tech' | 'relations' | 'menu' | 'help' | 'victory' | 'policies' | 'leader' | 'trade' | 'citystate' | 'religion' | 'prophet' | 'routes' | 'culture' | 'congress' | 'spies';
 
 export interface UIState {
   game: GameState | null;
@@ -34,6 +35,8 @@ export interface UIState {
   votes: number[] | null;
   /** Hotseat: the screen is covered until this seat's player clicks "Begin" (null: no cover). */
   passTo: number | null;
+  /** Online game / lobby (null: not connected). */
+  net: NetUI | null;
 }
 
 export const store = createStore<UIState>()(() => ({
@@ -59,6 +62,7 @@ export const store = createStore<UIState>()(() => ({
   panelUnit: -1,
   votes: null,
   passTo: null,
+  net: null,
 }));
 
 export const ui = () => store.getState();

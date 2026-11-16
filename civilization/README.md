@@ -59,3 +59,9 @@ espionage, other victory types, multiplayer.
   `hexborne`; any `localStorage` key starts with `civ:`.
 - **Asset paths.** Put static files in `civilization/public/` and reference them through
   `import.meta.env.BASE_URL`, so they resolve under `/civilization/`.
+
+## Multiplayer
+
+- **Hotseat:** on the setup screen open *Hotseat* and name a seat per player. Players take their turns one after another on the same device; a cover screen hides the map between seats.
+- **Online:** GitHub Pages only serves files, so online games go through a small relay server (Node, no dependencies): `npm run server:civ` (port 8787, or `node civilization/server/server.mjs <port>`). It also serves the built game at `http://<that-computer>:8787/civilization/` (after `npm run build:civ`), so on a LAN everyone can open that address. One player clicks *Host a game*, the others *Join a game* with the room code; the host's browser runs the game (and the AI) and the others' actions go through it. Turn modes (Advanced setup): one after another, simultaneous, or hybrid (simultaneous unless two humans are at war). A player who drops out can rejoin with the same name and room code.
+- Playing over the internet needs the relay on a reachable host; a page loaded over `https` (like GitHub Pages) can only reach `wss://` servers or `ws://localhost`, so put the relay behind TLS (any reverse proxy or tunnel) or open the game from the relay itself.

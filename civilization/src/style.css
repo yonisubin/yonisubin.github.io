@@ -179,3 +179,10 @@ td .bar i { display: block; height: 100%; background: var(--cult); }
 .pass-card { width: min(420px, calc(100% - 32px)); background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 22px; text-align: center; }
 .pass-card h2 { margin: 6px 0; font-family: Georgia, serif; }
 .grid.seats { grid-template-columns: 1fr 1fr; }
+
+/* Online lobby and chat */
+.lobby { display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+.lobby h2 { margin: 0; }
+.lobby .code { font-family: ui-monospace, monospace; color: var(--accent); letter-spacing: 0.15em; }
+.chatlog { max-height: 180px; overflow-y: auto; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--line); border-radius: 6px; padding: 6px; font-size: 13px; margin-bottom: 6px; }
+#chat-text { flex: 1; }

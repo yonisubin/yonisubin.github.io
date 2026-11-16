@@ -15,7 +15,8 @@ import { Minimap } from './render/minimap';
 import { bump, set, store, ui } from './ui/store';
 import { installHudEvents, refreshSaves, renderHud } from './ui/hud';
 import { installInput } from './ui/input';
-import { endTurn, startGame } from './ui/controller';
+import { act as uiAct, endTurn, startGame } from './ui/controller';
+import * as netSession from './net/session';
 import { saveGame, loadGame } from './save/db';
 import { damage } from './core/systems/combat';
 import { cityYields, growthNeeded, tileYields } from './core/systems/yields';
@@ -157,6 +158,10 @@ async function main(): Promise<void> {
       bump();
       return r;
     },
+    /** Apply an action the way the interface does (through the network in online games). */
+    play: (a: Action) => uiAct(a),
+    /** Online play (src/net/session.ts). */
+    net: { ...netSession, info: () => ui().net },
     /** End the turn synchronously on the main thread (AI included). */
     endTurnSync() {
       const s = ui().game!;

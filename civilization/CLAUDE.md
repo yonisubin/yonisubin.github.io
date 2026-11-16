@@ -15,6 +15,7 @@ npm run dev:civ        # http://localhost:5174/civilization/
 npm run typecheck:civ
 npm run build:civ      # → civilization/dist (deployed to /civilization/ by its own CI job)
 npm run test:civ       # headless checks in civilization/tests (needs build:civ + Playwright)
+npm run server:civ     # online relay on :8787 (also serves civilization/dist)
 ```
 
 Before considering a task done: `npm run typecheck:civ`, `npm run build:civ` and `npm run test:civ` pass, and the main game's `npm run build` still passes.
@@ -31,7 +32,9 @@ civilization/src/
   render/      # PixiJS map view (terrain, fog, units, cities, overlays, camera)
   ui/          # DOM panels driven by a Zustand store (top bar, unit/city panels, tech tree, ...)
   save/        # IndexedDB saves (db "hexborne")
+  net/         # online play (session.ts: lobby, action relay, turn modes)
   main.ts      # wiring; exposes window.hexborne for tests
+civilization/server/ # server.mjs: the online relay (Node built-ins only)
 civilization/tests/  # Playwright checks through window.hexborne
 ```
 
@@ -61,6 +64,8 @@ Phase 12: the World Congress / United Nations (`core/systems/congress.ts`, `data
 Phase 13: 16 map types (`mapgen/generate.ts` scripts + `mapgen/earth.ts` outlines) and every advanced setup option (`core/options.ts` defaults): world age, temperature, rainfall, sea level, resources (sparse … legendary start, strategic balance), civilization and city-state counts, starting era, victory toggles, turn limit, raging barbarians, no razing, One-City Challenge, complete kills, policy/promotion saving, start bias off, always war/peace, turn timer, quick combat/movement, advisor hints.
 
 Phase 14 (hotseat): several humans on one device (`humans` in `NewGameOptions`; setup screen "Hotseat"). `s.human` is the seat whose turn it is; ending a seat's turn passes to the next (`nextSeat`, core/game.ts) behind a cover screen (`ui().passTo`), and after the last seat the AI moves. Human↔human proposals (deals, friendship, peace) wait for the other seat's answer.
+
+Phase 14 (online): `server/server.mjs` is a dependency-free WebSocket relay (rooms by code; also serves `dist/` at /civilization/), `npm run server:civ`. `src/net/session.ts`: lobby (seats, civilization pick, ready, chat), the host's browser is authoritative — guests send actions, the host validates and broadcasts them in order, everyone applies them (a digest after each catches drift → full resync), and at the end of a turn the host runs the AI and sends the new state. Turn modes `settings.turnMode`: sequential, simultaneous, hybrid. Dropped players rejoin by name.
 
 Extension points for later phases: `EFFECT_SOURCES`, `TILE_HOOKS`, `CITY_HOOKS`, `HAPPINESS_HOOKS`, `GOLD_HOOKS`, `COMBAT_HOOKS`, `GP_USE_HOOKS`/`GP_DO_HOOKS`, `EFFECT_TEXT`, and `VICTORY_CHECKS` (core/game.ts), `SCORE_HOOKS` (core/systems/economy.ts), `MIGRATIONS` (core/migrate.ts, fills new fields in old saves), `VICTORY_ROWS` (ui/hud.ts).
 

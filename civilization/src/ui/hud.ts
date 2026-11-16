@@ -48,6 +48,7 @@ import { drawEndgame, endgameHtml, hallOfFameHtml, recordHallOfFame } from './en
 import { beginSeat, turnStartedAt } from './controller';
 import { act, endTurn, endTurnLabel, load, nextUnit, quickSave, selectCity, selectUnit, startGame, toast } from './controller';
 import { set, store, ui } from './store';
+import { chat, connect, defaultServer, disconnect, net, pick, startOnline, waitingLabel } from '../net/session';
 
 export const MAP_NAMES: Record<string, string> = {
   continents: 'Continents', pangaea: 'Pangaea', archipelago: 'Archipelago', fractal: 'Fractal', small_continents: 'Small Continents', terra: 'Terra',
@@ -106,6 +107,34 @@ export function renderHud(): void {
   if (st.toast) setHtml(t, esc(st.toast));
 }
 
+// ---- Online: lobby and chat ----
+
+function chatHtml(): string {
+  const n = net();
+  if (!n) return '';
+  const lines = n.chat.map((x) => `<div><b>${esc(x.from)}:</b> ${esc(x.text)}</div>`).join('') || '<div class="sub">No messages yet.</div>';
+  return `<div class="chatlog">${lines}</div><div class="row"><input id="chat-text" placeholder="Say something…" maxlength="300"><button data-a="chat-send">Send</button></div>`;
+}
+
+function lobbyHtml(): string {
+  const n = net()!;
+  const factions = [...D.factions.values()];
+  const me = n.slots.find((x) => x.peer === n.you);
+  const rows = n.slots
+    .map((x, i) => {
+      const f = x.faction === 'random' ? 'Random' : D.factions.get(x.faction)?.name ?? x.faction;
+      return `<tr><td>${i === 0 ? '★ ' : ''}${esc(x.name)}${x.peer === n.you ? ' (you)' : ''}</td><td>${esc(f)}</td><td>${x.ready ? '<span class="happy">ready</span>' : '<span class="sub">not ready</span>'}</td></tr>`;
+    })
+    .join('');
+  const picker = `<label>Your civilization<select id="net-faction"><option value="random">Random</option>${factions.map((f) => `<option value="${f.id}" ${me?.faction === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select></label>`;
+  return `<div class="lobby"><h2>Room <span class="code">${esc(n.room)}</span></h2>
+    <p class="sub">${n.isHost ? 'Give the others this code. Choose the game settings below, then start when everyone is ready.' : 'Waiting for the host to start the game.'} Server: ${esc(n.url)}</p>
+    <table>${rows || '<tr><td class="sub">Connecting…</td></tr>'}</table>
+    <div class="row">${picker}${n.isHost ? '' : `<label class="check"><input type="checkbox" id="net-ready" ${me?.ready ? 'checked' : ''}> Ready</label>`}</div>
+    <h4>Chat</h4>${chatHtml()}
+    <div class="row"><button data-a="net-leave">Leave the room</button></div></div>`;
+}
+
 // ---- Hotseat: pass the device ----
 
 function renderPass(s: GameState, seat: number): void {
@@ -140,7 +169,7 @@ function renderTop(s: GameState): void {
     .join('');
   setHtml(
     $('topbar'),
-    `<span class="logo">⬡ Hexborne</span>
+    `<span class="logo">⬡ Hexborne</span>${ui().net?.started ? `<button class="chip" data-a="panel" data-p="chat" title="Chat with the other players">💬 ${esc(ui().net!.room)}</button>` : ''}
     <button class="chip sci" data-a="panel" data-p="tech" title="Science per turn — click for the tech tree">⚗ ${sign(y.science)} · ${esc(research)}</button>
     <span class="chip gold" title="Cities ${g.cities}, connections ${g.connections}, buildings −${g.buildings}, units −${g.units}, roads −${g.roads}">● ${pl.gold} (${sign(g.net)})</span>
     <span class="chip ${h.net < 0 ? 'bad' : 'happy'}" title="Happiness ${h.happy} − unhappiness ${h.unhappy}. Luxuries: ${esc(h.luxuries.map((l) => D.resources.get(l)!.name).join(', ') || 'none')}">${h.net < 0 ? '☹' : '☺'} ${h.net}</span>
@@ -407,7 +436,7 @@ function renderNotes(s: GameState): void {
 }
 
 function renderEndTurn(s: GameState): void {
-  const label = endTurnLabel();
+  const label = waitingLabel(s) ?? endTurnLabel();
   const n = s.human >= 0 ? nextRequiredAction(s, s.human) : { kind: 'done' };
   const timer = s.settings.turnTimer > 0 ? ` · ${Math.max(0, Math.ceil(s.settings.turnTimer - (Date.now() - turnStartedAt()) / 1000))}s` : '';
   setHtml($('endturn'), `<button class="end ${n.kind === 'done' || n.kind === 'unit' ? '' : 'need'}" data-a="end-turn">${esc(label)}${timer}</button>`);
@@ -439,6 +468,7 @@ function renderModal(s: GameState): void {
   } else if (st.panel === 'tech') html = techTree(s);
   else if (st.panel === 'relations') html = relations(s);
   else if (st.panel === 'menu') html = menu(s);
+  else if (st.panel === 'chat') html = `<div class="dialog"><div class="row head"><h2>Chat · room ${esc(st.net?.room ?? '')}</h2><button class="x" data-a="panel" data-p="none">✕</button></div>${chatHtml()}</div>`;
   else if (st.panel === 'help') html = help();
   else if (st.panel === 'victory') html = victoryPanel(s);
   else if (st.panel === 'policies') html = policiesPanel(s);
@@ -731,10 +761,13 @@ function renderSetup(): void {
   const factions = [...D.factions.values()];
   const opt = (list: { id: string; name: string }[], sel: string) => list.map((x) => `<option value="${x.id}" ${x.id === sel ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
   const cont = saves.find((v) => v.name === 'Autosave');
-  const html = `<div class="setup-card">
+  const n = net();
+  // A guest in a lobby sees only the lobby; the host sees the lobby above the game settings.
+  if (n && !n.isHost) return setSetup(`<div class="setup-card">${lobbyHtml()}</div>`);
+  const html = `<div class="setup-card">${n ? lobbyHtml() : ''}
     <h1>⬡ Hexborne</h1><p class="tag">Found a city. Grow an empire. Outlast them all.</p>
-    ${cont ? `<button class="primary big" data-a="load" data-n="Autosave">Continue (${esc(cont.faction)}, turn ${cont.turn})</button>` : ''}
-    <button class="primary big" data-a="play-now">Play now</button>
+    ${n ? '' : `${cont ? `<button class="primary big" data-a="load" data-n="Autosave">Continue (${esc(cont.faction)}, turn ${cont.turn})</button>` : ''}
+    <button class="primary big" data-a="play-now">Play now</button>`}
     <details ${cont ? '' : 'open'}><summary>Set up a game</summary>
     <div class="grid">
       <label>Civilization<select id="o-faction"><option value="random">Random</option>${opt(factions, '')}</select></label>
@@ -755,6 +788,19 @@ function renderSetup(): void {
         ${[2, 3, 4, 5, 6].map((i) => `<label>Player ${i}<input id="o-name${i}" placeholder="(no seat)"></label><label>Civilization<select id="o-faction${i}"><option value="random">Random</option>${opt(factions, '')}</select></label>`).join('')}
       </div>
     </details>
+    ${
+      n
+        ? ''
+        : `<details><summary>Online game</summary>
+      <p class="sub">Run the relay server on a computer everyone can reach (<code>npm run server:civ</code>), then one player hosts and the others join with the room code. Leave the server as it is to play on this computer.</p>
+      <div class="grid">
+        <label>Server<input id="o-server" value="${esc(defaultServer())}"></label>
+        <label>Your name<input id="o-netname" placeholder="Player"></label>
+        <label>Room code<input id="o-room" placeholder="ABCD" maxlength="4"></label>
+      </div>
+      <div class="row"><button data-a="net-host">Host a game</button><button data-a="net-join">Join a game</button></div>
+    </details>`
+    }
     <details><summary>Advanced setup</summary><div class="grid">
       <label>Civilizations<input id="o-civs" type="number" min="2" max="${D.factions.size}" placeholder="by size"></label>
       <label>City-states<input id="o-cs" type="number" min="0" max="${D.cityStates.size}" placeholder="by size"></label>
@@ -779,12 +825,17 @@ function renderSetup(): void {
         ['o-qmove', 'Quick movement'],
       ].map(([id, label]) => `<label class="check"><input type="checkbox" id="${id}"> ${label}</label>`).join('')}
       <label class="check"><input type="checkbox" id="o-tutorial" checked> Advisor hints</label>
+      <label>Turns with several humans<select id="o-turnmode"><option value="sequential">One after another</option><option value="simultaneous">Simultaneous (online)</option><option value="hybrid">Hybrid (online)</option></select></label>
     </div></details>
     <div id="faction-info" class="sub"></div>
-    <button class="primary" data-a="start">Start game</button></details>
+    ${n ? '<button class="primary" data-a="net-start">Start online game</button>' : '<button class="primary" data-a="start">Start game</button>'}</details>
     <details><summary>Hall of Fame</summary>${hallOfFameHtml()}</details>
     ${saves.length ? `<details><summary>Load a saved game</summary><table>${saves.map((v) => `<tr><td>${esc(v.name)} <span class="sub">${esc(v.faction)}, turn ${v.turn}</span></td><td><button data-a="load" data-n="${esc(v.name)}">Load</button></td></tr>`).join('')}</table></details>` : ''}
   </div>`;
+  setSetup(html);
+}
+
+function setSetup(html: string): void {
   const el = $('setup');
   if (el.dataset.h !== html) {
     // Keep the player's choices when the setup screen re-renders.
@@ -851,6 +902,7 @@ function readSetup() {
     quickCombat: c2('o-qcombat'),
     quickMovement: c2('o-qmove'),
     tutorial: c('o-tutorial'),
+    turnMode: (v('o-turnmode') || 'sequential') as 'sequential',
     victories: { domination: c('o-v-domination'), science: c('o-v-science'), culture: c('o-v-culture'), diplomatic: c('o-v-diplomatic'), time: c('o-v-time') },
   };
 }
@@ -927,6 +979,31 @@ export function installHudEvents(centerOn: (tile: number) => void): void {
       case 'play-now':
         startGame({});
         return;
+      case 'net-host':
+      case 'net-join': {
+        const v = (id: string) => (document.getElementById(id) as HTMLInputElement | null)?.value.trim() ?? '';
+        const name = v('o-netname') || (a === 'net-host' ? 'Host' : 'Guest');
+        const room = a === 'net-join' ? v('o-room').toUpperCase() : undefined;
+        if (a === 'net-join' && !room) return toast('Enter the room code.');
+        connect(v('o-server') || defaultServer(), name, room).catch((err) => toast(String(err instanceof Error ? err.message : err)));
+        return;
+      }
+      case 'net-leave':
+        disconnect();
+        return;
+      case 'net-start': {
+        const err = startOnline(readSetup());
+        if (err) toast(err);
+        return;
+      }
+      case 'chat-send': {
+        const i = document.getElementById('chat-text') as HTMLInputElement | null;
+        if (i) {
+          chat(i.value);
+          i.value = '';
+        }
+        return;
+      }
       case 'begin-seat':
         beginSeat();
         if (s && s.human >= 0) {
@@ -1246,6 +1323,13 @@ export function installHudEvents(centerOn: (tile: number) => void): void {
       }
     }
   });
+  document.addEventListener('keydown', (e) => {
+    const t = e.target as HTMLInputElement;
+    if (t.id === 'chat-text' && e.key === 'Enter') {
+      chat(t.value);
+      t.value = '';
+    }
+  });
   document.addEventListener('input', (e) => {
     const t = e.target as HTMLInputElement;
     if (t.id === 'replay-turn') set({ replayTurn: Number(t.value) });
@@ -1262,6 +1346,11 @@ export function installHudEvents(centerOn: (tile: number) => void): void {
     }
 
     if (t.id === 'o-faction') updateFactionInfo();
+    if (t.id === 'net-faction' || t.id === 'net-ready') {
+      const f = (document.getElementById('net-faction') as HTMLSelectElement | null)?.value ?? 'random';
+      const r = (document.getElementById('net-ready') as HTMLInputElement | null)?.checked ?? true;
+      pick(f, r);
+    }
     if (t.dataset.a === 'spy-move') act({ type: 'moveSpy', spy: Number(t.dataset.s), to: Number(t.value) });
     if (t.dataset.a === 'leader-vote') {
       const st = ui();

@@ -7,6 +7,7 @@ import type { Action, GameState } from '../core/state';
 import { runEndTurn } from '../ai';
 import { loadGame, saveGame } from '../save/db';
 import { bump, set, store, ui } from './store';
+import { forceEndTurn, installNet, net, netAct, netDone, online } from '../net/session';
 
 let worker: Worker | null = null;
 function getWorker(): Worker | null {
@@ -37,6 +38,7 @@ export function toast(msg: string): void {
 export function act(a: Action): boolean {
   const s = game();
   if (ui().busy) return false;
+  if (online()) return netAct(a);
   const res = applyAction(s, s.human, a);
   if (!res.ok && res.error) toast(res.error);
   // A unit that died or was consumed can't stay selected.
@@ -113,40 +115,43 @@ export async function endTurn(force = false): Promise<void> {
     const nxt = nextSeat(s, s.human);
     if (nxt >= 0) return passSeat(s, nxt);
   }
+  if (online()) return netDone();
   set({ busy: true, selUnit: null, cityAttack: false });
-  const done = (next: GameState) => {
+  try {
+    const next = await runTurn(s);
     // Back to the first seat still in the game for the new turn.
     if (isHotseat(next)) next.human = humanSeats(next)[0] ?? next.human;
     set({ game: next, busy: false });
     bump();
     afterTurn(next);
-  };
-  const w = getWorker();
-  if (!w) {
-    // No worker support: run on the main thread.
-    setTimeout(() => {
-      runEndTurn(s);
-      done(s);
-    }, 0);
-    return;
+  } catch (e) {
+    console.error(e);
+    toast('Something went wrong while the other players moved.');
+    set({ busy: false });
   }
-  await new Promise<void>((resolve) => {
+}
+
+/** Every AI plays and the turn ends: in the Web Worker, or on the main thread without one. */
+export function runTurn(s: GameState): Promise<GameState> {
+  const w = getWorker();
+  const local = () =>
+    new Promise<GameState>((resolve) =>
+      setTimeout(() => {
+        runEndTurn(s);
+        resolve(s);
+      }, 0),
+    );
+  if (!w) return local();
+  return new Promise<GameState>((resolve, reject) => {
     w.onmessage = (e: MessageEvent<{ ok: boolean; state?: GameState; error?: string }>) => {
-      if (e.data.ok && e.data.state) done(e.data.state);
-      else {
-        console.error(e.data.error);
-        toast('Something went wrong while the other players moved.');
-        set({ busy: false });
-      }
-      resolve();
+      if (e.data.ok && e.data.state) resolve(e.data.state);
+      else reject(new Error(e.data.error));
     };
     w.onerror = (err) => {
       console.error(err);
       // Fall back to the main thread for good.
       worker = null;
-      runEndTurn(s);
-      done(s);
-      resolve();
+      local().then(resolve);
     };
     w.postMessage(s);
   });
@@ -161,8 +166,36 @@ setInterval(() => {
   const s = st.game;
   if (!s || st.setup || st.busy || st.passTo !== null || s.winner || s.settings.turnTimer <= 0) return;
   bump();
-  if (Date.now() - startedAt >= s.settings.turnTimer * 1000) endTurn(true);
+  if (Date.now() - startedAt >= s.settings.turnTimer * 1000) {
+    if (online()) {
+      // The host ends the turn for everyone; a guest just says it is done.
+      if (net()!.isHost) forceEndTurn();
+      else endTurn(true);
+      startedAt = Date.now();
+    } else endTurn(true);
+  }
 }, 1000);
+
+// Online games: how the network session shows new states and runs the AI.
+installNet({
+  runTurn: (s) => {
+    set({ busy: true, selUnit: null, cityAttack: false });
+    return runTurn(s);
+  },
+  show: (s, fresh) => {
+    if (fresh) {
+      set({ game: s, setup: false, panel: 'none', selCity: null, selUnit: null, busy: false, endClosed: false, endTab: 'summary', replayTurn: 0, passTo: null });
+      startedAt = Date.now();
+      bump();
+      nextUnit();
+    } else {
+      set({ game: s, busy: false });
+      bump();
+      afterTurn(s);
+    }
+  },
+  toast,
+});
 
 /** Several humans take turns on this device. */
 export const isHotseat = (s: GameState) => isMultiplayer(s) && !s.online;
