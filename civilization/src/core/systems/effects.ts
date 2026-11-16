@@ -12,6 +12,9 @@ export type Fx = EffectDef & { source: string };
 /** Sources that later phases add (religion beliefs, ideology tenets, city-state bonuses...). */
 export const EFFECT_SOURCES: ((s: GameState, p: number) => Fx[])[] = [];
 
+/** Effects derived from the full list (e.g. Patronage boosting city-state bonuses). */
+export const EFFECT_POST: ((s: GameState, p: number, list: Fx[]) => Fx[])[] = [];
+
 const cache = new WeakMap<GameState, { gen: number; turn: number; byPlayer: Map<number, Fx[]> }>();
 
 export function bumpEffects(s: GameState): void {
@@ -57,6 +60,7 @@ export function playerEffects(s: GameState, p: number): Fx[] {
     }
   }
   for (const src of EFFECT_SOURCES) out.push(...src(s, p));
+  for (const post of EFFECT_POST) out.push(...post(s, p, out));
   c.byPlayer.set(p, out);
   return out;
 }

@@ -24,6 +24,7 @@ import { recomputeVisibility, reveal } from './visibility';
 import { availableTechs, learnTech } from './research';
 import { isPassableLand } from '../../mapgen/generate';
 import { playerEffects, sum } from './effects';
+import { questEvent } from './citystates';
 
 /** Full movement points per turn (base + promotions + effects such as +1 for mounted units). */
 export const fullMoves = (s: GameState, u: Unit): number => {
@@ -318,6 +319,7 @@ function clearCamp(s: GameState, u: Unit): void {
   const t = tileAt(s, u.tile);
   t.camp = false;
   delete s.camps[u.tile];
+  questEvent(s, 'camp', u.tile, u.owner);
   const b = D.rules.barbarians;
   const gold = b.campReward + eraOf(s.players[u.owner]) * b.campRewardPerEra;
   s.players[u.owner].gold += gold;

@@ -8,6 +8,7 @@ import {
   allCities,
   isCivilian,
   majorPlayers,
+  minorPlayers,
   notify,
   playerCities,
   playerUnits,
@@ -26,6 +27,9 @@ import { recomputeAllVisibility, recomputeVisibility } from './systems/visibilit
 import { barbarianSpawns, spawnRebels } from './systems/barbarians';
 import { playerYields } from './systems/yields';
 import { recordTurn } from './systems/stats';
+import { installHooks } from './hooks';
+import { areFriends, dealProblem, dealValue, declareFriendship, denounce, denounced, executeDeal, onWarDeclared, opinion, processDiplomacy } from './systems/diplomacy';
+import { bully, giftGold, giftUnit, pledge, processCityStates } from './systems/citystates';
 import { adoptPolicy, canPickPolicy } from './systems/policies';
 import { processGoldenAge } from './systems/goldenage';
 import { processGreatPeople, useGreatPerson } from './systems/greatpeople';
@@ -38,6 +42,27 @@ export interface NewGameOptions extends Partial<Settings> {
   faction?: string;
   /** Number of major players (default from map size). */
   civs?: number;
+  /** Number of city-states (default from map size). */
+  cityStates?: number;
+}
+
+export function newDiplomacy(P: number): GameState['diplomacy'] {
+  const grid = <T,>(v: T) => Array.from({ length: P }, () => new Array<T>(P).fill(v));
+  return {
+    war: grid(false),
+    changed: grid(-99),
+    embassy: grid(false),
+    openBorders: grid(0),
+    pact: grid(0),
+    friend: grid(0),
+    denounce: grid(0),
+    declaredBy: grid(-1),
+    trades: grid(0),
+    researchAgreements: [],
+    deals: [],
+    proposals: [],
+    log: [],
+  };
 }
 
 export function newGame(o: NewGameOptions = {}): GameState {
@@ -63,6 +88,7 @@ export function newGame(o: NewGameOptions = {}): GameState {
     players: civs,
     ruins: settings.ruins,
     barbarianCamps: settings.barbarians ? size.barbarianCamps : 0,
+    minors: Math.min(o.cityStates ?? size.cityStates, D.cityStates.size),
   });
 
   // Factions: the human's choice first, the rest shuffled; then match factions to starts by bias.
@@ -72,65 +98,65 @@ export function newGame(o: NewGameOptions = {}): GameState {
   const starts = assignStarts(map, factionIds);
 
   const n = map.w * map.h;
-  const players: Player[] = factionIds.map((fid, i) => {
-    const f = get(D.factions, fid);
-    return {
-      id: i,
-      name: f.name,
-      faction: fid,
-      leader: `${f.leader.title} ${f.leader.name}`,
-      color: f.colors.primary,
-      color2: f.colors.secondary,
-      isHuman: i === 0 && !settings.spectator,
-      isBarbarian: false,
-      alive: true,
-      gold: 0,
-      techs: [],
-      techProgress: {},
-      research: null,
-      researchQueue: [],
-      explored: new Array(n).fill(0),
-      visible: new Array(n).fill(0),
-      met: [],
-      nextCityName: 0,
-      ruinsSeen: [],
-      pendingCaptures: [],
-      cultureTotal: 0,
-      notifications: [],
-      hadCity: false,
-      stats: [],
-      projects: [],
-      spaceship: {},
-      futureTechs: 0,
-      policies: [],
-      culture: 0,
-      freePolicies: 0,
-      goldenAge: { points: 0, turnsLeft: 0, count: 0 },
-      gpPoints: {},
-      gpCount: {},
-    };
-  });
-  players.push({
-    ...players[0],
-    id: players.length,
-    name: 'Barbarians',
+  const base = (i: number): Player => ({
+    id: i,
+    name: '',
     faction: '',
-    leader: 'Barbarian chieftains',
-    color: '#3a3a3a',
-    color2: '#c0392b',
+    leader: '',
+    color: '#888888',
+    color2: '#ffffff',
     isHuman: false,
-    isBarbarian: true,
-    explored: [],
-    visible: [],
+    isBarbarian: false,
+    isMinor: false,
+    minor: null,
+    warmonger: 0,
+    alive: true,
+    gold: 0,
     techs: [],
     techProgress: {},
+    research: null,
     researchQueue: [],
+    explored: new Array(n).fill(0),
+    visible: new Array(n).fill(0),
     met: [],
-    notifications: [],
-    stats: [],
+    nextCityName: 0,
     ruinsSeen: [],
     pendingCaptures: [],
+    cultureTotal: 0,
+    notifications: [],
+    hadCity: false,
+    stats: [],
+    projects: [],
+    spaceship: {},
+    futureTechs: 0,
+    policies: [],
+    culture: 0,
+    freePolicies: 0,
+    goldenAge: { points: 0, turnsLeft: 0, count: 0 },
+    gpPoints: {},
+    gpCount: {},
   });
+  const players: Player[] = factionIds.map((fid, i) => {
+    const f = get(D.factions, fid);
+    return { ...base(i), name: f.name, faction: fid, leader: `${f.leader.title} ${f.leader.name}`, color: f.colors.primary, color2: f.colors.secondary, isHuman: i === 0 && !settings.spectator };
+  });
+  // City-states.
+  const csDefs = shuffle(holder, [...D.cityStates.values()]).slice(0, map.minorStarts.length);
+  const minorIds: number[] = [];
+  for (const def of csDefs) {
+    const i = players.length;
+    minorIds.push(i);
+    players.push({
+      ...base(i),
+      name: def.name,
+      leader: `City-state of ${def.name}`,
+      color: def.color,
+      color2: '#1a1a1a',
+      isMinor: true,
+      minor: { def: def.id, type: def.type, personality: def.personality, influence: [], ally: -1, pledges: [], quests: [], lastGift: [] },
+    });
+  }
+  players.push({ ...base(players.length), name: 'Barbarians', leader: 'Barbarian chieftains', color: '#3a3a3a', color2: '#c0392b', isBarbarian: true, explored: [], visible: [] });
   const P = players.length;
   const s: GameState = {
     version: 1,
@@ -142,7 +168,7 @@ export function newGame(o: NewGameOptions = {}): GameState {
     units: {},
     cities: {},
     nextId: 1,
-    diplomacy: { war: Array.from({ length: P }, () => new Array(P).fill(false)), changed: Array.from({ length: P }, () => new Array(P).fill(-99)) },
+    diplomacy: newDiplomacy(P),
     camps: {},
     winner: null,
     human: settings.spectator ? -1 : 0,
@@ -153,10 +179,21 @@ export function newGame(o: NewGameOptions = {}): GameState {
   };
   for (const c of map.camps) s.camps[c] = -99;
 
+  for (const pl of players) if (pl.minor) pl.minor.influence = new Array(P).fill(0);
+  // City-states start with their city and a small garrison.
+  minorIds.forEach((id, k) => {
+    const tile = map.minorStarts[k];
+    const c = foundCity(s, id, tile);
+    c.name = players[id].name;
+    for (const u of D.rules.cityStates.startUnits) {
+      const at = freeTileNear(s, u, id, tile, 2);
+      if (at >= 0) createUnit(s, u, id, at);
+    }
+  });
   // Starting units.
   const diff = get(D.difficulty, settings.difficulty);
   players.forEach((pl, i) => {
-    if (pl.isBarbarian) return;
+    if (pl.isBarbarian || pl.isMinor) return;
     const units = [...D.rules.startUnits, ...(pl.isHuman ? [] : diff.aiExtraUnits)];
     for (const base of units) {
       const type = unitForFaction(base, pl.faction);
@@ -377,9 +414,82 @@ export function applyAction(s: GameState, p: number, a: Action): ActionResult {
       if (!err) recomputeVisibility(s, p);
       return err ? fail(err) : OK;
     }
+    case 'trade': {
+      const deal = a.deal;
+      if (deal.a !== p) return fail('you must be the proposer');
+      const q = deal.b;
+      if (!s.players[q]?.alive || !pl.met.includes(q)) return fail('you have not met them');
+      const why = dealProblem(s, deal);
+      if (why) return fail(why);
+      if (s.players[q].isHuman) {
+        s.diplomacy.proposals.push({ deal, from: p, turn: s.turn, kind: 'deal', text: `The ${pl.name} propose a deal.` });
+        return OK;
+      }
+      const v = dealValue(s, q, deal);
+      if (v < 0) return fail(`${s.players[q].leader} declines. (They would want about ${Math.ceil(-v / 10) * 10} gold more in value.)`);
+      executeDeal(s, deal, setWar);
+      return OK;
+    }
+    case 'respond': {
+      const mine = s.diplomacy.proposals.filter((x) => x.deal.b === p || (x.kind !== 'deal' && x.deal.b === p));
+      const prop = mine[a.index];
+      if (!prop) return fail('no such proposal');
+      s.diplomacy.proposals = s.diplomacy.proposals.filter((x) => x !== prop);
+      if (a.accept) {
+        if (prop.kind === 'friendship') {
+          declareFriendship(s, prop.from, p);
+          return OK;
+        }
+        const why = dealProblem(s, prop.deal);
+        if (why) return fail(why);
+        executeDeal(s, prop.deal, setWar);
+      } else if (prop.kind === 'demand') {
+        notify(s, prop.from, `The ${pl.name} refused your demand.`, 'info');
+        s.diplomacy.trades[prop.from][p] = Math.max(-10, s.diplomacy.trades[prop.from][p] - 5);
+      }
+      return OK;
+    }
+    case 'friendship': {
+      const q = a.target;
+      if (!pl.met.includes(q) || s.players[q].isMinor || s.diplomacy.war[p][q]) return fail('not possible');
+      if (areFriends(s, p, q)) return fail('already friends');
+      if (s.players[q].isHuman) {
+        s.diplomacy.proposals.push({ deal: { a: p, b: q, items: [] }, from: p, turn: s.turn, kind: 'friendship', text: `The ${pl.name} offer a declaration of friendship.` });
+        return OK;
+      }
+      if (opinion(s, q, p).total < 20) return fail(`${s.players[q].leader} is not ready for that.`);
+      declareFriendship(s, p, q);
+      return OK;
+    }
+    case 'denounce': {
+      const q = a.target;
+      if (!pl.met.includes(q) || s.players[q].isMinor) return fail('not possible');
+      if (denounced(s, p, q)) return fail('already denounced');
+      denounce(s, p, q);
+      return OK;
+    }
+    case 'giftGold': {
+      const err = giftGold(s, p, a.minor, a.amount);
+      return err ? fail(err) : OK;
+    }
+    case 'giftUnit': {
+      const err = giftUnit(s, p, a.minor, unit!);
+      return err ? fail(err) : OK;
+    }
+    case 'pledge': {
+      if (!s.players[a.minor]?.isMinor) return fail('not a city-state');
+      const err = pledge(s, p, a.minor);
+      return err ? fail(err) : OK;
+    }
+    case 'bully': {
+      if (!s.players[a.minor]?.isMinor) return fail('not a city-state');
+      const err = bully(s, p, a.minor, a.kind);
+      return err ? fail(err) : OK;
+    }
     case 'declareWar': {
       const q = a.target;
       if (q === p || !s.players[q] || s.players[q].isBarbarian || !s.players[q].alive) return fail('invalid target');
+      if (s.players[p].isMinor) return fail('city-states do not declare war');
       if (!pl.met.includes(q)) return fail('you have not met them');
       if (s.diplomacy.war[p][q]) return fail('already at war');
       if (s.turn - s.diplomacy.changed[p][q] < D.rules.peaceTurns) return fail(`peace treaty holds for ${D.rules.peaceTurns - (s.turn - s.diplomacy.changed[p][q])} more turns`);
@@ -398,8 +508,20 @@ export function applyAction(s: GameState, p: number, a: Action): ActionResult {
 }
 
 export function setWar(s: GameState, a: number, b: number, war: boolean): void {
+  if (s.diplomacy.war[a][b] === war) return;
   s.diplomacy.war[a][b] = s.diplomacy.war[b][a] = war;
   s.diplomacy.changed[a][b] = s.diplomacy.changed[b][a] = s.turn;
+  if (war) onWarDeclared(s, a, b, setWar);
+  else s.diplomacy.declaredBy[a][b] = s.diplomacy.declaredBy[b][a] = -1;
+  // Attacking a city-state breaks your pledge; its protectors are displeased.
+  if (war && s.players[b].isMinor) s.players[b].minor!.pledges = s.players[b].minor!.pledges.filter((x) => x !== a);
+  // City-state allies follow their ally into war and out of it.
+  for (const mp of minorPlayers(s)) {
+    if (!mp.alive || mp.id === a || mp.id === b) continue;
+    const ally = mp.minor!.ally;
+    if (ally === a && !s.players[b].isMinor) setWar(s, mp.id, b, war);
+    else if (ally === b && !s.players[a].isMinor) setWar(s, mp.id, a, war);
+  }
   const A = s.players[a], B = s.players[b];
   const f = D.factions.get(B.faction);
   const fa = D.factions.get(A.faction);
@@ -411,7 +533,7 @@ export function setWar(s: GameState, a: number, b: number, war: boolean): void {
     notify(s, a, `Peace with the ${B.name}. — "${f?.lines.peace ?? ''}"`, 'good');
     notify(s, b, `Peace with the ${A.name}. — "${fa?.lines.peace ?? ''}"`, 'good');
   }
-  for (const pl of s.players) if (pl.id !== a && pl.id !== b && pl.met.includes(a)) notify(s, pl.id, `The ${A.name} and the ${B.name} are ${war ? 'now at war' : 'at peace'}.`, 'info');
+  if (!A.isMinor && !B.isMinor) for (const pl of s.players) if (pl.id !== a && pl.id !== b && pl.met.includes(a)) notify(s, pl.id, `The ${A.name} and the ${B.name} are ${war ? 'now at war' : 'at peace'}.`, 'info');
   // Units standing in land that is now closed to them are pushed out.
   if (!war) for (const u of Object.values(s.units)) if ((u.owner === a || u.owner === b) && s.map.tiles[u.tile].owner >= 0 && s.map.tiles[u.tile].owner !== u.owner && [a, b].includes(s.map.tiles[u.tile].owner)) bounceUnit(s, u.id);
 }
@@ -431,10 +553,17 @@ function bounceUnit(s: GameState, uid: number): void {
 
 export { militaryStrength };
 
+installHooks(setWar);
+
 /** AI peace rule: after the treaty minimum, accept if losing or the war has dragged on. */
 export function aiAcceptsPeace(s: GameState, ai: number, other: number): boolean {
   const since = s.turn - s.diplomacy.changed[ai][other];
   if (since < D.rules.peaceTurns) return false;
+  if (s.players[ai].isMinor) {
+    // City-states make peace unless their ally is still fighting.
+    const ally = s.players[ai].minor!.ally;
+    return !(ally >= 0 && s.diplomacy.war[ally]?.[other]);
+  }
   const mine = militaryStrength(s, ai), theirs = militaryStrength(s, other);
   const pers = get(D.factions, s.players[ai].faction).leader.personality;
   return mine < theirs * 0.9 || since > 20 + pers.aggression * 3;
@@ -447,6 +576,8 @@ export interface TurnHooks {
   ai?: (s: GameState, p: number) => void;
   /** Move barbarian units. */
   barbarians?: (s: GameState) => void;
+  /** Play a city-state's turn. */
+  minor?: (s: GameState, p: number) => void;
 }
 
 /** Finish a player's turn: cities, research, gold, workers, healing. */
@@ -509,9 +640,12 @@ export function endTurn(s: GameState, hooks: TurnHooks = {}): void {
       barbarianSpawns(s);
       continue;
     }
-    if (!pl.isHuman) hooks.ai?.(s, pl.id);
+    if (pl.isMinor) hooks.minor?.(s, pl.id);
+    else if (!pl.isHuman) hooks.ai?.(s, pl.id);
     endPlayerTurn(s, pl.id);
   }
+  processDiplomacy(s);
+  processCityStates(s);
   s.turn++;
   for (const pl of s.players) {
     if (!pl.alive) continue;

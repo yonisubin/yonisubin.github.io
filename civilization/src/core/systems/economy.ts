@@ -3,6 +3,8 @@ import { D, get } from '../../data';
 import { neighbors } from '../hex';
 import { allUnits, atWar, capitalOf, dims, hasTech, playerCities, playerUnits, unitDef } from '../query';
 import { playerEffects, sum } from './effects';
+import { strategicDealDelta } from './diplomacy';
+import { allyResources } from './citystates';
 import type { GameState } from '../state';
 import { cityYields } from './yields';
 import { happinessOf } from './happiness';
@@ -109,6 +111,12 @@ export function strategicResources(s: GameState, p: number): Record<string, { to
       const need = get(D.buildings, b).requires.resource;
       if (need && out[need]) out[need].used++;
     }
+  // Deals and city-state allies.
+  const ally = allyResources(s, p, 'strategic');
+  for (const k of Object.keys(out)) {
+    if (!hasTech(pl, D.resources.get(k)!.revealTech)) continue;
+    out[k].total += (ally[k] ?? 0) + strategicDealDelta(s, p, k);
+  }
   return out;
 }
 

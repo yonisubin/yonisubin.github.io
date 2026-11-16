@@ -8,7 +8,7 @@ run('ai', async ({ page }, t) => {
     const t0 = performance.now();
     const s = h.simulate(150, { seed: 'ai-test', mapSize: 'small' });
     const ms = performance.now() - t0;
-    const majors = s.players.filter((p) => !p.isBarbarian);
+    const majors = s.players.filter((p) => !p.isBarbarian && !p.isMinor);
     const cities = majors.map((p) => Object.values(s.cities).filter((c) => c.owner === p.id).length);
     const techs = majors.map((p) => p.techs.length);
     const improved = s.map.tiles.filter((tl) => tl.improvement).length;

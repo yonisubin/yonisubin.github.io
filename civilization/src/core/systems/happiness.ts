@@ -3,6 +3,7 @@
 import { D, get } from '../../data';
 import { difficultyOf, hasTech, militaryAt, playerCities } from '../query';
 import { playerEffects, sum } from './effects';
+import { luxuryCounts } from './diplomacy';
 import type { GameState } from '../state';
 
 export interface HappinessReport {
@@ -14,6 +15,13 @@ export interface HappinessReport {
 
 /** Distinct luxury types player p has connected (improved, in its territory, or under a city). */
 export function connectedLuxuries(s: GameState, p: number): string[] {
+  return Object.entries(luxuryCounts(s, p))
+    .filter(([, n]) => n > 0)
+    .map(([r]) => r)
+    .sort();
+}
+
+export function connectedLuxuriesOwnOnly(s: GameState, p: number): string[] {
   const out = new Set<string>();
   const pl = s.players[p];
   for (let i = 0; i < s.map.tiles.length; i++) {

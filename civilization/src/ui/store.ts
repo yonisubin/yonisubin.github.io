@@ -1,9 +1,9 @@
 // UI state (Zustand vanilla store). The GameState itself is mutated in place by actions, so the
 // store holds a reference plus `rev`, a counter bumped after every change to trigger redraws.
 import { createStore } from 'zustand/vanilla';
-import type { GameState } from '../core/state';
+import type { Deal, GameState } from '../core/state';
 
-export type Panel = 'none' | 'tech' | 'relations' | 'menu' | 'help' | 'victory' | 'policies';
+export type Panel = 'none' | 'tech' | 'relations' | 'menu' | 'help' | 'victory' | 'policies' | 'leader' | 'trade' | 'citystate';
 
 export interface UIState {
   game: GameState | null;
@@ -23,6 +23,9 @@ export interface UIState {
   endTab: string;
   endStat: string;
   replayTurn: number;
+  /** Diplomacy: the other player shown in the leader / city-state panel, and the deal being built. */
+  diploWith: number;
+  tradeDeal: Deal | null;
 }
 
 export const store = createStore<UIState>()(() => ({
@@ -41,6 +44,8 @@ export const store = createStore<UIState>()(() => ({
   endTab: 'summary',
   endStat: 'score',
   replayTurn: 0,
+  diploWith: -1,
+  tradeDeal: null,
 }));
 
 export const ui = () => store.getState();

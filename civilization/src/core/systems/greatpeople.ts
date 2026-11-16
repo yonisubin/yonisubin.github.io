@@ -11,6 +11,7 @@ import { cityGreatPeople, playerYields } from './yields';
 import { addScience } from './research';
 import { startGoldenAge } from './goldenage';
 import { itemCost } from './cities';
+import { questEvent } from './citystates';
 
 export function gpThreshold(s: GameState, p: number, type: string): number {
   const g = D.rules.greatPeople;
@@ -26,6 +27,7 @@ export function spawnGreatPerson(s: GameState, p: number, type: string, c: City,
   if (at < 0) return;
   createUnit(s, gp.unit, p, at);
   if (count) pl.gpCount[type] = (pl.gpCount[type] ?? 0) + 1;
+  questEvent(s, 'great_person', type, p);
   notify(s, p, `A ${gp.name} was born in ${c.name}!`, 'good', c.tile);
   logEvent(s, `A ${gp.name} was born in ${c.name} (${pl.name}).`, c.tile, p);
 }

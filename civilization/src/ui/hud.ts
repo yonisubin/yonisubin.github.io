@@ -33,9 +33,12 @@ import { deleteSave, listSaves, type SaveSummary } from '../save/db';
 import { cannotAdopt, canPickPolicy, policyCost } from '../core/systems/policies';
 import { goldenAgeThreshold } from '../core/systems/goldenage';
 import { describeUse, gpThreshold, greatPersonUses } from '../core/systems/greatpeople';
+import { balanceDeal, cityStateHtml, giftTargets, leaderHtml, proposalHtml, tradeHtml } from './diplomacy';
+import { opinion } from '../core/systems/diplomacy';
+import { influence, relation } from '../core/systems/citystates';
 import { drawEndgame, endgameHtml, hallOfFameHtml, recordHallOfFame } from './endgame';
 import { act, endTurn, endTurnLabel, load, nextUnit, quickSave, selectCity, selectUnit, startGame, toast } from './controller';
-import { set, ui } from './store';
+import { set, store, ui } from './store';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const $ = (id: string) => document.getElementById(id)!;
@@ -160,6 +163,7 @@ function renderUnit(s: GameState): void {
     if (def.class !== 'civilian' && s.map.tiles[u.tile].owner !== u.owner) actions += b('pillage', 'Pillage (P)', 'Destroy an improvement or road here');
     const to = upgradeTarget(s, u);
     if (to) actions += b('upgrade', `Upgrade → ${esc(get(D.units, to).name)} (${upgradeCost(s, u)}●)`, 'In your territory');
+    for (const m of giftTargets(s, u.id)) actions += b('gift-unit', `Gift to ${esc(s.players[m].name)}`, 'Give this unit to the city-state for influence', `data-m="${m}"`);
     actions += b('next-unit', 'Next (.)', 'Next unit needing orders');
     actions += b('delete', 'Disband', 'Remove this unit');
   }
@@ -288,7 +292,7 @@ function renderCity(s: GameState): void {
     el,
     `<div class="title"><span class="swatch" style="background:${pl.color};border-color:${pl.color2}">${c.pop}</span>
       <div><b>${c.isCapital ? '★ ' : ''}${esc(c.name)}</b><div class="sub">${esc(pl.name)}</div></div>
-      <button class="x" data-a="close-city">✕</button></div>${body}`,
+      <button class="x" data-a="close-city">✕</button></div>${!own && !pl.isBarbarian ? `<button data-a="${pl.isMinor ? 'citystate' : 'leader'}" data-p="${pl.id}">Diplomacy</button>` : ''}${body}`,
   );
 }
 
@@ -353,6 +357,8 @@ function renderModal(s: GameState): void {
     recordHallOfFame(s);
     html = endgameHtml(s, st.endTab, st.endStat, st.replayTurn);
     endgame = true;
+  } else if (st.panel === 'none' && s.human >= 0 && proposalHtml(s)) {
+    html = proposalHtml(s);
   } else if (pl.pendingCaptures.length && st.panel === 'none' && s.cities[pl.pendingCaptures[0]]) {
     const c = s.cities[pl.pendingCaptures[0]];
     const noRaze = c.wasCapital && c.originalOwner !== c.owner;
@@ -368,6 +374,9 @@ function renderModal(s: GameState): void {
   else if (st.panel === 'help') html = help();
   else if (st.panel === 'victory') html = victoryPanel(s);
   else if (st.panel === 'policies') html = policiesPanel(s);
+  else if (st.panel === 'leader' && s.players[st.diploWith]) html = leaderHtml(s, st.diploWith);
+  else if (st.panel === 'trade' && st.tradeDeal) html = tradeHtml(s, st.tradeDeal);
+  else if (st.panel === 'citystate' && s.players[st.diploWith]?.isMinor) html = cityStateHtml(s, st.diploWith);
   show(el, !!html);
   setHtml(el, html);
   if (endgame) drawEndgame(s, st.endTab, st.endStat, st.replayTurn);
@@ -538,11 +547,17 @@ export function effectText(e: { type: string; [k: string]: unknown }): string {
 }
 
 /** Text for effect types added by later phases. */
-export const EFFECT_TEXT: Record<string, (e: { amount: number; percent: number; yield?: string; [k: string]: unknown }) => string> = {};
+export const EFFECT_TEXT: Record<string, (e: { amount: number; percent: number; yield?: string; [k: string]: unknown }) => string> = {
+  cs_decay_pct: (e) => `city-state influence decays ${Math.abs(e.percent)}% slower`,
+  cs_resting: (e) => `city-state influence rests ${e.amount} higher`,
+  cs_gift_pct: (e) => `+${e.percent}% influence from gifts`,
+  cs_bonus_pct: (e) => `+${e.percent}% city-state bonuses`,
+  cs_ally_yield: (e) => `+${e.amount} ${e.yield} per allied city-state`,
+};
 
 function victoryPanel(s: GameState): string {
   const v = s.settings.victories;
-  const majors = s.players.filter((p) => !p.isBarbarian);
+  const majors = s.players.filter((p) => !p.isBarbarian && !p.isMinor);
   const capitals = Object.values(s.cities).filter((c) => c.wasCapital);
   const need = D.rules.spaceship;
   const total = Object.values(need).reduce((a, n) => a + n, 0);
@@ -569,7 +584,7 @@ function relations(s: GameState): string {
   const p = s.human;
   const pl = s.players[p];
   const rows = s.players
-    .filter((q) => !q.isBarbarian && q.id !== p)
+    .filter((q) => !q.isBarbarian && !q.isMinor && q.id !== p)
     .map((q) => {
       if (!pl.met.includes(q.id)) return `<tr><td colspan="5" class="sub">An unknown civilization</td></tr>`;
       const war = s.diplomacy.war[p][q.id];
@@ -580,13 +595,26 @@ function relations(s: GameState): string {
         : war
           ? `<button data-a="peace" data-p="${q.id}">Propose peace</button>`
           : `<button data-a="war" data-p="${q.id}" ${since < D.rules.peaceTurns ? 'disabled title="Peace treaty in force"' : ''}>Declare war</button>`;
-      return `<tr><td><span class="dot" style="background:${q.color}"></span><b>${esc(q.name)}</b><div class="sub">${esc(q.leader)} — ${esc(f.ability.name)}: ${esc(f.ability.description)}</div></td>
-        <td>${score(s, q.id)}</td><td>${Math.round(militaryStrength(s, q.id))}</td><td class="${war ? 'bad' : ''}">${war ? 'War' : 'Peace'}</td><td>${btn}</td></tr>`;
+      const op = q.alive ? opinion(s, q.id, p) : null;
+      return `<tr><td><span class="dot" style="background:${q.color}"></span><button class="link" data-a="leader" data-p="${q.id}"><b>${esc(q.name)}</b></button><div class="sub">${esc(q.leader)} — ${esc(f.ability.name)}: ${esc(f.ability.description)}</div></td>
+        <td>${score(s, q.id)}</td><td>${Math.round(militaryStrength(s, q.id))}</td><td class="${war ? 'bad' : ''}">${war ? 'War' : op ? op.stance : 'Peace'}</td><td>${btn}</td></tr>`;
     })
     .join('');
   return `<div class="dialog"><div class="row head"><h2>Relations</h2><button class="x" data-a="panel" data-p="none">✕</button></div>
     <p class="sub">You: ${esc(pl.name)} — score ${score(s, p)}, military ${Math.round(militaryStrength(s, p))}. ${esc(D.factions.get(pl.faction)!.ability.name)}: ${esc(D.factions.get(pl.faction)!.ability.description)}</p>
-    <table><tr><th>Civilization</th><th>Score</th><th>Military</th><th>Status</th><th></th></tr>${rows}</table></div>`;
+    <table><tr><th>Civilization</th><th>Score</th><th>Military</th><th>Mood</th><th></th></tr>${rows}</table>
+    <h4>City-states</h4><table>${cityStateRows(s)}</table>
+    <h4>Recent diplomacy</h4><div class="note">${s.diplomacy.log.slice(-6).reverse().map((x) => `Turn ${x.turn}: ${esc(x.text)}`).join('<br>') || 'Nothing yet.'}</div></div>`;
+}
+
+function cityStateRows(s: GameState): string {
+  const p = s.human;
+  const rows = s.players
+    .filter((m) => m.isMinor && s.players[p].met.includes(m.id))
+    .map((m) => `<tr><td><span class="dot" style="background:${m.color}"></span><button class="link" data-a="citystate" data-p="${m.id}">${esc(m.name)}</button> <span class="sub">${m.minor!.type}</span></td>
+      <td>${m.alive ? `${Math.round(influence(s, m.id, p))} · ${relation(s, m.id, p)}` : 'conquered'}</td><td>${m.alive && m.minor!.ally >= 0 ? `ally: ${esc(s.players[m.minor!.ally].name)}` : ''}</td></tr>`)
+    .join('');
+  return rows || '<tr><td class="sub">You have not met any city-states.</td></tr>';
 }
 
 function menu(s: GameState): string {
@@ -884,6 +912,68 @@ export function installHudEvents(centerOn: (tile: number) => void): void {
       case 'end-turn':
         endTurn();
         break;
+      case 'leader':
+        set({ panel: 'leader', diploWith: Number(target.dataset.p) });
+        break;
+      case 'citystate':
+        set({ panel: 'citystate', diploWith: Number(target.dataset.p), selCity: null });
+        break;
+      case 'open-trade': {
+        const q = Number(target.dataset.p);
+        const items = s.diplomacy.war[s.human][q] ? [{ kind: 'peace' as const, from: s.human }, { kind: 'peace' as const, from: q }] : [];
+        set({ panel: 'trade', diploWith: q, tradeDeal: { a: s.human, b: q, items } });
+        break;
+      }
+      case 'demand':
+        set({ panel: 'trade', diploWith: Number(target.dataset.p), tradeDeal: { a: s.human, b: Number(target.dataset.p), items: [] } });
+        toast('Add what you want from them, and nothing from you.');
+        break;
+      case 'trade-add': {
+        const deal = st.tradeDeal!;
+        set({ tradeDeal: { ...deal, items: [...deal.items, JSON.parse(target.dataset.i!)] } });
+        break;
+      }
+      case 'trade-remove': {
+        const deal = st.tradeDeal!;
+        set({ tradeDeal: { ...deal, items: deal.items.filter((_, k) => k !== Number(target.dataset.k)) } });
+        break;
+      }
+      case 'trade-clear':
+        set({ tradeDeal: { ...st.tradeDeal!, items: [] } });
+        break;
+      case 'trade-balance':
+        set({ tradeDeal: balanceDeal(s, st.tradeDeal!) });
+        break;
+      case 'trade-propose':
+        if (act({ type: 'trade', deal: st.tradeDeal! })) {
+          toast(s.players[st.tradeDeal!.b].isHuman ? 'Proposal sent.' : 'Deal!');
+          set({ panel: 'leader', tradeDeal: null });
+        }
+        break;
+      case 'close-trade':
+        set({ panel: 'leader', tradeDeal: null });
+        break;
+      case 'friendship':
+        if (act({ type: 'friendship', target: Number(target.dataset.p) })) toast('Friendship declared.');
+        break;
+      case 'denounce':
+        if (confirm('Denounce them publicly?')) act({ type: 'denounce', target: Number(target.dataset.p) });
+        break;
+      case 'respond':
+        act({ type: 'respond', index: Number(target.dataset.k), accept: target.dataset.accept === '1' });
+        break;
+      case 'cs-gift':
+        act({ type: 'giftGold', minor: Number(target.dataset.m), amount: Number(target.dataset.g) });
+        break;
+      case 'cs-pledge':
+        act({ type: 'pledge', minor: Number(target.dataset.m) });
+        break;
+      case 'cs-bully':
+        act({ type: 'bully', minor: Number(target.dataset.m), kind: target.dataset.k as 'gold' | 'worker' });
+        break;
+      case 'gift-unit':
+        if (unit !== null && confirm('Give this unit away?')) act({ type: 'giftUnit', unit, minor: Number(target.dataset.m) });
+        break;
       case 'adopt':
         act({ type: 'adoptPolicy', policy: target.dataset.id! });
         break;
@@ -922,11 +1012,20 @@ export function installHudEvents(centerOn: (tile: number) => void): void {
     if (t.id === 'replay-turn') set({ replayTurn: Number(t.value) });
   });
   document.addEventListener('change', (e) => {
-    const t = e.target as HTMLElement;
+    const t = e.target as HTMLInputElement;
+    if (t.dataset.a === 'trade-amount') {
+      const deal = ui().tradeDeal;
+      if (deal) {
+        const k = Number(t.dataset.k);
+        const items = deal.items.map((x, i) => (i === k ? { ...x, amount: Math.max(1, Math.floor(Number(t.value) || 1)) } : x));
+        store.setState({ tradeDeal: { ...deal, items } });
+      }
+    }
+
     if (t.id === 'o-faction') updateFactionInfo();
     if (t.dataset.a === 'focus') {
       const city = ui().selCity;
-      if (city !== null) act({ type: 'focus', city, focus: (t as HTMLSelectElement).value as 'default' });
+      if (city !== null) act({ type: 'focus', city, focus: t.value as 'default' });
     }
   });
 }

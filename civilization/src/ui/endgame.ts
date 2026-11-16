@@ -110,7 +110,7 @@ export function endgameHtml(s: GameState, tab: string, stat: string, replayTurn:
   let body = '';
   if (tab === 'summary') {
     const rows = s.players
-      .filter((p) => !p.isBarbarian)
+      .filter((p) => !p.isBarbarian && !p.isMinor)
       .sort((a, b) => score(s, b.id) - score(s, a.id))
       .map((p) => `<tr><td><span class="dot" style="background:${p.color}"></span>${esc(p.name)}<div class="sub">${esc(p.leader)}</div></td><td>${score(s, p.id)}</td><td>${p.alive ? '' : 'destroyed'}</td></tr>`)
       .join('');
@@ -120,7 +120,7 @@ export function endgameHtml(s: GameState, tab: string, stat: string, replayTurn:
   } else if (tab === 'graphs') {
     body = `<div class="row">${STATS.map((x) => `<button class="${x.key === stat ? 'primary' : ''}" data-a="end-stat" data-t="${x.key}">${x.name}</button>`).join('')}</div>
       <canvas id="end-graph" width="900" height="380"></canvas>
-      <div class="row">${s.players.filter((p) => !p.isBarbarian).map((p) => `<span><span class="dot" style="background:${p.color}"></span>${esc(p.name)}</span>`).join('')}</div>`;
+      <div class="row">${s.players.filter((p) => !p.isBarbarian && !p.isMinor).map((p) => `<span><span class="dot" style="background:${p.color}"></span>${esc(p.name)}</span>`).join('')}</div>`;
   } else if (tab === 'replay') {
     const last = s.replay.length ? s.replay[s.replay.length - 1].turn : 0;
     const events = s.events.filter((e) => e.turn <= replayTurn).slice(-8).reverse();
@@ -144,7 +144,7 @@ function drawGraph(s: GameState, key: keyof TurnStats): void {
   const c = cv.getContext('2d')!;
   const W = cv.width, H = cv.height, pad = 40;
   c.clearRect(0, 0, W, H);
-  const players = s.players.filter((p) => !p.isBarbarian);
+  const players = s.players.filter((p) => !p.isBarbarian && !p.isMinor);
   let maxV = 1, minV = 0, maxT = 1;
   for (const p of players)
     for (const st of p.stats) {

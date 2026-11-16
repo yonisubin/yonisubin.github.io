@@ -60,7 +60,7 @@ export function decodeOwners(enc: string, size: number): Int8Array {
 }
 
 export function recordTurn(s: GameState): void {
-  for (const pl of s.players) if (!pl.isBarbarian && pl.alive) pl.stats.push(turnStats(s, pl.id));
+  for (const pl of s.players) if (!pl.isBarbarian && !pl.isMinor && pl.alive) pl.stats.push(turnStats(s, pl.id));
   s.replay.push({ turn: s.turn, owners: encodeOwners(s) });
 }
 

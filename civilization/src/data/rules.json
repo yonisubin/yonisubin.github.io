@@ -192,5 +192,111 @@
     "citadelDamage": 30,
     "citadelDefense": 100
   },
-  "nationalWonderPerCityPct": 10
+  "nationalWonderPerCityPct": 10,
+  "diplomacy": {
+    "dealTurns": 30,
+    "openBordersTurns": 30,
+    "pactTurns": 30,
+    "friendshipTurns": 50,
+    "denounceTurns": 50,
+    "researchAgreementTurns": 20,
+    "researchAgreementCostPerEra": 100,
+    "researchAgreementScienceMult": 1.5,
+    "embassyValue": 10,
+    "warmongerCapture": 10,
+    "warmongerCapital": 20,
+    "warmongerDecay": 0.5,
+    "proposalEveryTurns": 12,
+    "opinion": {
+      "friendship": 30,
+      "denounced": -25,
+      "denouncedFriend": -10,
+      "atWar": -50,
+      "pastWar": -20,
+      "pastWarTurns": 40,
+      "landDispute": -5,
+      "landDisputeMax": -20,
+      "warmonger": -2,
+      "trade": 2,
+      "tradeMax": 20,
+      "embassy": 5,
+      "openBorders": 5,
+      "sharedEnemy": 10,
+      "leader": -10
+    }
+  },
+  "cityStates": {
+    "friend": 30,
+    "ally": 60,
+    "decay": 1,
+    "recover": 1,
+    "personalityDecay": {
+      "friendly": 0.75,
+      "neutral": 1,
+      "hostile": 1.5,
+      "irrational": 1
+    },
+    "goldPerInfluence": 11,
+    "eraGiftPenalty": 0.25,
+    "unitGiftDivisor": 10,
+    "questInfluence": 40,
+    "questEveryTurns": 15,
+    "questTurns": 30,
+    "bullyGold": 30,
+    "bullyGoldPerEra": 20,
+    "bullyInfluence": -30,
+    "bullyWorkerInfluence": -50,
+    "pledgeResting": 10,
+    "militaryGiftTurns": {
+      "friend": 20,
+      "ally": 12
+    },
+    "tradeMissionInfluence": 30,
+    "captureOpinion": -30,
+    "bonuses": {
+      "maritime": {
+        "friend": {
+          "food_capital": 2
+        },
+        "ally": {
+          "food_capital": 2,
+          "food_all": 1
+        }
+      },
+      "cultured": {
+        "friend": {
+          "culture": 3
+        },
+        "ally": {
+          "culture": 6
+        }
+      },
+      "mercantile": {
+        "friend": {
+          "happiness": 2
+        },
+        "ally": {
+          "happiness": 3
+        }
+      },
+      "religious": {
+        "friend": {
+          "faith": 2
+        },
+        "ally": {
+          "faith": 4
+        }
+      },
+      "militaristic": {
+        "friend": {},
+        "ally": {}
+      }
+    },
+    "perEraBonusPct": 25,
+    "startUnits": [
+      "warrior",
+      "archer"
+    ],
+    "maxMilitary": 4
+  }
 }

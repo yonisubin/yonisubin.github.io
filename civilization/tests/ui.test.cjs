@@ -35,14 +35,14 @@ run('ui', async ({ page }, t) => {
   await page.click('[data-a="end-turn"]');
   await page.waitForSelector('#city [data-a="produce"]');
   await page.click('#city [data-a="produce"]');
-  const queued = await page.evaluate(() => Object.values(window.hexborne.state.cities)[0].queue.length);
+  const queued = await page.evaluate(() => Object.values(window.hexborne.state.cities).find((c) => c.owner === 0).queue.length);
   t.ok('clicking an item queues it', queued === 1);
   await page.keyboard.press('Escape');
   await page.click('[data-a="end-turn"]');
   await page.waitForFunction(() => window.hexborne.state.turn === 1 && !window.hexborne.store.getState().busy, null, { timeout: 60000 });
   t.ok('ending the turn runs the other players (worker) and advances', true);
   // Hovering a tile shows a tooltip.
-  const pos = await page.evaluate(() => window.hexborne.tileCenter(Object.values(window.hexborne.state.cities)[0].tile));
+  const pos = await page.evaluate(() => window.hexborne.tileCenter(Object.values(window.hexborne.state.cities).find((c) => c.owner === 0).tile));
   await page.mouse.move(pos.x, pos.y);
   await page.waitForTimeout(200);
   const tip = await page.textContent('#tooltip');

@@ -19,6 +19,7 @@ import projects from './projects.json';
 import specialists from './specialists.json';
 import greatPeople from './greatPeople.json';
 import policies from './policies.json';
+import cityStates from './cityStates.json';
 import rules from './rules.json';
 
 export type TerrainDef = z.infer<typeof S.Terrain>;
@@ -39,6 +40,7 @@ export type ProjectDef = z.infer<typeof S.Project>;
 export type PolicyTreeDef = z.infer<typeof S.PolicyTree>;
 export type PolicyDef = z.infer<typeof S.Policy>;
 export type EffectDef = z.infer<typeof S.Effect>;
+export type CityStateDef = z.infer<typeof S.CityState>;
 
 /** Parse a list file and index it by id; throws with the file name and path on any error. */
 function table<T extends { id: string }>(name: string, schema: z.ZodType<T>, raw: unknown): Map<string, T> {
@@ -73,6 +75,7 @@ export const D = {
   specialists: table('specialists', S.Specialist, specialists),
   greatPeople: table('greatPeople', S.GreatPerson, greatPeople),
   policyTrees: table('policies', S.PolicyTree, policies),
+  cityStates: table('cityStates', S.CityState, cityStates),
   rules: parsedRules.data,
   /** Every policy by id, with the tree it belongs to. */
   policies: new Map<string, z.infer<typeof S.Policy> & { tree: string }>(),

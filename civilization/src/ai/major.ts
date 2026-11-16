@@ -5,9 +5,8 @@
 // It changes the game only through applyAction (plus the same helpers the UI reads).
 import { D, get } from '../data';
 import type { PersonalityData } from '../data/schema';
-import { applyAction, aiAcceptsPeace, militaryStrength, setWar } from '../core/game';
+import { applyAction } from '../core/game';
 import { distance, neighbors, within } from '../core/hex';
-import { rand } from '../core/rng';
 import {
   allCities,
   allUnits,
@@ -36,6 +35,7 @@ import { availablePromotions, buildOptions, upgradeCost, upgradeTarget } from '.
 import { hasFreshWater } from '../core/systems/yields';
 import { adoptablePolicies, canPickPolicy } from '../core/systems/policies';
 import { greatPersonUses } from '../core/systems/greatpeople';
+import { aiDiplomacy } from './diplomacy';
 import { siteScore } from '../mapgen/generate';
 
 const personality = (s: GameState, p: number): PersonalityData => get(D.factions, s.players[p].faction).leader.personality;
@@ -46,7 +46,7 @@ export function aiTurn(s: GameState, p: number): void {
   chooseResearch(s, p);
   choosePolicies(s, p);
   for (const id of [...pl.pendingCaptures]) decideCaptureAI(s, p, id);
-  diplomacy(s, p);
+  aiDiplomacy(s, p);
   for (const c of playerCities(s, p)) if (!c.queue.length && !c.puppet && !c.razing) chooseProduction(s, p, c);
   spendGold(s, p);
   const units = playerUnits(s, p).sort((a, b) => unitDef(b).strength - unitDef(a).strength);
@@ -179,28 +179,6 @@ function decideCaptureAI(s: GameState, p: number, id: number): void {
   let choice: 'annex' | 'puppet' | 'raze' = far || unhappy ? 'puppet' : 'annex';
   if (unhappy && c.pop <= 2 && !c.wasCapital) choice = 'raze';
   applyAction(s, p, { type: 'capture', city: id, choice });
-}
-
-function diplomacy(s: GameState, p: number): void {
-  const pers = personality(s, p);
-  const pl = s.players[p];
-  for (const q of pl.met) {
-    const other = s.players[q];
-    if (!other.alive) continue;
-    if (s.diplomacy.war[p][q]) {
-      // AI–AI peace when both sides would accept.
-      if (!other.isHuman && aiAcceptsPeace(s, p, q) && aiAcceptsPeace(s, q, p)) setWar(s, p, q, false);
-      continue;
-    }
-    if (s.turn < 40 || s.turn % 5 !== p % 5) continue;
-    if (s.turn - s.diplomacy.changed[p][q] < D.rules.peaceTurns * 2) continue;
-    if (majorPlayers(s).some((x) => x.id !== q && s.diplomacy.war[p][x.id])) continue; // one war at a time
-    const mine = militaryStrength(s, p), theirs = militaryStrength(s, q);
-    const capA = capitalOf(s, p), capB = capitalOf(s, q);
-    if (!capA || !capB) continue;
-    const near = distance(dims(s), capA.tile, capB.tile) < 22;
-    if (near && mine > theirs * (1.6 - pers.boldness * 0.05) && rand(s) < pers.aggression / 40) applyAction(s, p, { type: 'declareWar', target: q });
-  }
 }
 
 // ---- Cities ----

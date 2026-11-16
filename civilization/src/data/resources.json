@@ -643,5 +643,44 @@
    "coast"
   ],
   "color": "#405a7a"
+ },
+ {
+  "id": "porcelain",
+  "name": "Porcelain",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "none",
+  "improvedYields": {},
+  "terrains": [],
+  "color": "#d8e8f8",
+  "minorOnly": true
+ },
+ {
+  "id": "perfume",
+  "name": "Perfume",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "none",
+  "improvedYields": {},
+  "terrains": [],
+  "color": "#f0a0d0",
+  "minorOnly": true
+ },
+ {
+  "id": "jewelry",
+  "name": "Jewelry",
+  "kind": "luxury",
+  "yields": {
+   "gold": 2
+  },
+  "improvement": "none",
+  "improvedYields": {},
+  "terrains": [],
+  "color": "#f0d060",
+  "minorOnly": true
  }
 ]

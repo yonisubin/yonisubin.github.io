@@ -23,6 +23,11 @@ import { foundCity } from './core/systems/cities';
 import { createUnit } from './core/systems/units';
 import { recomputeAllVisibility } from './core/systems/visibility';
 import { setWar, checkVictory } from './core/game';
+import { opinion } from './core/systems/diplomacy';
+import { cityStateEffects } from './core/systems/citystates';
+import { playerEffects } from './core/systems/effects';
+import { happinessOf } from './core/systems/happiness';
+import { canEnter } from './core/systems/movement';
 import { addScience } from './core/systems/research';
 import './style.css';
 
@@ -164,7 +169,7 @@ async function main(): Promise<void> {
     },
     set,
     /** Core functions for formula and rule checks. */
-    core: { cityYields, tileYields, checkVictory, addScience, neighbor, distance, findPath, damage, growthNeeded, foundCity, createUnit, recomputeAllVisibility, setWar, newGame, runEndTurn },
+    core: { opinion, cityStateEffects, playerEffects, happinessOf, canEnter, cityYields, tileYields, checkVictory, addScience, neighbor, distance, findPath, damage, growthNeeded, foundCity, createUnit, recomputeAllVisibility, setWar, newGame, runEndTurn },
   };
   (window as unknown as { hexborne: typeof api }).hexborne = api;
 }

@@ -123,6 +123,34 @@ export interface Notification {
   kind: 'info' | 'good' | 'bad' | 'combat';
 }
 
+export interface Quest {
+  kind: 'camp' | 'wonder' | 'connect' | 'culture' | 'techs' | 'great_person' | 'conquer' | string;
+  /** What: a tile (camp), wonder id, resource id, great person type, city-state player id... */
+  target?: string | number;
+  start: number;
+  until: number;
+  /** Contest quests: each player's value when the quest started. */
+  base?: Record<string, number>;
+  /** Players who already completed it. */
+  done: number[];
+}
+
+/** City-state data, on its Player record. */
+export interface MinorState {
+  def: string;
+  type: 'maritime' | 'cultured' | 'militaristic' | 'mercantile' | 'religious';
+  personality: 'friendly' | 'neutral' | 'hostile' | 'irrational';
+  /** Influence of each player (index = player id). */
+  influence: number[];
+  /** The ally (highest influence ≥ ally threshold), -1 = none. */
+  ally: number;
+  /** Players pledged to protect it. */
+  pledges: number[];
+  quests: Quest[];
+  /** Turn each player last got a militaristic unit gift. */
+  lastGift: number[];
+}
+
 export interface Player {
   id: number;
   name: string;
@@ -132,6 +160,11 @@ export interface Player {
   color2: string;
   isHuman: boolean;
   isBarbarian: boolean;
+  /** A city-state (single city, never expands); its data is in `minor`. */
+  isMinor: boolean;
+  minor: MinorState | null;
+  /** Warmongering reputation (raised by conquest, slowly forgotten). */
+  warmonger: number;
   alive: boolean;
   gold: number;
   techs: string[];
@@ -198,9 +231,65 @@ export interface GameEvent {
 
 export type VictoryKind = 'domination' | 'science' | 'culture' | 'diplomatic' | 'time';
 
+export type DealItemKind = 'gold' | 'gpt' | 'luxury' | 'strategic' | 'openBorders' | 'embassy' | 'researchAgreement' | 'defensivePact' | 'peace' | 'city' | 'war';
+
+/** One thing in a trade offer, given by player `from`. */
+export interface DealItem {
+  kind: DealItemKind;
+  from: number;
+  amount?: number;
+  res?: string;
+  city?: number;
+  /** Third party (declare war on). */
+  target?: number;
+}
+
+export interface Deal {
+  a: number;
+  b: number;
+  items: DealItem[];
+}
+
+/** A running per-turn part of a deal (gold per turn, lent resources). */
+export interface ActiveDeal {
+  from: number;
+  to: number;
+  kind: 'gpt' | 'luxury' | 'strategic';
+  amount: number;
+  res?: string;
+  until: number;
+}
+
+export interface Proposal {
+  deal: Deal;
+  /** Who proposed it. */
+  from: number;
+  turn: number;
+  /** "deal", a friendship offer, or a demand (refusing it angers them). */
+  kind: 'deal' | 'friendship' | 'demand';
+  text: string;
+}
+
 export interface Diplomacy {
   /** war[a][b] — symmetric. */
   war: boolean[][];
+  /** embassy[a][b]: a has an embassy with b. */
+  embassy: boolean[][];
+  /** openBorders[a][b]: turn until which a lets b's units in (0 = no). */
+  openBorders: number[][];
+  /** Defensive pact / declaration of friendship: turn it lasts until (symmetric). */
+  pact: number[][];
+  friend: number[][];
+  /** denounce[a][b]: a denounced b, until this turn. */
+  denounce: number[][];
+  /** Who declared the current war (a or b), -1 if none. */
+  declaredBy: number[][];
+  /** Deals made between a and b (for opinion). */
+  trades: number[][];
+  researchAgreements: { a: number; b: number; start: number; cost: number }[];
+  deals: ActiveDeal[];
+  proposals: Proposal[];
+  log: { turn: number; text: string }[];
   /** Turn of the last war/peace change between a and b (peace can't be broken for rules.peaceTurns). */
   changed: number[][];
 }
@@ -270,6 +359,14 @@ export type Action =
   | { type: 'adoptPolicy'; policy: string }
   | { type: 'specialist'; city: number; specialist: string; delta: 1 | -1 }
   | { type: 'greatPerson'; unit: number; use: 'discover' | 'hurry' | 'trade' | 'golden_age' | 'inspire' | 'concert' | 'improve' }
+  | { type: 'trade'; deal: Deal }
+  | { type: 'respond'; index: number; accept: boolean }
+  | { type: 'friendship'; target: number }
+  | { type: 'denounce'; target: number }
+  | { type: 'giftGold'; minor: number; amount: number }
+  | { type: 'giftUnit'; unit: number; minor: number }
+  | { type: 'pledge'; minor: number }
+  | { type: 'bully'; minor: number; kind: 'gold' | 'worker' }
   | { type: 'declareWar'; target: number }
   | { type: 'makePeace'; target: number };
 

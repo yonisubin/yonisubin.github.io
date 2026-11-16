@@ -73,6 +73,8 @@ export const Resource = z
     hillsOnly: z.boolean().default(false),
     /** Strategic: copies per tile. */
     quantity: z.number().default(0),
+    /** Only city-states have it (never placed on the map). */
+    minorOnly: z.boolean().default(false),
     color: z.string(),
   })
   .strict();
@@ -377,6 +379,17 @@ export const PolicyTree = z
   })
   .strict();
 
+export const CityState = z
+  .object({
+    id,
+    name: z.string(),
+    type: z.enum(['maritime', 'cultured', 'militaristic', 'mercantile', 'religious']),
+    personality: z.enum(['friendly', 'neutral', 'hostile', 'irrational']),
+    color: z.string(),
+    luxury: z.string().optional(),
+  })
+  .strict();
+
 export const Project = z
   .object({
     id,
@@ -527,6 +540,51 @@ export const Rules = z
       })
       .strict(),
     nationalWonderPerCityPct: z.number(),
+    diplomacy: z
+      .object({
+        dealTurns: z.number(),
+        openBordersTurns: z.number(),
+        pactTurns: z.number(),
+        friendshipTurns: z.number(),
+        denounceTurns: z.number(),
+        researchAgreementTurns: z.number(),
+        researchAgreementCostPerEra: z.number(),
+        researchAgreementScienceMult: z.number(),
+        embassyValue: z.number(),
+        warmongerCapture: z.number(),
+        warmongerCapital: z.number(),
+        warmongerDecay: z.number(),
+        proposalEveryTurns: z.number(),
+        opinion: z.record(z.string(), z.number()),
+      })
+      .strict(),
+    cityStates: z
+      .object({
+        friend: z.number(),
+        ally: z.number(),
+        decay: z.number(),
+        recover: z.number(),
+        personalityDecay: z.record(z.string(), z.number()),
+        goldPerInfluence: z.number(),
+        eraGiftPenalty: z.number(),
+        unitGiftDivisor: z.number(),
+        questInfluence: z.number(),
+        questEveryTurns: z.number(),
+        questTurns: z.number(),
+        bullyGold: z.number(),
+        bullyGoldPerEra: z.number(),
+        bullyInfluence: z.number(),
+        bullyWorkerInfluence: z.number(),
+        pledgeResting: z.number(),
+        militaryGiftTurns: z.record(z.string(), z.number()),
+        tradeMissionInfluence: z.number(),
+        captureOpinion: z.number(),
+        bonuses: z.record(z.string(), z.record(z.string(), z.record(z.string(), z.number()))),
+        perEraBonusPct: z.number(),
+        startUnits: z.array(z.string()),
+        maxMilitary: z.number(),
+      })
+      .strict(),
     ruinsPerLandTiles: z.number(),
     startUnits: z.array(z.string()),
     techPlayersMetDiscountPct: z.number(),

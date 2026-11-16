@@ -14,6 +14,8 @@ export interface GeneratedMap {
   tiles: Tile[];
   starts: number[];
   camps: number[];
+  /** City-state sites. */
+  minorStarts: number[];
 }
 
 export interface MapGenOptions {
@@ -23,6 +25,8 @@ export interface MapGenOptions {
   players: number;
   ruins: boolean;
   barbarianCamps: number;
+  /** City-states to place. */
+  minors?: number;
 }
 
 const blankTile = (): Tile => ({
@@ -181,9 +185,17 @@ export function generateMap(rng: RngHolder, o: MapGenOptions): GeneratedMap {
   labelAreas(m, tiles);
   const starts = placeStarts(rng, m, tiles, o.players);
   for (const s of starts) balanceStart(rng, m, tiles, s);
-  if (o.ruins) placeRuins(rng, m, tiles, starts);
-  const camps = placeInitialCamps(rng, m, tiles, starts, o.barbarianCamps);
-  return { w: o.w, h: o.h, tiles, starts, camps };
+  const minorStarts = placeMinorStarts(rng, m, tiles, starts, o.minors ?? 0);
+  for (const s of minorStarts) {
+    const t = tiles[s];
+    if (t.feature && t.feature !== 'floodplains') t.feature = null;
+    t.resource = null;
+    t.ruin = t.camp = false;
+  }
+  const all = [...starts, ...minorStarts];
+  if (o.ruins) placeRuins(rng, m, tiles, all);
+  const camps = placeInitialCamps(rng, m, tiles, all, o.barbarianCamps);
+  return { w: o.w, h: o.h, tiles, starts, camps, minorStarts };
 }
 
 function isLandTerrain(t: string): boolean {
@@ -344,7 +356,7 @@ function placeResources(rng: RngHolder, m: MapDims, tiles: Tile[], seed: number)
       list = luxury;
       weight = (x) => (regionLikes(x.id, i) ? 8 : 1);
     }
-    const fits = list.filter((x) => resourceFits(t, x.id));
+    const fits = list.filter((x) => !x.minorOnly && resourceFits(t, x.id));
     if (!fits.length) continue;
     const res = pickWeighted(rng, fits, weight);
     t.resource = res.id;
@@ -428,6 +440,27 @@ function placeStarts(rng: RngHolder, m: MapDims, tiles: Tile[], count: number): 
     starts.push(best);
   }
   return starts;
+}
+
+/** City-state sites: good land as far as possible from every start (and each other). */
+function placeMinorStarts(rng: RngHolder, m: MapDims, tiles: Tile[], starts: number[], count: number): number[] {
+  const out: number[] = [];
+  const cand = [...Array(tiles.length).keys()].filter((i) => tiles[i].area && siteScore(m, tiles, i) > 8);
+  for (let k = 0; k < count; k++) {
+    let best = -1, bestV = -Infinity;
+    for (const i of cand) {
+      const md = Math.min(...[...starts, ...out].map((s) => distance(m, s, i)));
+      if (md < 6) continue;
+      const v = Math.min(md, 12) * 3 + siteScore(m, tiles, i) * 0.3 + rand(rng);
+      if (v > bestV) {
+        bestV = v;
+        best = i;
+      }
+    }
+    if (best < 0) break;
+    out.push(best);
+  }
+  return out;
 }
 
 /** Make sure a start has some food, a luxury, horses and iron nearby. */

@@ -13,7 +13,8 @@ export const allUnits = (s: GameState): Unit[] => Object.values(s.units);
 export const allCities = (s: GameState): City[] => Object.values(s.cities);
 export const playerUnits = (s: GameState, p: number) => allUnits(s).filter((u) => u.owner === p);
 export const playerCities = (s: GameState, p: number) => allCities(s).filter((c) => c.owner === p);
-export const majorPlayers = (s: GameState) => s.players.filter((p) => !p.isBarbarian);
+export const majorPlayers = (s: GameState) => s.players.filter((p) => !p.isBarbarian && !p.isMinor);
+export const minorPlayers = (s: GameState) => s.players.filter((p) => p.isMinor);
 export const barbarianId = (s: GameState) => s.players.findIndex((p) => p.isBarbarian);
 
 // A temporary tile → units/city index for read-only stretches (path searches, scoring loops),
@@ -96,14 +97,14 @@ export function costMult(s: GameState, p: number): number {
 
 export function notify(s: GameState, p: number, text: string, kind: Notification['kind'] = 'info', tile?: number): void {
   const pl = s.players[p];
-  if (!pl || pl.isBarbarian) return;
+  if (!pl || pl.isBarbarian || pl.isMinor) return;
   pl.notifications.push({ turn: s.turn, text, kind, tile });
   if (pl.notifications.length > 60) pl.notifications.splice(0, pl.notifications.length - 60);
 }
 
 export function factionOf(s: GameState, p: number) {
   const pl = s.players[p];
-  return pl.isBarbarian ? undefined : D.factions.get(pl.faction);
+  return pl.isBarbarian || pl.isMinor ? undefined : D.factions.get(pl.faction);
 }
 
 /** Year label for a turn ("3600 BC"). */

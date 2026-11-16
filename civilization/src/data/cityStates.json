@@ -1,0 +1,175 @@
+[
+ {
+  "id": "thalassa",
+  "name": "Thalassa",
+  "type": "maritime",
+  "personality": "friendly",
+  "color": "#3aa0c8"
+ },
+ {
+  "id": "port_ambry",
+  "name": "Port Ambry",
+  "type": "maritime",
+  "personality": "neutral",
+  "color": "#3aa0c8"
+ },
+ {
+  "id": "selkie_reach",
+  "name": "Selkie Reach",
+  "type": "maritime",
+  "personality": "irrational",
+  "color": "#3aa0c8"
+ },
+ {
+  "id": "coralline",
+  "name": "Coralline",
+  "type": "maritime",
+  "personality": "neutral",
+  "color": "#3aa0c8"
+ },
+ {
+  "id": "brinemoor",
+  "name": "Brinemoor",
+  "type": "maritime",
+  "personality": "hostile",
+  "color": "#3aa0c8"
+ },
+ {
+  "id": "lyrel",
+  "name": "Lyrel",
+  "type": "cultured",
+  "personality": "friendly",
+  "color": "#a060d0"
+ },
+ {
+  "id": "ostrava_vale",
+  "name": "Ostrava Vale",
+  "type": "cultured",
+  "personality": "neutral",
+  "color": "#a060d0"
+ },
+ {
+  "id": "chiaro",
+  "name": "Chiaro",
+  "type": "cultured",
+  "personality": "irrational",
+  "color": "#a060d0"
+ },
+ {
+  "id": "vellum",
+  "name": "Vellum",
+  "type": "cultured",
+  "personality": "neutral",
+  "color": "#a060d0"
+ },
+ {
+  "id": "amberlight",
+  "name": "Amberlight",
+  "type": "cultured",
+  "personality": "friendly",
+  "color": "#a060d0"
+ },
+ {
+  "id": "kragmoor",
+  "name": "Kragmoor",
+  "type": "militaristic",
+  "personality": "hostile",
+  "color": "#c84040"
+ },
+ {
+  "id": "ironhold",
+  "name": "Ironhold",
+  "type": "militaristic",
+  "personality": "neutral",
+  "color": "#c84040"
+ },
+ {
+  "id": "spearfall",
+  "name": "Spearfall",
+  "type": "militaristic",
+  "personality": "hostile",
+  "color": "#c84040"
+ },
+ {
+  "id": "bastionne",
+  "name": "Bastionne",
+  "type": "militaristic",
+  "personality": "irrational",
+  "color": "#c84040"
+ },
+ {
+  "id": "ravengard",
+  "name": "Ravengard",
+  "type": "militaristic",
+  "personality": "neutral",
+  "color": "#c84040"
+ },
+ {
+  "id": "silk_harbor",
+  "name": "Silk Harbor",
+  "type": "mercantile",
+  "personality": "friendly",
+  "color": "#e0b030",
+  "luxury": "porcelain"
+ },
+ {
+  "id": "goldmere",
+  "name": "Goldmere",
+  "type": "mercantile",
+  "personality": "neutral",
+  "color": "#e0b030",
+  "luxury": "perfume"
+ },
+ {
+  "id": "zarakhan",
+  "name": "Zarakhan",
+  "type": "mercantile",
+  "personality": "irrational",
+  "color": "#e0b030",
+  "luxury": "jewelry"
+ },
+ {
+  "id": "tollbridge",
+  "name": "Tollbridge",
+  "type": "mercantile",
+  "personality": "neutral",
+  "color": "#e0b030",
+  "luxury": "porcelain"
+ },
+ {
+  "id": "velvet_cross",
+  "name": "Velvet Cross",
+  "type": "mercantile",
+  "personality": "friendly",
+  "color": "#e0b030",
+  "luxury": "perfume"
+ },
+ {
+  "id": "serenia",
+  "name": "Serenia",
+  "type": "religious",
+  "personality": "friendly",
+  "color": "#e0e0e0"
+ },
+ {
+  "id": "holy_ashwell",
+  "name": "Ashwell",
+  "type": "religious",
+  "personality": "neutral",
+  "color": "#e0e0e0"
+ },
+ {
+  "id": "candleford",
+  "name": "Candleford",
+  "type": "religious",
+  "personality": "irrational",
+  "color": "#e0e0e0"
+ },
+ {
+  "id": "mirrorfane",
+  "name": "Mirrorfane",
+  "type": "religious",
+  "personality": "neutral",
+  "color": "#e0e0e0"
+ }
+]

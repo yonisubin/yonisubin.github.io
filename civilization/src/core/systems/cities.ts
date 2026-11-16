@@ -27,6 +27,8 @@ import { createUnit, deliverSpaceshipPart, freeTileNear, removeUnit } from './un
 import { addScience } from './research';
 import { bumpEffects, cityEffects, costPct, inScope, isCoastal, sum } from './effects';
 import { applyOneShots } from './policies';
+import { addWarmonger } from './diplomacy';
+import { onCityStateConquered, questEvent } from './citystates';
 import { recomputeAllVisibility } from './visibility';
 import type { StrengthReport } from './combat';
 
@@ -42,6 +44,7 @@ export function canFoundAt(s: GameState, p: number, tile: number): string | null
 
 export function nextCityName(s: GameState, p: number): string {
   const pl = s.players[p];
+  if (pl.isMinor) return pl.name;
   const names = get(D.factions, pl.faction).cityNames;
   const used = new Set(allCities(s).map((c) => c.name));
   for (let k = 0; k < names.length; k++) {
@@ -416,6 +419,7 @@ function completeWonder(s: GameState, c: City, id: string): void {
       notify(s, o.owner, `The ${pl.name} finished the ${b.name} first. ${o.name}'s work became ${refund} gold.`, 'bad', o.tile);
     }
     logEvent(s, `The ${pl.name} built the ${b.name} in ${c.name}.`, c.tile, c.owner);
+    questEvent(s, 'wonder', id, c.owner);
     for (const q of s.players) if (q.id !== c.owner && !q.isBarbarian) notify(s, q.id, `${q.met.includes(c.owner) ? `The ${pl.name}` : 'A distant civilization'} completed the ${b.name}.`, 'info');
   }
   notify(s, c.owner, `${c.name} completed the ${b.name}!`, 'good', c.tile);
@@ -560,6 +564,8 @@ export function captureCity(s: GameState, c: City, by: number): void {
     } else removeUnit(s, u);
   }
   logEvent(s, `The ${s.players[by].name} captured ${c.name} from the ${s.players[from].name}.`, c.tile, by);
+  addWarmonger(s, by, c.wasCapital, s.diplomacy.declaredBy[by]?.[from] === from);
+  if (s.players[from].isMinor) onCityStateConquered(s, from, by);
   notify(s, from, `${c.name} has fallen to the ${s.players[by].name}!`, 'bad', c.tile);
   notify(s, by, `You captured ${c.name}!`, 'good', c.tile);
   for (const pl of s.players) if (pl.id !== from && pl.id !== by && pl.met.includes(by)) notify(s, pl.id, `The ${s.players[by].name} captured ${c.name}.`, 'info');

@@ -63,8 +63,8 @@ export function canEnter(s: GameState, u: Unit, i: number, final: boolean): bool
   if (!known) return true; // unexplored: assume passable (the step will be checked for real)
   const ter = get(D.terrains, t.terrain);
   if (ter.water || ter.impassable || (t.feature && D.features.get(t.feature)!.impassable)) return false;
-  // Foreign land at peace is closed (no open borders yet).
-  if (t.owner >= 0 && t.owner !== u.owner && !atWar(s, u.owner, t.owner)) return false;
+  // Foreign land at peace is closed without open borders (city-states' land is always open).
+  if (t.owner >= 0 && t.owner !== u.owner && !atWar(s, u.owner, t.owner) && !s.players[t.owner].isMinor && !(s.diplomacy.openBorders[t.owner]?.[u.owner] > s.turn)) return false;
   const city = cityAt(s, i);
   if (city && city.owner !== u.owner) return false;
   const visible = pl.isBarbarian || pl.visible[i] === 1;
