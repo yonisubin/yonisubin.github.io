@@ -221,6 +221,7 @@ export interface Player {
   ideology: string | null;
   /** Turns of anarchy left after switching ideology. */
   anarchy: number;
+  spies: Spy[];
   /** Faith saved; the pantheon belief; the religion this player founded. */
   faith: number;
   pantheon: string | null;
@@ -285,6 +286,43 @@ export interface Proposal {
   /** "deal", a friendship offer, or a demand (refusing it angers them). */
   kind: 'deal' | 'friendship' | 'demand';
   text: string;
+}
+
+export interface Spy {
+  id: number;
+  name: string;
+  /** 0 Recruit, 1 Agent, 2 Special Agent. */
+  rank: number;
+  /** City it's stationed in (-1 = at home, unassigned). */
+  city: number;
+  /** In a rival capital at peace: a diplomat instead of a thief. */
+  diplomat: boolean;
+  arrived: number;
+  progress: number;
+  /** Killed: replaced on this turn. */
+  deadUntil: number;
+}
+
+export interface CongressProposal {
+  resolution: string;
+  target?: string | number;
+  proposer: number;
+  /** The World Leader vote (United Nations). */
+  leader?: boolean;
+}
+
+export interface Congress {
+  founded: number;
+  host: number;
+  nextSession: number;
+  proposals: CongressProposal[];
+  /** votes[p][i]: delegates for (positive) or against (negative) proposal i; for the leader vote, the candidate id. */
+  votes: Record<string, number[]>;
+  active: { resolution: string; target?: string | number; turn: number }[];
+  un: boolean;
+  history: { turn: number; text: string }[];
+  /** World Fair contributions (production) by player while it runs. */
+  fair: Record<string, number> | null;
 }
 
 export interface GreatWork {
@@ -382,6 +420,7 @@ export interface GameState {
   events: GameEvent[];
   religions: Record<string, Religion>;
   greatWorks: Record<string, GreatWork>;
+  congress: Congress | null;
   /** Antiquity sites (tile → site), found once Archaeology is known. */
   antiquity: Record<string, { era: number; kind: string; hidden: boolean }>;
   tradeRoutes: TradeRoute[];
@@ -436,6 +475,10 @@ export type Action =
   | { type: 'enhanceReligion'; unit: number; follower: string; enhancer: string }
   | { type: 'reform'; belief: string }
   | { type: 'chooseIdeology'; ideology: string }
+  | { type: 'propose'; resolution: string; target?: string | number }
+  | { type: 'vote'; votes: number[] }
+  | { type: 'moveSpy'; spy: number; to: number; diplomat?: boolean }
+  | { type: 'coup'; spy: number }
   | { type: 'switchIdeology'; ideology: string }
   | { type: 'dig'; unit: number; choice: 'artifact' | 'landmark' }
   | { type: 'spreadReligion'; unit: number }

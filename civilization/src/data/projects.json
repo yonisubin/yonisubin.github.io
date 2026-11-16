@@ -30,5 +30,12 @@
   "tech": "nuclear_fission",
   "oncePerWorld": true,
   "description": "Unlocks nuclear weapons for every civilization."
+ },
+ {
+  "id": "world_fair",
+  "name": "World Fair",
+  "cost": 500,
+  "international": true,
+  "description": "An international project voted by the World Congress."
  }
 ]

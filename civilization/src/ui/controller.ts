@@ -86,6 +86,8 @@ export function endTurnLabel(): string {
       return 'Choose a pantheon';
     case 'ideology':
       return 'Choose an ideology';
+    case 'congress':
+      return 'World Congress votes';
     default: {
       const idle = playerUnits(s, s.human).filter((u) => u.moves > 0 && u.order === 'none' && !u.job && !u.path.length && !u.exploring).length;
       return idle ? `End turn (${idle} idle)` : 'End turn';
@@ -104,6 +106,7 @@ export async function endTurn(force = false): Promise<void> {
     if (n.kind === 'policy') return set({ panel: 'policies' });
     if (n.kind === 'pantheon') return set({ panel: 'religion' });
     if (n.kind === 'ideology') return set({ panel: 'culture' });
+    if (n.kind === 'congress') return set({ panel: 'congress' });
   }
   set({ busy: true, selUnit: null, cityAttack: false });
   const done = (next: GameState) => {

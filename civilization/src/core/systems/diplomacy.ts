@@ -103,6 +103,8 @@ export function dealProblem(s: GameState, deal: Deal): string | null {
   const { a, b } = deal;
   if (!s.players[a]?.alive || !s.players[b]?.alive) return 'no such player';
   if (isMinor(s, a) || isMinor(s, b)) return 'city-states don’t trade';
+  const embargoed = (p: number) => !!s.congress?.active.some((r) => r.resolution === 'embargo' && Number(r.target) === p);
+  if (embargoed(a) || embargoed(b)) return 'a World Congress embargo forbids it';
   const war = s.diplomacy.war[a][b];
   if (war && !deal.items.some((i) => i.kind === 'peace')) return 'at war: the deal must include peace';
   const needBoth = (k: string) => deal.items.some((i) => i.kind === k && i.from === a) !== deal.items.some((i) => i.kind === k && i.from === b);

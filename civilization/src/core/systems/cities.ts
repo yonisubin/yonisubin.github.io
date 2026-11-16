@@ -30,6 +30,7 @@ import { applyOneShots } from './policies';
 import { addWarmonger } from './diplomacy';
 import { onCityStateConquered, questEvent } from './citystates';
 import { recordSite } from './archaeology';
+import { contributeToFair } from './congress';
 import { recomputeAllVisibility } from './visibility';
 import type { StrengthReport } from './combat';
 
@@ -329,6 +330,7 @@ export function cannotBuild(s: GameState, c: City, item: QueueItem): string | nu
     if (u.id === 'settler' && happinessOf(s, c.owner).net <= D.rules.happiness.veryUnhappy) return 'your people are too unhappy';
     if (u.requiresProject && !pl.projects.includes(u.requiresProject) && s.worldProjects[u.requiresProject] === undefined) return `needs the ${get(D.projects, u.requiresProject).name}`;
     if (u.faithCost > 0) return 'bought with faith';
+    if (u.nuke && s.congress?.active.some((r) => r.resolution === 'nuclear_ban')) return 'banned by the Atomic Accord';
     if (u.domain === 'sea' && !isCoastal(s, c)) return 'needs a coastal city';
     if (u.requiresBuilding && !hasBuilding(c, u.requiresBuilding)) return `needs a ${get(D.buildings, u.requiresBuilding).name}`;
     return null;
@@ -339,6 +341,7 @@ export function cannotBuild(s: GameState, c: City, item: QueueItem): string | nu
     if (!hasTech(pl, pr.tech)) return `needs ${get(D.techs, pr.tech!).name}`;
     if (pr.oncePerPlayer && pl.projects.includes(pr.id)) return 'already completed';
     if (pr.oncePerWorld && s.worldProjects[pr.id] !== undefined) return `already completed by the ${s.players[s.worldProjects[pr.id]].name}`;
+    if (pr.international && !s.congress?.fair) return 'only while the World Congress holds one';
     if (pr.oncePerPlayer && playerCities(s, c.owner).some((o) => o.id !== c.id && o.queue[0]?.id === pr.id)) return 'already under way in another city';
     return null;
   }
@@ -495,14 +498,18 @@ export function processCity(s: GameState, c: City, happiness: number): void {
     options.sort((a, b) => itemCost(s, c.owner, a) - itemCost(s, c.owner, b));
     if (options.length) c.queue.push(options[0]);
   }
-  if (isProcess(c.queue[0])) {
+  if (c.queue[0]?.kind === 'project' && D.projects.get(c.queue[0].id)?.international) {
+    // International project: production goes into the world's shared effort.
+    if (s.congress?.fair) contributeToFair(s, c.owner, r.total.production);
+    else c.queue.shift();
+  } else if (isProcess(c.queue[0])) {
     // Wealth / Research: part of the production becomes gold or science; nothing accumulates.
     const pr = get(D.projects, c.queue[0].id);
     const amount = (r.total.production * D.rules.processPct) / 100;
     if (pr.process === 'gold') s.players[c.owner].gold += Math.round(amount);
     else addScience(s, c.owner, amount);
   } else c.production += r.total.production;
-  if (c.queue.length && !isProcess(c.queue[0])) {
+  if (c.queue.length && !isProcess(c.queue[0]) && !D.projects.get(c.queue[0].id)?.international) {
     const item = c.queue[0];
     const why = cannotBuild(s, c, item);
     if (why) {

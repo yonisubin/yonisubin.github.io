@@ -3,7 +3,7 @@
 import { createStore } from 'zustand/vanilla';
 import type { Deal, GameState } from '../core/state';
 
-export type Panel = 'none' | 'tech' | 'relations' | 'menu' | 'help' | 'victory' | 'policies' | 'leader' | 'trade' | 'citystate' | 'religion' | 'prophet' | 'routes' | 'culture';
+export type Panel = 'none' | 'tech' | 'relations' | 'menu' | 'help' | 'victory' | 'policies' | 'leader' | 'trade' | 'citystate' | 'religion' | 'prophet' | 'routes' | 'culture' | 'congress' | 'spies';
 
 export interface UIState {
   game: GameState | null;
@@ -30,6 +30,8 @@ export interface UIState {
   targeting: { kind: 'strike' | 'rebase' | 'nuke' | 'theological'; unit: number } | null;
   prophetMode: 'found' | 'enhance';
   panelUnit: number;
+  /** Draft World Congress votes (before casting). */
+  votes: number[] | null;
 }
 
 export const store = createStore<UIState>()(() => ({
@@ -53,6 +55,7 @@ export const store = createStore<UIState>()(() => ({
   targeting: null,
   prophetMode: 'found',
   panelUnit: -1,
+  votes: null,
 }));
 
 export const ui = () => store.getState();

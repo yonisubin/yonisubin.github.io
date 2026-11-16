@@ -396,5 +396,43 @@
     "siteChancePerBattlePct": 20,
     "hiddenSharePct": 40,
     "foreignDigOpinion": -10
+  },
+  "congress": {
+    "foundEra": 3,
+    "sessionTurns": 30,
+    "firstSessionDelay": 10,
+    "baseDelegates": 1,
+    "delegatesPerEraAfter3": 1,
+    "hostDelegates": 2,
+    "allyDelegates": 1,
+    "diplomatDelegates": 1,
+    "worldReligionDelegates": 2,
+    "worldIdeologyDelegates": 1,
+    "unTech": "globalization",
+    "leaderVotePct": 50,
+    "worldFairPerPlayer": 500,
+    "worldFairCulture": 200,
+    "armyTaxPct": 33,
+    "scholarsPct": 10,
+    "heritageCulture": 1,
+    "fundingPct": 25
+  },
+  "espionage": {
+    "firstEra": 3,
+    "perEraAfter": 1,
+    "stealBase": 200,
+    "stealPerEra": 150,
+    "rankSpeedPct": 25,
+    "influenceSpeedPct": 10,
+    "surveillanceTurns": 2,
+    "counterKillPct": 35,
+    "catchChancePct": 10,
+    "electionEveryTurns": 15,
+    "rigInfluence": 15,
+    "rigOthers": -5,
+    "coupMargin": 20,
+    "coupBaseChancePct": 40,
+    "respawnTurns": 10,
+    "maxRank": 2
   }
 }

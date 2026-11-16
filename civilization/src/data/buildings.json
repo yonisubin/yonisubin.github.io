@@ -1472,6 +1472,10 @@
    {
     "type": "happiness",
     "amount": 4
+   },
+   {
+    "type": "delegates",
+    "amount": 2
    }
   ],
   "cityEffects": [
@@ -1743,6 +1747,28 @@
   ],
   "requires": {
    "allCities": "museum"
+  }
+ },
+ {
+  "id": "signal_bureau",
+  "name": "Signal Bureau",
+  "cost": 200,
+  "maintenance": 0,
+  "tech": "radio",
+  "focus": "wonder",
+  "wonder": "national",
+  "effects": [
+   {
+    "type": "spies",
+    "amount": 1
+   },
+   {
+    "type": "spy_rank",
+    "amount": 1
+   }
+  ],
+  "requires": {
+   "allCities": "courthouse"
   }
  }
 ]

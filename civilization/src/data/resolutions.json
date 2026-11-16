@@ -1,0 +1,74 @@
+[
+ {
+  "id": "embargo",
+  "name": "Trade Embargo",
+  "target": "player",
+  "description": "No trade routes or deals with the target civilization."
+ },
+ {
+  "id": "ban_luxury",
+  "name": "Luxury Ban",
+  "target": "luxury",
+  "description": "The chosen luxury gives no happiness anywhere."
+ },
+ {
+  "id": "world_religion",
+  "name": "Faith of the World",
+  "target": "religion",
+  "description": "The founder of the religion gets +2 delegates; its holy city +3 culture."
+ },
+ {
+  "id": "world_ideology",
+  "name": "Doctrine of the World",
+  "target": "ideology",
+  "description": "Civilizations following the ideology get +1 delegate and +2 happiness."
+ },
+ {
+  "id": "arts_funding",
+  "name": "Patronage of the Arts",
+  "target": null,
+  "description": "+25% great artist, writer and musician points everywhere."
+ },
+ {
+  "id": "science_funding",
+  "name": "Patronage of Science",
+  "target": null,
+  "description": "+25% great scientist points everywhere."
+ },
+ {
+  "id": "scholars",
+  "name": "Scholars Abroad",
+  "target": null,
+  "description": "+10% science in every city of every civilization."
+ },
+ {
+  "id": "nuclear_ban",
+  "name": "Atomic Accord",
+  "target": null,
+  "description": "Nuclear weapons can no longer be built or used."
+ },
+ {
+  "id": "army_tax",
+  "name": "Standing Army Levy",
+  "target": null,
+  "description": "Unit upkeep +33% for everyone."
+ },
+ {
+  "id": "heritage",
+  "name": "Heritage Sites",
+  "target": null,
+  "description": "+1 culture from every world wonder."
+ },
+ {
+  "id": "world_fair",
+  "name": "World Fair",
+  "target": null,
+  "description": "An international project: whoever contributes most production gets a free policy; every contributor gets culture."
+ },
+ {
+  "id": "repeal",
+  "name": "Repeal",
+  "target": "resolution",
+  "description": "Cancels an active resolution."
+ }
+]

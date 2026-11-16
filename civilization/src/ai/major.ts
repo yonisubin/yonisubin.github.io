@@ -36,6 +36,7 @@ import { hasFreshWater } from '../core/systems/yields';
 import { adoptablePolicies, canPickPolicy } from '../core/systems/policies';
 import { greatPersonUses } from '../core/systems/greatpeople';
 import { aiDiplomacy } from './diplomacy';
+import { aiSpies } from './congress';
 import { canChooseIdeology, publicOpinion } from '../core/systems/ideology';
 import { aiFaith, phase10UnitScore, phase10UnitTurn } from './phase10';
 import { isCoastal } from '../core/systems/effects';
@@ -49,6 +50,7 @@ export function aiTurn(s: GameState, p: number): void {
   chooseResearch(s, p);
   choosePolicies(s, p);
   aiFaith(s, p);
+  aiSpies(s, p);
   for (const id of [...pl.pendingCaptures]) decideCaptureAI(s, p, id);
   aiDiplomacy(s, p);
   for (const c of playerCities(s, p)) if (!c.queue.length && !c.puppet && !c.razing) chooseProduction(s, p, c);
@@ -226,7 +228,7 @@ function chooseProduction(s: GameState, p: number, c: City): void {
     let v = 0;
     if (item.kind === 'project') {
       const pr = get(D.projects, item.id);
-      v = pr.process ? 0.5 : 60 + pers.science * 3;
+      v = pr.process ? 0.5 : pr.international ? 25 : 60 + pers.science * 3;
     } else if (item.kind === 'unit' && get(D.units, item.id).spaceshipPart) {
       // Race for the stars once the Apollo Program is done.
       v = 70 + pers.science * 3;

@@ -13,6 +13,9 @@ import { OPINION_HOOKS } from './systems/diplomacy';
 import { capitalOf } from './query';
 import { cityCultureYields, concertTour, culturalWinner, findSlot, makeGreatWork, tourismPct } from './systems/culture';
 import { publicOpinion } from './systems/ideology';
+import { congressCityEffects, congressEffects, setDiplomaticWin } from './systems/congress';
+import { spyVision } from './systems/espionage';
+import { VISIBILITY_HOOKS } from './systems/visibility';
 import { declareWinner, VICTORY_CHECKS } from './game';
 import { GP_USE_HOOKS } from './systems/greatpeople';
 import { unitDef as udef } from './query';
@@ -60,6 +63,11 @@ export function installHooks(setWar: (s: GameState, a: number, b: number, war: b
     if ((s.players[c.owner].anarchy ?? 0) > 0) for (const k of ['production', 'gold', 'science', 'culture'] as const) pct[k] -= 100;
   });
   HAPPINESS_HOOKS.push((s, p) => [0, publicOpinion(s, p).unhappiness]);
+  // Phase 12: the World Congress and espionage.
+  EFFECT_SOURCES.push(congressEffects);
+  CITY_EFFECT_SOURCES.push(congressCityEffects);
+  setDiplomaticWin((s, p, how) => declareWinner(s, p, 'diplomatic', how));
+  VISIBILITY_HOOKS.push(spyVision);
   VICTORY_CHECKS.push((s) => {
     if (!s.settings.victories.culture) return;
     const w = culturalWinner(s);

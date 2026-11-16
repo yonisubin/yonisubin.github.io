@@ -35,6 +35,7 @@ import { goldenAgeThreshold } from '../core/systems/goldenage';
 import { describeUse, gpThreshold, greatPersonUses } from '../core/systems/greatpeople';
 import { religionHtml, prophetHtml, routesHtml } from './religion';
 import { cultureHtml, tenetsHtml } from './culture';
+import { congressHtml, spiesHtml } from './congress';
 import { canSeeSite } from '../core/systems/archaeology';
 import { influenceLevel, LEVELS } from '../core/systems/culture';
 import { faithItems, majority } from '../core/systems/religion';
@@ -123,6 +124,8 @@ function renderTop(s: GameState): void {
     <span class="spacer"></span>
     <span class="chip">Turn ${s.turn} · ${yearOf(s)}</span>
     <button class="chip" data-a="lens" title="Yield icons on tiles (Y)">${ui().lens ? '◉' : '○'} Yields</button>
+    ${s.congress ? `<button class="chip" data-a="panel" data-p="congress">Congress</button>` : ''}
+    ${pl.spies.length ? `<button class="chip" data-a="panel" data-p="spies">Spies</button>` : ''}
     <button class="chip" data-a="panel" data-p="victory">Victory</button>
     <button class="chip" data-a="panel" data-p="relations">Relations</button>
     <button class="chip" data-a="panel" data-p="menu">Menu</button>`,
@@ -415,6 +418,8 @@ function renderModal(s: GameState): void {
   else if (st.panel === 'citystate' && s.players[st.diploWith]?.isMinor) html = cityStateHtml(s, st.diploWith);
   else if (st.panel === 'religion') html = religionHtml(s);
   else if (st.panel === 'culture') html = cultureHtml(s);
+  else if (st.panel === 'congress') html = congressHtml(s);
+  else if (st.panel === 'spies') html = spiesHtml(s);
   else if (st.panel === 'prophet' && s.units[st.panelUnit]) html = prophetHtml(s, st.panelUnit, st.prophetMode);
   else if (st.panel === 'routes' && s.units[st.panelUnit]) html = routesHtml(s, st.panelUnit);
   show(el, !!html);
@@ -960,6 +965,44 @@ export function installHudEvents(centerOn: (tile: number) => void): void {
       case 'end-turn':
         endTurn();
         break;
+      case 'vote-adj': {
+        const c = s.congress!;
+        const draft = [...(st.votes ?? c.votes[s.human] ?? c.proposals.map((x) => (x.leader ? -1 : 0)))];
+        const i = Number(target.dataset.i);
+        draft[i] = (draft[i] ?? 0) + Number(target.dataset.d);
+        set({ votes: draft });
+        break;
+      }
+      case 'vote-cast': {
+        const c = s.congress!;
+        if (act({ type: 'vote', votes: st.votes ?? c.votes[s.human] ?? c.proposals.map((x) => (x.leader ? -1 : 0)) })) {
+          toast('Votes cast.');
+          set({ votes: null });
+        }
+        break;
+      }
+      case 'propose': {
+        const res = (document.getElementById('prop-res') as HTMLSelectElement).value;
+        const tv = (document.getElementById('prop-target') as HTMLSelectElement).value;
+        const kind = D.resolutions.get(res)?.target;
+        let targetVal: string | number | undefined;
+        if (kind && tv) {
+          const [k, ...rest] = tv.split(':');
+          if (k !== kind) {
+            toast(`That resolution needs a ${kind} as its target.`);
+            break;
+          }
+          targetVal = k === 'player' ? Number(rest[0]) : rest.join(':');
+        }
+        if (act({ type: 'propose', resolution: res, target: targetVal })) toast('Proposal submitted.');
+        break;
+      }
+      case 'spy-diplomat':
+        act({ type: 'moveSpy', spy: Number(target.dataset.s), to: Number(target.dataset.c), diplomat: true });
+        break;
+      case 'spy-coup':
+        if (confirm('Attempt a coup? If it fails, your spy dies.')) act({ type: 'coup', spy: Number(target.dataset.s) });
+        break;
       case 'choose-ideology':
         act({ type: 'chooseIdeology', ideology: target.dataset.id! });
         break;
@@ -1126,6 +1169,16 @@ export function installHudEvents(centerOn: (tile: number) => void): void {
     }
 
     if (t.id === 'o-faction') updateFactionInfo();
+    if (t.dataset.a === 'spy-move') act({ type: 'moveSpy', spy: Number(t.dataset.s), to: Number(t.value) });
+    if (t.dataset.a === 'leader-vote') {
+      const st = ui();
+      const c = st.game?.congress;
+      if (c && st.game) {
+        const draft = [...(st.votes ?? c.votes[st.game.human] ?? c.proposals.map((x) => (x.leader ? -1 : 0)))];
+        draft[Number(t.dataset.i)] = Number(t.value);
+        set({ votes: draft });
+      }
+    }
     if (t.dataset.a === 'focus') {
       const city = ui().selCity;
       if (city !== null) act({ type: 'focus', city, focus: t.value as 'default' });

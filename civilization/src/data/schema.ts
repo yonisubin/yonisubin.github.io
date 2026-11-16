@@ -449,6 +449,10 @@ export const Tenet = z
 
 export const Ideology = z.object({ id, name: z.string(), description: z.string(), color: z.string(), tenets: z.array(Tenet) }).strict();
 
+export const Resolution = z
+  .object({ id, name: z.string(), description: z.string(), target: z.enum(['player', 'luxury', 'religion', 'ideology', 'resolution']).nullable() })
+  .strict();
+
 export const Project = z
   .object({
     id,
@@ -459,6 +463,8 @@ export const Project = z
     oncePerPlayer: z.boolean().default(false),
     /** Only one player in the world can complete it (its effect is global). */
     oncePerWorld: z.boolean().default(false),
+    /** An international project (World Congress): everyone contributes. */
+    international: z.boolean().default(false),
     /** A process never completes: it turns production into gold or science. */
     process: z.enum(['gold', 'science']).optional(),
     description: z.string(),
@@ -608,6 +614,13 @@ export const Rules = z
     culture: z.object({ workCulture: z.number(), workTourism: z.number(), themeBonus: z.number(), wonderTourism: z.number(), levels: z.array(z.number()), openBordersPct: z.number(), tradeRoutePct: z.number(), sameReligionPct: z.number(), differentIdeologyPct: z.number(), sameIdeologyPct: z.number(), concertTurns: z.number() }).strict(),
     ideology: z.record(z.string(), z.number()),
     archaeology: z.record(z.string(), z.number()),
+    congress: z.object({
+      foundEra: z.number(), sessionTurns: z.number(), firstSessionDelay: z.number(), baseDelegates: z.number(), delegatesPerEraAfter3: z.number(),
+      hostDelegates: z.number(), allyDelegates: z.number(), diplomatDelegates: z.number(), worldReligionDelegates: z.number(), worldIdeologyDelegates: z.number(),
+      unTech: z.string(), leaderVotePct: z.number(), worldFairPerPlayer: z.number(), worldFairCulture: z.number(), armyTaxPct: z.number(), scholarsPct: z.number(),
+      heritageCulture: z.number(), fundingPct: z.number(),
+    }).strict(),
+    espionage: z.record(z.string(), z.number()),
     diplomacy: z
       .object({
         dealTurns: z.number(),

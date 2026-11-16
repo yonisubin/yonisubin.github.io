@@ -63,10 +63,14 @@ function recomputeIndexed(s: GameState, p: number): void {
   for (const u of allUnits(s)) if (u.owner === p) for (const i of sightFrom(s, u.tile, unitSight(s, u.id))) mark(i);
   for (const c of allCities(s)) if (c.owner === p) for (const i of sightFrom(s, c.tile, 2)) mark(i);
   for (let i = 0; i < n; i++) if (s.map.tiles[i].owner === p) mark(i);
+  for (const h of VISIBILITY_HOOKS) for (const i of h(s, p)) mark(i);
   pl.visible = vis;
   for (let i = 0; i < n; i++) if (vis[i]) pl.explored[i] = 1;
   meetVisible(s, p);
 }
+
+/** Extra tiles a player sees (spies...). */
+export const VISIBILITY_HOOKS: ((s: GameState, p: number) => number[])[] = [];
 
 export function recomputeAllVisibility(s: GameState): void {
   for (const pl of s.players) recomputeVisibility(s, pl.id);

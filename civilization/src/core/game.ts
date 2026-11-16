@@ -31,6 +31,8 @@ import { installHooks } from './hooks';
 import { processTourism } from './systems/culture';
 import { canChooseIdeology, chooseIdeology, processIdeology, switchIdeology } from './systems/ideology';
 import { startDig } from './systems/archaeology';
+import { castVotes, processCongress, propose as proposeResolution } from './systems/congress';
+import { coup, moveSpy, processEspionage } from './systems/espionage';
 import { airStrike, canNuke, canRebase, canStrike, nuke, rebase } from './systems/air';
 import { establishRoute, plunder, processTradeRoutes } from './systems/trade';
 import { buyWithFaith, canChoosePantheon, choosePantheon, enhanceReligion, foundReligion, processReligion, reform, removeHeresy, spread, theological } from './systems/religion';
@@ -148,6 +150,7 @@ export function newGame(o: NewGameOptions = {}): GameState {
     tourismTo: [],
     ideology: null,
     anarchy: 0,
+    spies: [],
   });
   const players: Player[] = factionIds.map((fid, i) => {
     const f = get(D.factions, fid);
@@ -192,6 +195,7 @@ export function newGame(o: NewGameOptions = {}): GameState {
     religions: {},
     greatWorks: {},
     antiquity: {},
+    congress: null,
     tradeRoutes: [],
     worldProjects: {},
   };
@@ -578,6 +582,23 @@ export function applyAction(s: GameState, p: number, a: Action): ActionResult {
       removeUnit(s, u);
       return OK;
     }
+    case 'propose': {
+      const err = proposeResolution(s, p, { resolution: a.resolution, target: a.target, proposer: p });
+      return err ? fail(err) : OK;
+    }
+    case 'vote': {
+      const err = castVotes(s, p, a.votes);
+      return err ? fail(err) : OK;
+    }
+    case 'moveSpy': {
+      const err = moveSpy(s, p, a.spy, a.to, a.diplomat);
+      if (!err) recomputeVisibility(s, p);
+      return err ? fail(err) : OK;
+    }
+    case 'coup': {
+      const err = coup(s, p, a.spy);
+      return err ? fail(err) : OK;
+    }
     case 'chooseIdeology': {
       const err = chooseIdeology(s, p, a.ideology);
       return err ? fail(err) : OK;
@@ -752,6 +773,8 @@ export function endTurn(s: GameState, hooks: TurnHooks = {}): void {
   processTradeRoutes(s);
   processReligion(s);
   processTourism(s);
+  processCongress(s);
+  processEspionage(s);
   processIdeology(s, (st, p) => happinessOf(st, p).net);
   s.turn++;
   for (const pl of s.players) {
@@ -837,12 +860,13 @@ function citadelDamage(s: GameState, p: number): void {
   }
 }
 
-export function nextRequiredAction(s: GameState, p: number): { kind: 'research' | 'production' | 'unit' | 'capture' | 'promotion' | 'policy' | 'pantheon' | 'ideology' | 'done'; id?: number } {
+export function nextRequiredAction(s: GameState, p: number): { kind: 'research' | 'production' | 'unit' | 'capture' | 'promotion' | 'policy' | 'pantheon' | 'ideology' | 'congress' | 'done'; id?: number } {
   const pl = s.players[p];
   if (pl.pendingCaptures.length) return { kind: 'capture', id: pl.pendingCaptures[0] };
   if (canPickPolicy(s, p)) return { kind: 'policy' };
   if (canChoosePantheon(s, p)) return { kind: 'pantheon' };
   if (canChooseIdeology(s, p)) return { kind: 'ideology' };
+  if (s.congress && s.congress.nextSession === s.turn && s.congress.proposals.length && !s.congress.votes[p]) return { kind: 'congress' };
   if (!pl.research && playerCities(s, p).length && pl.techs.length < D.techs.size) return { kind: 'research' };
   for (const c of playerCities(s, p)) if (!c.queue.length && !c.puppet && !c.razing) return { kind: 'production', id: c.id };
   for (const u of playerUnits(s, p)) if (u.pendingPromotions > 0 && u.moves > 0) return { kind: 'promotion', id: u.id };

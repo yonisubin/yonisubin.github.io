@@ -120,6 +120,7 @@ export function airStrike(s: GameState, u: Unit, to: number): { dealt: number; t
 export function canNuke(s: GameState, u: Unit, to: number): string | null {
   const def = unitDef(u);
   if (!def.nuke) return 'not a nuclear weapon';
+  if (s.congress?.active.some((r) => r.resolution === 'nuclear_ban')) return 'banned by the Atomic Accord';
   if (u.moves <= 0) return 'not ready';
   if (distance(dims(s), u.tile, to) > def.range) return 'out of range';
   // Only on enemies (or empty land): every owner hit must be at war with us.

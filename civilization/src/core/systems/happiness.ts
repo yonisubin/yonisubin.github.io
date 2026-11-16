@@ -15,8 +15,10 @@ export interface HappinessReport {
 
 /** Distinct luxury types player p has connected (improved, in its territory, or under a city). */
 export function connectedLuxuries(s: GameState, p: number): string[] {
+  // Luxuries banned by the World Congress give no happiness.
+  const banned = new Set((s.congress?.active ?? []).filter((r) => r.resolution === 'ban_luxury').map((r) => String(r.target)));
   return Object.entries(luxuryCounts(s, p))
-    .filter(([, n]) => n > 0)
+    .filter(([r, n]) => n > 0 && !banned.has(r))
     .map(([r]) => r)
     .sort();
 }

@@ -24,6 +24,8 @@ import beliefs from './beliefs.json';
 import religionNames from './religionNames.json';
 import ideologies from './ideologies.json';
 import greatWorkNames from './greatWorkNames.json';
+import resolutions from './resolutions.json';
+import spyNames from './spyNames.json';
 import rules from './rules.json';
 
 export type TerrainDef = z.infer<typeof S.Terrain>;
@@ -85,6 +87,8 @@ export const D = {
   beliefs: table('beliefs', S.Belief, beliefs),
   religionNames: z.array(z.string()).parse(religionNames),
   ideologies: table('ideologies', S.Ideology, ideologies),
+  resolutions: table('resolutions', S.Resolution, resolutions),
+  spyNames: z.array(z.string()).parse(spyNames),
   greatWorkNames: z.record(z.string(), z.object({ adj: z.array(z.string()), noun: z.array(z.string()) })).parse(greatWorkNames),
   /** Every tenet by id, with its ideology. */
   tenets: new Map<string, z.infer<typeof S.Tenet> & { ideology: string }>(),

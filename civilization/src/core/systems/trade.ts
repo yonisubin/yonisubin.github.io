@@ -95,6 +95,8 @@ export function routeOptions(s: GameState, u: Unit): RouteOption[] {
     if (to.id === from.id) continue;
     if (to.owner !== u.owner && (!pl.met.includes(to.owner) || atWar(s, u.owner, to.owner))) continue;
     if (s.players[to.owner].isBarbarian) continue;
+    const embargo = s.congress?.active.some((r) => r.resolution === 'embargo' && (Number(r.target) === to.owner || Number(r.target) === u.owner));
+    if (embargo && to.owner !== u.owner) continue;
     if (distance(dims(s), from.tile, to.tile) > range) continue;
     if (kind === 'sea' && !isCoastalTile(s, to.tile)) continue;
     if (s.tradeRoutes.some((r) => r.from === from.id && r.to === to.id)) continue;
