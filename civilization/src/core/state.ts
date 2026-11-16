@@ -116,6 +116,8 @@ export interface City {
   specialists: Record<string, number>;
   /** Specialists the player asked for (kept when citizens are reassigned). */
   manualSpecialists: Record<string, number>;
+  /** Great works in this city's buildings: building id → work ids (one per filled slot). */
+  works: Record<string, string[]>;
   /** Citizens following each religion, and pressure building toward the next conversion. */
   followers: Record<string, number>;
   pressure: Record<string, number>;
@@ -214,6 +216,11 @@ export interface Player {
   /** Great person points and how many of each type were born. */
   gpPoints: Record<string, number>;
   gpCount: Record<string, number>;
+  /** Tourism accumulated toward each player (index = player id). */
+  tourismTo: number[];
+  ideology: string | null;
+  /** Turns of anarchy left after switching ideology. */
+  anarchy: number;
   /** Faith saved; the pantheon belief; the religion this player founded. */
   faith: number;
   pantheon: string | null;
@@ -278,6 +285,15 @@ export interface Proposal {
   /** "deal", a friendship offer, or a demand (refusing it angers them). */
   kind: 'deal' | 'friendship' | 'demand';
   text: string;
+}
+
+export interface GreatWork {
+  id: string;
+  kind: 'art' | 'writing' | 'music' | 'artifact';
+  name: string;
+  creator: number;
+  era: number;
+  turn: number;
 }
 
 export interface Religion {
@@ -365,6 +381,9 @@ export interface GameState {
   /** Notable events (cities founded and taken, wars, wonders...) for the replay. */
   events: GameEvent[];
   religions: Record<string, Religion>;
+  greatWorks: Record<string, GreatWork>;
+  /** Antiquity sites (tile → site), found once Archaeology is known. */
+  antiquity: Record<string, { era: number; kind: string; hidden: boolean }>;
   tradeRoutes: TradeRoute[];
   /** World projects completed (the Nuclear Program): id → player. */
   worldProjects: Record<string, number>;
@@ -398,7 +417,7 @@ export type Action =
   | { type: 'annexPuppet'; city: number }
   | { type: 'adoptPolicy'; policy: string }
   | { type: 'specialist'; city: number; specialist: string; delta: 1 | -1 }
-  | { type: 'greatPerson'; unit: number; use: 'discover' | 'hurry' | 'trade' | 'golden_age' | 'inspire' | 'concert' | 'improve' }
+  | { type: 'greatPerson'; unit: number; use: 'discover' | 'hurry' | 'trade' | 'golden_age' | 'inspire' | 'concert' | 'improve' | 'great_work' }
   | { type: 'trade'; deal: Deal }
   | { type: 'respond'; index: number; accept: boolean }
   | { type: 'friendship'; target: number }
@@ -416,6 +435,9 @@ export type Action =
   | { type: 'foundReligion'; unit: number; name: string; founder: string; follower: string }
   | { type: 'enhanceReligion'; unit: number; follower: string; enhancer: string }
   | { type: 'reform'; belief: string }
+  | { type: 'chooseIdeology'; ideology: string }
+  | { type: 'switchIdeology'; ideology: string }
+  | { type: 'dig'; unit: number; choice: 'artifact' | 'landmark' }
   | { type: 'spreadReligion'; unit: number }
   | { type: 'removeHeresy'; unit: number }
   | { type: 'theological'; unit: number; to: number }

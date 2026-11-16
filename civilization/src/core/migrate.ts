@@ -12,12 +12,15 @@ export function migrate(s: GameState): GameState {
   s.religions ??= {};
   s.tradeRoutes ??= [];
   s.worldProjects ??= {};
+  s.greatWorks ??= {};
+  s.antiquity ??= {};
   s.modGen ??= 0;
   for (const c of Object.values(s.cities)) {
     c.specialists ??= {};
     c.manualSpecialists ??= {};
     c.followers ??= {};
     c.pressure ??= {};
+    c.works ??= {};
   }
   for (const p of s.players) {
     p.projects ??= [];
@@ -32,6 +35,9 @@ export function migrate(s: GameState): GameState {
     p.faith ??= 0;
     p.pantheon ??= null;
     p.religion ??= null;
+    p.tourismTo ??= [];
+    p.ideology ??= null;
+    p.anarchy ??= 0;
     const zero = { pop: 0, military: 0, production: 0, gold: 0, science: 0, culture: 0, land: 0 };
     p.stats ??= [];
     for (const x of p.stats) for (const [k, v] of Object.entries(zero)) if (!(k in x)) (x as unknown as Record<string, number>)[k] = v;

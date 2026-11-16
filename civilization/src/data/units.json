@@ -1231,5 +1231,18 @@
   "greatPerson": "admiral",
   "domain": "sea",
   "ocean": true
+ },
+ {
+  "id": "archaeologist",
+  "name": "Archaeologist",
+  "class": "civilian",
+  "cost": 200,
+  "strength": 0,
+  "moves": 4,
+  "tech": "archaeology",
+  "role": "archaeology",
+  "glyph": "\u26cf",
+  "requiresBuilding": "university",
+  "archaeology": true
  }
 ]

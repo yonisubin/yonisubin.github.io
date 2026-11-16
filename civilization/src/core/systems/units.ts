@@ -26,6 +26,7 @@ import { isPassableLand } from '../../mapgen/generate';
 import { playerEffects, sum } from './effects';
 import { airCapacity, isCoastalTile } from './domain';
 import { questEvent } from './citystates';
+import { finishDig, recordSite } from './archaeology';
 
 /** Full movement points per turn (base + promotions + effects such as +1 for mounted units). */
 export const fullMoves = (s: GameState, u: Unit): number => {
@@ -287,6 +288,10 @@ export function finishJob(s: GameState, u: Unit, job: string): void {
       }
     }
   };
+  if (job.startsWith('dig_')) {
+    finishDig(s, u, job.slice(4));
+    return;
+  }
   if (job.startsWith('remove_')) {
     clear(job.slice(7));
     return;
@@ -330,6 +335,7 @@ export function onEnterTile(s: GameState, u: Unit): void {
   }
   if (t.ruin && !s.players[u.owner].isBarbarian) {
     t.ruin = false;
+    recordSite(s, u.tile, 'ruin', 50);
     openRuin(s, u);
   }
 }
@@ -355,6 +361,7 @@ function clearCamp(s: GameState, u: Unit): void {
   t.camp = false;
   delete s.camps[u.tile];
   questEvent(s, 'camp', u.tile, u.owner);
+  recordSite(s, u.tile, 'camp');
   const b = D.rules.barbarians;
   const gold = b.campReward + eraOf(s.players[u.owner]) * b.campRewardPerEra;
   s.players[u.owner].gold += gold;

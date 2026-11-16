@@ -54,6 +54,8 @@ Phase 9: diplomacy (`core/systems/diplomacy.ts`: embassies, open borders, defens
 
 Phase 10: domains (`core/systems/domain.ts`: ships on water — some only on the coast — land units embarking after Optics/Astronomy, aircraft in cities and on carriers), naval units, work boats and fishing boats, harbors and lighthouses, Great Admirals; aircraft, interception and nuclear weapons (`core/systems/air.ts`, the Nuclear Program world project); trade routes with caravans and cargo ships (`core/systems/trade.ts`); faith and religion (`core/systems/religion.ts`, `data/beliefs.json`: pantheons, founding/enhancing/reforming, follower beliefs, pressure, missionaries, inquisitors, theological combat, buying with faith). AI for all of it in `ai/phase10.ts`.
 
+Phase 11: great works in building/wonder slots with theming bonuses, tourism and influence levels and the culture victory (`core/systems/culture.ts`), three original ideologies with tiered tenets, public opinion, switching and anarchy (`core/systems/ideology.ts`, `data/ideologies.json`), and archaeology (`core/systems/archaeology.ts`: antiquity sites from battles, ruins, camps and razed cities; Archaeologists dig artifacts or Landmarks). The Culture panel (`ui/culture.ts`) shows influence, great works and ideology.
+
 Extension points for later phases: `EFFECT_SOURCES`, `TILE_HOOKS`, `CITY_HOOKS`, `HAPPINESS_HOOKS`, `GOLD_HOOKS`, `COMBAT_HOOKS`, `GP_USE_HOOKS`/`GP_DO_HOOKS`, `EFFECT_TEXT`, and `VICTORY_CHECKS` (core/game.ts), `SCORE_HOOKS` (core/systems/economy.ts), `MIGRATIONS` (core/migrate.ts, fills new fields in old saves), `VICTORY_ROWS` (ui/hud.ts).
 
 Deliberate simplifications so far (say so before changing them):

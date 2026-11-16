@@ -12,6 +12,7 @@ import { createUnit, freeTileNear } from './units';
 import { startGoldenAge } from './goldenage';
 import { spawnGreatPerson } from './greatpeople';
 import { unitForFaction } from '../../data';
+import { tenetProblem } from './ideology';
 
 /** Number of policies that count toward the cost (openers and policies, not finishers). */
 export function policyCount(s: GameState, p: number): number {
@@ -32,6 +33,7 @@ export function policyCost(s: GameState, p: number): number {
 export function cannotAdopt(s: GameState, p: number, id: string): string | null {
   const pl = s.players[p];
   if (pl.policies.includes(id)) return 'already adopted';
+  if (D.tenets.has(id)) return tenetProblem(s, p, id);
   const tree = D.policyTrees.get(id);
   if (tree) {
     if (eraOf(pl) < tree.era) return `opens in the ${['Ancient', 'Classical', 'Medieval', 'Renaissance'][tree.era]} era`;
@@ -51,6 +53,8 @@ export function adoptablePolicies(s: GameState, p: number): string[] {
     if (!cannotAdopt(s, p, t.id)) out.push(t.id);
     for (const pol of t.policies) if (!cannotAdopt(s, p, pol.id)) out.push(pol.id);
   }
+  const ideo = s.players[p].ideology;
+  if (ideo) for (const t of D.ideologies.get(ideo)!.tenets) if (!tenetProblem(s, p, t.id)) out.push(t.id);
   return out;
 }
 
@@ -71,6 +75,13 @@ export function adoptPolicy(s: GameState, p: number, id: string): string | null 
     pl.culture -= cost;
   }
   pl.policies.push(id);
+  const tenet = D.tenets.get(id);
+  if (tenet) {
+    applyOneShots(s, p, tenet.effects);
+    notify(s, p, `Adopted the tenet ${tenet.name}.`, 'good');
+    bumpEffects(s);
+    return null;
+  }
   const tree = D.policyTrees.get(id);
   const pol = D.policies.get(id);
   applyOneShots(s, p, tree ? tree.opener : pol!.effects);

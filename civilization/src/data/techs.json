@@ -705,7 +705,8 @@
   "cost": 4700,
   "prereqs": [
    "computers"
-  ]
+  ],
+  "tourismPct": 100
  },
  {
   "id": "mobile_tactics",

@@ -12,7 +12,10 @@
   },
   "defense": 2.5,
   "auto": true,
-  "focus": "production"
+  "focus": "production",
+  "greatWorkSlots": {
+   "art": 1
+  }
  },
  {
   "id": "monument",
@@ -154,6 +157,9 @@
   "focus": "culture",
   "specialists": {
    "writer": 1
+  },
+  "greatWorkSlots": {
+   "writing": 1
   }
  },
  {
@@ -209,6 +215,9 @@
   "focus": "science",
   "specialists": {
    "scientist": 2
+  },
+  "greatWorkSlots": {
+   "writing": 1
   }
  },
  {
@@ -285,6 +294,9 @@
   "focus": "culture",
   "specialists": {
    "musician": 1
+  },
+  "greatWorkSlots": {
+   "music": 1
   }
  },
  {
@@ -473,6 +485,9 @@
   },
   "specialists": {
    "artist": 2
+  },
+  "greatWorkSlots": {
+   "art": 2
   }
  },
  {
@@ -532,10 +547,14 @@
    "culture": 3
   },
   "percent": {
-   "culture": 33
+   "culture": 33,
+   "tourism": 33
   },
   "requires": {
    "building": "museum"
+  },
+  "greatWorkSlots": {
+   "music": 1
   }
  },
  {
@@ -721,6 +740,9 @@
   ],
   "greatPeople": {
    "scientist": 2
+  },
+  "greatWorkSlots": {
+   "writing": 2
   }
  },
  {
@@ -788,6 +810,9 @@
   ],
   "greatPeople": {
    "writer": 2
+  },
+  "greatWorkSlots": {
+   "writing": 2
   }
  },
  {
@@ -1080,6 +1105,9 @@
   ],
   "greatPeople": {
    "scientist": 3
+  },
+  "greatWorkSlots": {
+   "art": 1
   }
  },
  {
@@ -1105,6 +1133,9 @@
   ],
   "greatPeople": {
    "musician": 2
+  },
+  "greatWorkSlots": {
+   "music": 2
   }
  },
  {
@@ -1156,6 +1187,9 @@
   ],
   "greatPeople": {
    "writer": 2
+  },
+  "greatWorkSlots": {
+   "writing": 1
   }
  },
  {
@@ -1181,6 +1215,9 @@
   ],
   "greatPeople": {
    "artist": 2
+  },
+  "greatWorkSlots": {
+   "art": 2
   }
  },
  {
@@ -1268,6 +1305,9 @@
   ],
   "greatPeople": {
    "artist": 2
+  },
+  "greatWorkSlots": {
+   "art": 3
   }
  },
  {
@@ -1330,7 +1370,10 @@
     "yield": "culture",
     "amount": 8
    }
-  ]
+  ],
+  "greatWorkSlots": {
+   "art": 2
+  }
  },
  {
   "id": "crystal_dome",
@@ -1676,5 +1719,30 @@
   },
   "faithCost": 200,
   "belief": true
+ },
+ {
+  "id": "visitor_pavilion",
+  "name": "Visitor Pavilion",
+  "cost": 200,
+  "maintenance": 0,
+  "tech": "refrigeration",
+  "focus": "wonder",
+  "wonder": "national",
+  "effects": [
+   {
+    "type": "tourism_pct",
+    "percent": 25
+   }
+  ],
+  "cityEffects": [
+   {
+    "type": "city_yield",
+    "yield": "tourism",
+    "amount": 4
+   }
+  ],
+  "requires": {
+   "allCities": "museum"
+  }
  }
 ]

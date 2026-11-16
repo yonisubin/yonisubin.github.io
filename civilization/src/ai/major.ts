@@ -36,6 +36,7 @@ import { hasFreshWater } from '../core/systems/yields';
 import { adoptablePolicies, canPickPolicy } from '../core/systems/policies';
 import { greatPersonUses } from '../core/systems/greatpeople';
 import { aiDiplomacy } from './diplomacy';
+import { canChooseIdeology, publicOpinion } from '../core/systems/ideology';
 import { aiFaith, phase10UnitScore, phase10UnitTurn } from './phase10';
 import { isCoastal } from '../core/systems/effects';
 import { siteScore } from '../mapgen/generate';
@@ -98,11 +99,21 @@ const TREE_TASTE: Record<string, (p: PersonalityData) => number> = {
 
 function choosePolicies(s: GameState, p: number): void {
   const pers = personality(s, p);
+  // Ideology: by temperament; switch if a revolutionary wave builds.
+  if (canChooseIdeology(s, p)) {
+    const pick = pers.aggression >= 7 ? 'crown' : pers.science + pers.culture >= 13 ? 'assembly' : 'order';
+    applyAction(s, p, { type: 'chooseIdeology', ideology: pick });
+  } else {
+    const op = publicOpinion(s, p);
+    if (op.state === 'Revolutionary Wave' && op.preferred) applyAction(s, p, { type: 'switchIdeology', ideology: op.preferred });
+  }
   for (let guard = 0; guard < 4 && canPickPolicy(s, p); guard++) {
     const options = adoptablePolicies(s, p);
     if (!options.length) return;
     const pl = s.players[p];
     const score = (id: string) => {
+      const tenet = D.tenets.get(id);
+      if (tenet) return 20 + tenet.tier * 5;
       const tree = D.policyTrees.get(id) ? id : D.policies.get(id)!.tree;
       let v = TREE_TASTE[tree]?.(pers) ?? 5;
       // Finish trees already started.
@@ -133,7 +144,9 @@ function greatPersonTurn(s: GameState, p: number, u: Unit): void {
     }
   }
   const prefer: Record<string, string> = { scientist: 'discover', engineer: 'improve', merchant: 'trade', artist: 'golden_age', writer: 'inspire', musician: 'concert' };
-  const want = prefer[type ?? ''];
+  let want = prefer[type ?? ''];
+  // Artists, writers and musicians make great works when there's a slot.
+  if (uses.includes('great_work' as never)) want = 'great_work';
   if (want && uses.includes(want as never)) {
     applyAction(s, p, { type: 'greatPerson', unit: u.id, use: want as 'discover' });
     return;

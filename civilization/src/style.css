@@ -169,3 +169,6 @@ button.link { background: none; border: none; padding: 0; color: var(--text); te
 .infl .bar i { display: block; height: 100%; }
 @media (max-width: 700px) { .trade-cols { grid-template-columns: 1fr; } }
 .chip.faith { color: #f0e0a0; }
+.tenets { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); margin-bottom: 12px; }
+td .bar { height: 4px; background: #2a2f3c; border-radius: 3px; overflow: hidden; margin-top: 2px; }
+td .bar i { display: block; height: 100%; background: var(--cult); }

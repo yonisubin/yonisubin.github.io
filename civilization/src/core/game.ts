@@ -28,6 +28,9 @@ import { barbarianSpawns, spawnRebels } from './systems/barbarians';
 import { playerYields } from './systems/yields';
 import { recordTurn } from './systems/stats';
 import { installHooks } from './hooks';
+import { processTourism } from './systems/culture';
+import { canChooseIdeology, chooseIdeology, processIdeology, switchIdeology } from './systems/ideology';
+import { startDig } from './systems/archaeology';
 import { airStrike, canNuke, canRebase, canStrike, nuke, rebase } from './systems/air';
 import { establishRoute, plunder, processTradeRoutes } from './systems/trade';
 import { buyWithFaith, canChoosePantheon, choosePantheon, enhanceReligion, foundReligion, processReligion, reform, removeHeresy, spread, theological } from './systems/religion';
@@ -142,6 +145,9 @@ export function newGame(o: NewGameOptions = {}): GameState {
     faith: 0,
     pantheon: null,
     religion: null,
+    tourismTo: [],
+    ideology: null,
+    anarchy: 0,
   });
   const players: Player[] = factionIds.map((fid, i) => {
     const f = get(D.factions, fid);
@@ -184,6 +190,8 @@ export function newGame(o: NewGameOptions = {}): GameState {
     wonders: {},
     modGen: 0,
     religions: {},
+    greatWorks: {},
+    antiquity: {},
     tradeRoutes: [],
     worldProjects: {},
   };
@@ -570,6 +578,18 @@ export function applyAction(s: GameState, p: number, a: Action): ActionResult {
       removeUnit(s, u);
       return OK;
     }
+    case 'chooseIdeology': {
+      const err = chooseIdeology(s, p, a.ideology);
+      return err ? fail(err) : OK;
+    }
+    case 'switchIdeology': {
+      const err = switchIdeology(s, p, a.ideology);
+      return err ? fail(err) : OK;
+    }
+    case 'dig': {
+      const err = startDig(s, unit!, a.choice);
+      return err ? fail(err) : OK;
+    }
     case 'declareWar': {
       const q = a.target;
       if (q === p || !s.players[q] || s.players[q].isBarbarian || !s.players[q].alive) return fail('invalid target');
@@ -636,8 +656,6 @@ function bounceUnit(s: GameState, uid: number): void {
 }
 
 export { militaryStrength };
-
-installHooks(setWar);
 
 /** AI peace rule: after the treaty minimum, accept if losing or the war has dragged on. */
 export function aiAcceptsPeace(s: GameState, ai: number, other: number): boolean {
@@ -733,6 +751,8 @@ export function endTurn(s: GameState, hooks: TurnHooks = {}): void {
   processCityStates(s);
   processTradeRoutes(s);
   processReligion(s);
+  processTourism(s);
+  processIdeology(s, (st, p) => happinessOf(st, p).net);
   s.turn++;
   for (const pl of s.players) {
     if (!pl.alive) continue;
@@ -817,11 +837,12 @@ function citadelDamage(s: GameState, p: number): void {
   }
 }
 
-export function nextRequiredAction(s: GameState, p: number): { kind: 'research' | 'production' | 'unit' | 'capture' | 'promotion' | 'policy' | 'pantheon' | 'done'; id?: number } {
+export function nextRequiredAction(s: GameState, p: number): { kind: 'research' | 'production' | 'unit' | 'capture' | 'promotion' | 'policy' | 'pantheon' | 'ideology' | 'done'; id?: number } {
   const pl = s.players[p];
   if (pl.pendingCaptures.length) return { kind: 'capture', id: pl.pendingCaptures[0] };
   if (canPickPolicy(s, p)) return { kind: 'policy' };
   if (canChoosePantheon(s, p)) return { kind: 'pantheon' };
+  if (canChooseIdeology(s, p)) return { kind: 'ideology' };
   if (!pl.research && playerCities(s, p).length && pl.techs.length < D.techs.size) return { kind: 'research' };
   for (const c of playerCities(s, p)) if (!c.queue.length && !c.puppet && !c.razing) return { kind: 'production', id: c.id };
   for (const u of playerUnits(s, p)) if (u.pendingPromotions > 0 && u.moves > 0) return { kind: 'promotion', id: u.id };
@@ -829,3 +850,5 @@ export function nextRequiredAction(s: GameState, p: number): { kind: 'research' 
   return { kind: 'done' };
 }
 
+// Later systems plug into the hooks above (done last, once everything here is defined).
+installHooks(setWar);

@@ -15,6 +15,7 @@ import { cityMaxHp, itemCost, itemDef } from '../core/systems/cities';
 import { resourceVisible, tileYields } from '../core/systems/yields';
 import { stealthSeen } from '../core/systems/domain';
 import { routeTile } from '../core/systems/trade';
+import { canSeeSite } from '../core/systems/archaeology';
 
 export const HEX = 32; // hex circumradius in world pixels
 const SQ3 = Math.sqrt(3);
@@ -113,7 +114,7 @@ export class MapView {
   /** Redraw what changed. `viewer`: player whose fog applies (-1: see everything). */
   update(s: GameState, viewer: number, ov: Overlay, full = true): void {
     this.s = s;
-    const tsig = s.map.tiles.map((t) => `${t.improvement ?? ''}${t.pillaged ? 'x' : ''}${t.road ? 'r' : ''}${t.feature ?? ''}${t.camp ? 'c' : ''}${t.ruin ? 'u' : ''}`).join('|') + (viewer >= 0 ? s.players[viewer].techs.length : 0);
+    const tsig = s.map.tiles.map((t) => `${t.improvement ?? ''}${t.pillaged ? 'x' : ''}${t.road ? 'r' : ''}${t.feature ?? ''}${t.camp ? 'c' : ''}${t.ruin ? 'u' : ''}`).join('|') + (viewer >= 0 ? s.players[viewer].techs.length : 0) + '|' + Object.keys(s.antiquity ?? {}).join(',');
     if (tsig !== this.terrainSig) {
       this.terrainSig = tsig;
       this.drawTerrain(s, viewer);
@@ -252,6 +253,11 @@ export class MapView {
         g.rect(x - 9, y - 4, 4, 12).fill(0xb9b2a0);
         g.rect(x + 5, y - 4, 4, 12).fill(0xb9b2a0);
         g.rect(x - 10, y - 8, 20, 4).fill(0xd8d0bc).stroke({ width: 1, color: 0x504a40 });
+      }
+      if (viewer >= 0 && canSeeSite(s, viewer, i)) {
+        // An antiquity site: a broken column.
+        g.rect(x + 6, y - 14, 5, 12).fill(0xd8d0bc).stroke({ width: 1, color: 0x504a40 });
+        g.rect(x + 13, y - 8, 5, 6).fill(0xd8d0bc).stroke({ width: 1, color: 0x504a40 });
       }
       if (t.camp) {
         g.poly([x - 11, y + 8, x, y - 10, x + 11, y + 8]).fill(0x7a3b1e).stroke({ width: 1.5, color: 0x2a1408 });

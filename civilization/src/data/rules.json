@@ -358,5 +358,43 @@
     "citySlots": 6,
     "nukeCityPopPct": 50,
     "nukeWarmonger": 60
+  },
+  "culture": {
+    "workCulture": 2,
+    "workTourism": 2,
+    "themeBonus": 3,
+    "wonderTourism": 1,
+    "levels": [
+      10,
+      30,
+      60,
+      100,
+      200
+    ],
+    "openBordersPct": 25,
+    "tradeRoutePct": 25,
+    "sameReligionPct": 25,
+    "differentIdeologyPct": -33,
+    "sameIdeologyPct": 10,
+    "concertTurns": 6
+  },
+  "ideology": {
+    "era": 4,
+    "factories": 3,
+    "freeTenetsFirst": 2,
+    "pressurePerLevel": 1,
+    "unhappinessPerPressure": 2,
+    "dissidents": 1,
+    "resistance": 6,
+    "revolution": 11,
+    "anarchyTurns": 2,
+    "opinionSame": 10,
+    "opinionDifferent": -12
+  },
+  "archaeology": {
+    "digTurns": 3,
+    "siteChancePerBattlePct": 20,
+    "hiddenSharePct": 40,
+    "foreignDigOpinion": -10
   }
 }

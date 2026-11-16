@@ -22,6 +22,8 @@ import policies from './policies.json';
 import cityStates from './cityStates.json';
 import beliefs from './beliefs.json';
 import religionNames from './religionNames.json';
+import ideologies from './ideologies.json';
+import greatWorkNames from './greatWorkNames.json';
 import rules from './rules.json';
 
 export type TerrainDef = z.infer<typeof S.Terrain>;
@@ -44,6 +46,7 @@ export type PolicyDef = z.infer<typeof S.Policy>;
 export type EffectDef = z.infer<typeof S.Effect>;
 export type CityStateDef = z.infer<typeof S.CityState>;
 export type BeliefDef = z.infer<typeof S.Belief>;
+export type IdeologyDef = z.infer<typeof S.Ideology>;
 
 /** Parse a list file and index it by id; throws with the file name and path on any error. */
 function table<T extends { id: string }>(name: string, schema: z.ZodType<T>, raw: unknown): Map<string, T> {
@@ -81,11 +84,16 @@ export const D = {
   cityStates: table('cityStates', S.CityState, cityStates),
   beliefs: table('beliefs', S.Belief, beliefs),
   religionNames: z.array(z.string()).parse(religionNames),
+  ideologies: table('ideologies', S.Ideology, ideologies),
+  greatWorkNames: z.record(z.string(), z.object({ adj: z.array(z.string()), noun: z.array(z.string()) })).parse(greatWorkNames),
+  /** Every tenet by id, with its ideology. */
+  tenets: new Map<string, z.infer<typeof S.Tenet> & { ideology: string }>(),
   rules: parsedRules.data,
   /** Every policy by id, with the tree it belongs to. */
   policies: new Map<string, z.infer<typeof S.Policy> & { tree: string }>(),
 };
 for (const t of D.policyTrees.values()) for (const p of t.policies) D.policies.set(p.id, { ...p, tree: t.id });
+for (const i of D.ideologies.values()) for (const t of i.tenets) D.tenets.set(t.id, { ...t, ideology: i.id });
 
 /** Get a row or throw (ids in state are always valid, so a miss is a bug). */
 export function get<T>(map: Map<string, T>, id: string): T {

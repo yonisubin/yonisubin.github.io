@@ -1,0 +1,122 @@
+{
+ "art": {
+  "adj": [
+   "Crimson",
+   "Silent",
+   "Golden",
+   "Drowned",
+   "Northern",
+   "Painted",
+   "Weeping",
+   "Burning",
+   "Hidden",
+   "Morning",
+   "Last",
+   "Gilded"
+  ],
+  "noun": [
+   "Garden",
+   "Harbor",
+   "Shepherd",
+   "Lantern",
+   "Tower",
+   "Orchard",
+   "Bridge",
+   "Horizon",
+   "Queen",
+   "Feast",
+   "Storm",
+   "Mirror"
+  ]
+ },
+ "writing": {
+  "adj": [
+   "The Long",
+   "A Quiet",
+   "The Broken",
+   "The Endless",
+   "An Honest",
+   "The Salt",
+   "The Lantern",
+   "A Winter",
+   "The Glass",
+   "The Hollow",
+   "The Wandering",
+   "The Ninth"
+  ],
+  "noun": [
+   "Road",
+   "Chronicle",
+   "Letter",
+   "Covenant",
+   "Testament",
+   "Voyage",
+   "Almanac",
+   "Ledger",
+   "Epic",
+   "Treatise",
+   "Song",
+   "Account"
+  ]
+ },
+ "music": {
+  "adj": [
+   "Symphony of",
+   "Hymn to",
+   "Nocturne for",
+   "Requiem for",
+   "Overture to",
+   "Suite of",
+   "Fugue of",
+   "Lament for",
+   "Dances of",
+   "Variations on",
+   "Anthem of",
+   "Serenade for"
+  ],
+  "noun": [
+   "the Tides",
+   "the North Wind",
+   "Ashes",
+   "the Harvest",
+   "Small Hours",
+   "the Mountains",
+   "the River",
+   "Lost Cities",
+   "the Lanterns",
+   "Spring",
+   "Iron",
+   "Stars"
+  ]
+ },
+ "artifact": {
+  "adj": [
+   "Bronze",
+   "Carved",
+   "Ceremonial",
+   "Ancient",
+   "Shattered",
+   "Gilded",
+   "Painted",
+   "Stone",
+   "Ivory",
+   "Royal",
+   "Votive",
+   "Warrior's"
+  ],
+  "noun": [
+   "Mask",
+   "Helm",
+   "Tablet",
+   "Figurine",
+   "Vessel",
+   "Shield",
+   "Seal",
+   "Crown",
+   "Idol",
+   "Spearhead",
+   "Mosaic",
+   "Urn"
+  ]
+ }
+}

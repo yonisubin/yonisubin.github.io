@@ -1,0 +1,573 @@
+[
+ {
+  "id": "assembly",
+  "name": "Free Assembly",
+  "description": "Liberty, art and open markets: culture, tourism and specialists.",
+  "color": "#4a90e2",
+  "tenets": [
+   {
+    "id": "open_salons",
+    "name": "Open Salons",
+    "description": "+25% great writer, artist and musician points.",
+    "effects": [
+     {
+      "type": "great_people_pct",
+      "gp": "writer",
+      "percent": 25
+     },
+     {
+      "type": "great_people_pct",
+      "gp": "artist",
+      "percent": 25
+     },
+     {
+      "type": "great_people_pct",
+      "gp": "musician",
+      "percent": 25
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "free_press",
+    "name": "Free Press",
+    "description": "+15% tourism.",
+    "effects": [
+     {
+      "type": "tourism_pct",
+      "percent": 15
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "civic_rights",
+    "name": "Civic Rights",
+    "description": "Specialists produce 2 less unhappiness... +2 happiness.",
+    "effects": [
+     {
+      "type": "happiness",
+      "amount": 2
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "public_works",
+    "name": "Public Works",
+    "description": "Buildings cost 10% less.",
+    "effects": [
+     {
+      "type": "cost_pct",
+      "target": "building",
+      "percent": -10
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "scholarships",
+    "name": "Scholarships",
+    "description": "+2 science in every city.",
+    "effects": [
+     {
+      "type": "city_yield",
+      "yield": "science",
+      "amount": 2
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "town_halls",
+    "name": "Town Halls",
+    "description": "+1 culture in every city.",
+    "effects": [
+     {
+      "type": "city_yield",
+      "yield": "culture",
+      "amount": 1
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "merchant_charters",
+    "name": "Merchant Charters",
+    "description": "+1 trade route.",
+    "effects": [
+     {
+      "type": "trade_routes",
+      "amount": 1
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "universal_suffrage",
+    "name": "Universal Suffrage",
+    "description": "+3 happiness.",
+    "effects": [
+     {
+      "type": "happiness",
+      "amount": 3
+     }
+    ],
+    "tier": 2
+   },
+   {
+    "id": "cultural_exchange",
+    "name": "Cultural Exchange",
+    "description": "+25% tourism.",
+    "effects": [
+     {
+      "type": "tourism_pct",
+      "percent": 25
+     }
+    ],
+    "tier": 2
+   },
+   {
+    "id": "civic_economy",
+    "name": "Civic Economy",
+    "description": "+10% gold.",
+    "effects": [
+     {
+      "type": "city_percent",
+      "yield": "gold",
+      "percent": 10
+     }
+    ],
+    "tier": 2
+   },
+   {
+    "id": "arts_endowment",
+    "name": "Arts Endowment",
+    "description": "+15% culture.",
+    "effects": [
+     {
+      "type": "city_percent",
+      "yield": "culture",
+      "percent": 15
+     }
+    ],
+    "tier": 2
+   },
+   {
+    "id": "world_stage",
+    "name": "World Stage",
+    "description": "+50% tourism.",
+    "effects": [
+     {
+      "type": "tourism_pct",
+      "percent": 50
+     }
+    ],
+    "tier": 3
+   },
+   {
+    "id": "open_world",
+    "name": "Open World",
+    "description": "+20% science.",
+    "effects": [
+     {
+      "type": "city_percent",
+      "yield": "science",
+      "percent": 20
+     }
+    ],
+    "tier": 3
+   },
+   {
+    "id": "golden_republic",
+    "name": "Golden Republic",
+    "description": "Golden ages last 50% longer.",
+    "effects": [
+     {
+      "type": "golden_age_length_pct",
+      "percent": 50
+     }
+    ],
+    "tier": 3
+   }
+  ]
+ },
+ {
+  "id": "order",
+  "name": "Iron Order",
+  "description": "Planning and industry: production, cities and contentment.",
+  "color": "#c0392b",
+  "tenets": [
+   {
+    "id": "five_year_plans",
+    "name": "Five-Year Plans",
+    "description": "+2 production in every city.",
+    "effects": [
+     {
+      "type": "city_yield",
+      "yield": "production",
+      "amount": 2
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "workers_halls",
+    "name": "Workers\u2019 Halls",
+    "description": "+1 happiness per city with a garrison... +3 happiness.",
+    "effects": [
+     {
+      "type": "happiness",
+      "amount": 3
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "collective_farms",
+    "name": "Collective Farms",
+    "description": "+10% growth.",
+    "effects": [
+     {
+      "type": "growth_pct",
+      "percent": 10
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "state_academies",
+    "name": "State Academies",
+    "description": "+10% science.",
+    "effects": [
+     {
+      "type": "city_percent",
+      "yield": "science",
+      "percent": 10
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "people_s_army",
+    "name": "People\u2019s Army",
+    "description": "+10% combat.",
+    "effects": [
+     {
+      "type": "combat",
+      "when": "always",
+      "percent": 10
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "rail_networks",
+    "name": "Rail Networks",
+    "description": "+15% production.",
+    "effects": [
+     {
+      "type": "city_percent",
+      "yield": "production",
+      "percent": 15
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "cultural_bureau",
+    "name": "Cultural Bureau",
+    "description": "+1 culture in every city.",
+    "effects": [
+     {
+      "type": "city_yield",
+      "yield": "culture",
+      "amount": 1
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "heroic_labor",
+    "name": "Heroic Labor",
+    "description": "Buildings cost 15% less.",
+    "effects": [
+     {
+      "type": "cost_pct",
+      "target": "building",
+      "percent": -15
+     }
+    ],
+    "tier": 2
+   },
+   {
+    "id": "young_pioneers",
+    "name": "Young Pioneers",
+    "description": "+3 science in the capital and +2 happiness.",
+    "effects": [
+     {
+      "type": "city_yield",
+      "yield": "science",
+      "amount": 3,
+      "scope": "capital"
+     },
+     {
+      "type": "happiness",
+      "amount": 2
+     }
+    ],
+    "tier": 2
+   },
+   {
+    "id": "iron_curtain",
+    "name": "Iron Curtain",
+    "description": "Other ideologies sway your people 50% less.",
+    "effects": [
+     {
+      "type": "ideology_resist_pct",
+      "percent": 50
+     }
+    ],
+    "tier": 2
+   },
+   {
+    "id": "dialectics",
+    "name": "Dialectics",
+    "description": "+20% science.",
+    "effects": [
+     {
+      "type": "city_percent",
+      "yield": "science",
+      "percent": 20
+     }
+    ],
+    "tier": 2
+   },
+   {
+    "id": "great_plan",
+    "name": "The Great Plan",
+    "description": "+25% production.",
+    "effects": [
+     {
+      "type": "city_percent",
+      "yield": "production",
+      "percent": 25
+     }
+    ],
+    "tier": 3
+   },
+   {
+    "id": "spaceflight_bureau",
+    "name": "Spaceflight Bureau",
+    "description": "Spaceship parts cost 33% less.",
+    "effects": [
+     {
+      "type": "cost_pct",
+      "target": "spaceship",
+      "percent": -33
+     }
+    ],
+    "tier": 3
+   },
+   {
+    "id": "worker_paradise",
+    "name": "Workers\u2019 Paradise",
+    "description": "+6 happiness.",
+    "effects": [
+     {
+      "type": "happiness",
+      "amount": 6
+     }
+    ],
+    "tier": 3
+   }
+  ]
+ },
+ {
+  "id": "crown",
+  "name": "Crown Dominion",
+  "description": "Might and glory: military, conquest and fear.",
+  "color": "#7d3c98",
+  "tenets": [
+   {
+    "id": "elite_forces",
+    "name": "Elite Forces",
+    "description": "New units get +15 XP.",
+    "effects": [
+     {
+      "type": "xp",
+      "amount": 15
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "war_economy",
+    "name": "War Economy",
+    "description": "Units cost 15% less.",
+    "effects": [
+     {
+      "type": "cost_pct",
+      "target": "unit",
+      "percent": -15
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "martial_law",
+    "name": "Martial Law",
+    "description": "+1 happiness per garrisoned city.",
+    "effects": [
+     {
+      "type": "garrison_happiness",
+      "amount": 1
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "national_pride",
+    "name": "National Pride",
+    "description": "+15% combat.",
+    "effects": [
+     {
+      "type": "combat",
+      "when": "always",
+      "percent": 15
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "fortress_doctrine",
+    "name": "Fortress Doctrine",
+    "description": "+30% city defence.",
+    "effects": [
+     {
+      "type": "defense_pct",
+      "percent": 30
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "imperial_roads",
+    "name": "Imperial Roads",
+    "description": "+1 movement for land units.",
+    "effects": [
+     {
+      "type": "moves",
+      "class": "melee",
+      "amount": 1
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "state_ceremonies",
+    "name": "State Ceremonies",
+    "description": "+3 happiness.",
+    "effects": [
+     {
+      "type": "happiness",
+      "amount": 3
+     }
+    ],
+    "tier": 1
+   },
+   {
+    "id": "lightning_war",
+    "name": "Lightning War",
+    "description": "+1 movement for mounted units.",
+    "effects": [
+     {
+      "type": "moves",
+      "class": "mounted",
+      "amount": 1
+     }
+    ],
+    "tier": 2
+   },
+   {
+    "id": "total_war",
+    "name": "Total War",
+    "description": "Units cost 20% less.",
+    "effects": [
+     {
+      "type": "cost_pct",
+      "target": "unit",
+      "percent": -20
+     }
+    ],
+    "tier": 2
+   },
+   {
+    "id": "cult_of_leader",
+    "name": "Cult of the Leader",
+    "description": "+15% culture and +2 happiness.",
+    "effects": [
+     {
+      "type": "city_percent",
+      "yield": "culture",
+      "percent": 15
+     },
+     {
+      "type": "happiness",
+      "amount": 2
+     }
+    ],
+    "tier": 2
+   },
+   {
+    "id": "fear_itself",
+    "name": "Fear Itself",
+    "description": "Other ideologies sway your people 50% less.",
+    "effects": [
+     {
+      "type": "ideology_resist_pct",
+      "percent": 50
+     }
+    ],
+    "tier": 2
+   },
+   {
+    "id": "iron_fist",
+    "name": "Iron Fist",
+    "description": "+25% combat.",
+    "effects": [
+     {
+      "type": "combat",
+      "when": "always",
+      "percent": 25
+     }
+    ],
+    "tier": 3
+   },
+   {
+    "id": "triumphs",
+    "name": "Triumphs",
+    "description": "+5 culture per enemy unit killed.",
+    "effects": [
+     {
+      "type": "kill_culture",
+      "amount": 5
+     }
+    ],
+    "tier": 3
+   },
+   {
+    "id": "dominion_of_the_world",
+    "name": "Dominion of the World",
+    "description": "+50% tourism toward civilizations you are at war with... +25% tourism.",
+    "effects": [
+     {
+      "type": "tourism_pct",
+      "percent": 25
+     }
+    ],
+    "tier": 3
+   }
+  ]
+ }
+]

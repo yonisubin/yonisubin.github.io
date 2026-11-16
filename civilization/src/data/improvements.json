@@ -244,7 +244,8 @@
   "id": "landmark",
   "name": "Landmark",
   "yields": {
-   "culture": 5
+   "culture": 3,
+   "tourism": 3
   },
   "buildTurns": 0,
   "terrains": [

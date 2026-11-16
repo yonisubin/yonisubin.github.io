@@ -7,6 +7,7 @@ import { rand } from '../rng';
 import { atWar, cityAt, difficultyOf, dims, isCivilian, militaryAt, notify, tileAt, unitDef, unitsAt } from '../query';
 import { playerEffects, sum } from './effects';
 import { addGeneralPoints } from './greatpeople';
+import { recordSite } from './archaeology';
 import { embarkedStrength, isCoastalTile, isEmbarked, isWater } from './domain';
 import type { City, GameState, Unit } from '../state';
 import { happinessOf } from './happiness';
@@ -276,6 +277,7 @@ export function resolveAttack(s: GameState, u: Unit, to: number): AttackOutcome 
   } else onKill(s, u.owner, to);
   if (d.hp <= 0) {
     out.defenderDied = true;
+    recordSite(s, to, 'battle', D.rules.archaeology.siteChancePerBattlePct);
     removeUnit(s, d);
     notify(s, d.owner, `Your ${unitDef(d).name} was destroyed by a ${attackerName}.`, 'bad', to);
     notify(s, u.owner, `Your ${def.name} destroyed a ${dName}.`, 'good', to);

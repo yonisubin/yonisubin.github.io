@@ -68,7 +68,7 @@ export function addGeneralPoints(s: GameState, p: number, xp: number, near: numb
   }
 }
 
-export type GreatPersonUse = 'discover' | 'hurry' | 'trade' | 'golden_age' | 'inspire' | 'concert' | 'improve';
+export type GreatPersonUse = 'discover' | 'hurry' | 'trade' | 'golden_age' | 'inspire' | 'concert' | 'improve' | 'great_work';
 
 /** What a great person can do where it stands. */
 export function greatPersonUses(s: GameState, u: Unit): GreatPersonUse[] {
@@ -112,6 +112,8 @@ export function describeUse(s: GameState, u: Unit, use: GreatPersonUse): string 
       return `+${Math.round(y.culture * g.cultureTurns + 50)} culture`;
     case 'improve':
       return `Build a ${get(D.improvements, unitDef(u).gpImprovement!).name}`;
+    case 'great_work':
+      return 'Create a great work (culture and tourism)';
   }
 }
 

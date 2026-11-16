@@ -25,6 +25,9 @@ import { recomputeAllVisibility } from './core/systems/visibility';
 import { setWar, checkVictory } from './core/game';
 import { opinion } from './core/systems/diplomacy';
 import { routeOptions } from './core/systems/trade';
+import { influenceLevel, culturalWinner, cityCultureYields } from './core/systems/culture';
+import { publicOpinion } from './core/systems/ideology';
+import { recordSite } from './core/systems/archaeology';
 import { majority, religionCityEffects } from './core/systems/religion';
 import { cityStateEffects } from './core/systems/citystates';
 import { playerEffects } from './core/systems/effects';
@@ -171,7 +174,7 @@ async function main(): Promise<void> {
     },
     set,
     /** Core functions for formula and rule checks. */
-    core: { routeOptions, majority, religionCityEffects, opinion, cityStateEffects, playerEffects, happinessOf, canEnter, cityYields, tileYields, checkVictory, addScience, neighbor, distance, findPath, damage, growthNeeded, foundCity, createUnit, recomputeAllVisibility, setWar, newGame, runEndTurn },
+    core: { influenceLevel, publicOpinion, culturalWinner, cityCultureYields, recordSite, routeOptions, majority, religionCityEffects, opinion, cityStateEffects, playerEffects, happinessOf, canEnter, cityYields, tileYields, checkVictory, addScience, neighbor, distance, findPath, damage, growthNeeded, foundCity, createUnit, recomputeAllVisibility, setWar, newGame, runEndTurn },
   };
   (window as unknown as { hexborne: typeof api }).hexborne = api;
 }

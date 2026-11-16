@@ -34,6 +34,9 @@ import { cannotAdopt, canPickPolicy, policyCost } from '../core/systems/policies
 import { goldenAgeThreshold } from '../core/systems/goldenage';
 import { describeUse, gpThreshold, greatPersonUses } from '../core/systems/greatpeople';
 import { religionHtml, prophetHtml, routesHtml } from './religion';
+import { cultureHtml, tenetsHtml } from './culture';
+import { canSeeSite } from '../core/systems/archaeology';
+import { influenceLevel, LEVELS } from '../core/systems/culture';
 import { faithItems, majority } from '../core/systems/religion';
 import { plunderable } from '../core/systems/trade';
 import { balanceDeal, cityStateHtml, giftTargets, leaderHtml, proposalHtml, tradeHtml } from './diplomacy';
@@ -113,6 +116,7 @@ function renderTop(s: GameState): void {
     <span class="chip gold" title="Cities ${g.cities}, connections ${g.connections}, buildings −${g.buildings}, units −${g.units}, roads −${g.roads}">● ${pl.gold} (${sign(g.net)})</span>
     <span class="chip ${h.net < 0 ? 'bad' : 'happy'}" title="Happiness ${h.happy} − unhappiness ${h.unhappy}. Luxuries: ${esc(h.luxuries.map((l) => D.resources.get(l)!.name).join(', ') || 'none')}">${h.net < 0 ? '☹' : '☺'} ${h.net}</span>
     <button class="chip cult" data-a="panel" data-p="policies" title="Culture per turn — ${pl.culture.toFixed(0)}/${policyCost(s, p)} toward the next policy">♪ ${sign(y.culture)} · ${pl.freePolicies > 0 || pl.culture >= policyCost(s, p) ? '<b>policy!</b>' : `policy ${Math.max(1, Math.ceil((policyCost(s, p) - pl.culture) / Math.max(1, y.culture)))}t`}</button>
+    <button class="chip cult" data-a="panel" data-p="culture" title="Tourism per turn — influence, great works, ideology">✈ ${sign(y.tourism)}</button>
     <button class="chip faith" data-a="panel" data-p="religion" title="Faith per turn — pantheon, prophets, missionaries">✦ ${Math.round(pl.faith)} (${sign(y.faith)})</button>
     <span class="chip ${inGoldenAge(s, p) ? 'happy' : ''}" title="Golden age: ${inGoldenAge(s, p) ? `${pl.goldenAge.turnsLeft} turns left` : `${Math.round(pl.goldenAge.points)}/${goldenAgeThreshold(s, p)} points from happiness`}">☀ ${inGoldenAge(s, p) ? `Golden age ${pl.goldenAge.turnsLeft}` : `${Math.round((100 * pl.goldenAge.points) / goldenAgeThreshold(s, p))}%`}</span>
     ${res}
@@ -174,6 +178,10 @@ function renderUnit(s: GameState): void {
     if (def.religious === 'inquisitor') actions += b('heresy', 'Remove other religions', 'In one of your cities');
     if (def.religious) actions += b('target', 'Debate', 'Theological combat with an adjacent rival religious unit', 'data-k="theological"');
     if (def.trade) actions += b('routes', 'Trade route…', 'Open a trade route from this city');
+    if (def.archaeology && canSeeSite(s, u.owner, u.tile) && !u.job) {
+      actions += b('dig', 'Dig: artifact', 'Takes a few turns; the artifact goes to a free art slot', 'data-k="artifact"');
+      actions += b('dig', 'Dig: landmark', 'Takes a few turns; leaves a Landmark tile', 'data-k="landmark"');
+    }
     if (plunderable(s, u)) actions += b('plunder', 'Plunder caravan', 'Take the gold of an enemy caravan here');
     if (def.domain === 'air' && !def.nuke) actions += b('target', 'Strike', `Range ${def.range}`, 'data-k="strike"');
     if (def.domain === 'air' && def.nuke) actions += b('target', 'Launch nuclear strike', `Range ${def.range}, blast ${def.nuke}`, 'data-k="nuke"');
@@ -406,6 +414,7 @@ function renderModal(s: GameState): void {
   else if (st.panel === 'trade' && st.tradeDeal) html = tradeHtml(s, st.tradeDeal);
   else if (st.panel === 'citystate' && s.players[st.diploWith]?.isMinor) html = cityStateHtml(s, st.diploWith);
   else if (st.panel === 'religion') html = religionHtml(s);
+  else if (st.panel === 'culture') html = cultureHtml(s);
   else if (st.panel === 'prophet' && s.units[st.panelUnit]) html = prophetHtml(s, st.panelUnit, st.prophetMode);
   else if (st.panel === 'routes' && s.units[st.panelUnit]) html = routesHtml(s, st.panelUnit);
   show(el, !!html);
@@ -501,7 +510,7 @@ function policiesPanel(s: GameState): string {
     .join(' ');
   return `<div class="dialog wide"><div class="row head"><h2>Policies</h2><span class="sub">Culture ${Math.round(pl.culture)}/${cost}${pl.freePolicies ? ` · ${pl.freePolicies} free` : ''} · ${can ? '<b>pick one</b>' : 'keep making culture'} · golden age ${inGoldenAge(s, p) ? `active (${pl.goldenAge.turnsLeft} turns)` : `${Math.round(pl.goldenAge.points)}/${goldenAgeThreshold(s, p)}`}</span><button class="x" data-a="panel" data-p="none">✕</button></div>
     <div class="row">Great people: ${gpRows}</div>
-    <div class="trees">${trees}</div></div>`;
+    <div class="end-body">${tenetsHtml(s)}<div class="trees">${trees}</div></div></div>`;
 }
 
 /** Human-readable text for an effect. */
@@ -601,7 +610,15 @@ function victoryPanel(s: GameState): string {
         <td>${p.alive ? held : '—'} / ${capitals.length}</td><td>${p.projects.includes('apollo_program') ? `${parts} / ${total}` : '—'}</td><td>${score(s, p.id)}</td></tr>`;
     })
     .join('');
-  const extra = VICTORY_ROWS.map((f) => f(s)).join('');
+  const extra =
+    `<h4>Culture (${v.culture ? 'on' : 'off'})</h4><p class="sub">Be Influential over every other civilization.</p><table>${majors
+      .filter((x) => x.alive)
+      .map((x) => {
+        const others = majors.filter((y) => y.alive && y.id !== x.id);
+        const n = others.filter((y) => influenceLevel(s, x.id, y.id) >= 4).length;
+        return `<tr><td>${x.id === s.human || s.players[s.human]?.met.includes(x.id) ? esc(x.name) : 'Unknown'}</td><td>Influential over ${n}/${others.length}</td><td class="sub">${others.map((y) => LEVELS[influenceLevel(s, x.id, y.id)]).join(', ')}</td></tr>`;
+      })
+      .join('')}</table>` + VICTORY_ROWS.map((f) => f(s)).join('');
   return `<div class="dialog"><div class="row head"><h2>Victory progress</h2><button class="x" data-a="panel" data-p="none">✕</button></div>
     <p class="sub">Domination ${v.domination ? 'on' : 'off'}: hold every original capital. Science ${v.science ? 'on' : 'off'}: build the Apollo Program, then deliver ${total} spaceship parts to your capital.
     Time ${v.time ? 'on' : 'off'}: best score on turn ${s.settings.maxTurns} (${s.settings.maxTurns - s.turn} turns left).</p>
@@ -942,6 +959,15 @@ export function installHudEvents(centerOn: (tile: number) => void): void {
         break;
       case 'end-turn':
         endTurn();
+        break;
+      case 'choose-ideology':
+        act({ type: 'chooseIdeology', ideology: target.dataset.id! });
+        break;
+      case 'switch-ideology':
+        if (confirm('Switch ideology? Your tenets are lost and anarchy follows.')) act({ type: 'switchIdeology', ideology: target.dataset.id! });
+        break;
+      case 'dig':
+        if (unit !== null) act({ type: 'dig', unit, choice: target.dataset.k as 'artifact' | 'landmark' });
         break;
       case 'pantheon':
         act({ type: 'pantheon', belief: target.dataset.id! });

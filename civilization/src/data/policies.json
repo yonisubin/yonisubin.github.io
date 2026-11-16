@@ -687,6 +687,9 @@
    {
     "type": "free_great_person",
     "gp": "general"
+   },
+   {
+    "type": "reveal_hidden_sites"
    }
   ],
   "excludes": null,

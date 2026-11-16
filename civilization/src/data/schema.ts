@@ -136,7 +136,9 @@ export const Unit = z
     /** Barbarians may field it (the best one their era allows). */
     barbarian: z.boolean().default(false),
     /** AI hint for what the unit is for. */
-    role: z.enum(['settle', 'work', 'explore', 'defense', 'attack', 'ranged', 'siege', 'fast', 'spaceship', 'great_person', 'work_sea', 'naval', 'air', 'trade', 'religious']),
+    role: z.enum(['settle', 'work', 'explore', 'defense', 'attack', 'ranged', 'siege', 'fast', 'spaceship', 'great_person', 'work_sea', 'naval', 'air', 'trade', 'religious', 'archaeology']),
+    /** Archaeologists dig antiquity sites. */
+    archaeology: z.boolean().default(false),
     /** Where it moves: land (default), sea or air. */
     domain: z.enum(['land', 'sea', 'air']).default('land'),
     /** Ships that may enter ocean tiles (others stay on the coast). */
@@ -230,6 +232,8 @@ export const Building = z
     /** Bought with faith (religious buildings unlocked by a follower belief). */
     faithCost: z.number().default(0),
     belief: z.boolean().default(false),
+    /** Great work slots: { art: 2 } (artifacts go in art slots). */
+    greatWorkSlots: z.record(z.string(), z.number()).default({}),
   })
   .strict();
 
@@ -258,6 +262,8 @@ export const Tech = z
     revealsMap: z.boolean().default(false),
     /** Extra trade route slots. */
     tradeRoutes: z.number().default(0),
+    /** Tourism bonus once known (the Internet-style tech). */
+    tourismPct: z.number().default(0),
     /** Land units may embark onto coast / ocean tiles. */
     embark: z.enum(['coast', 'ocean']).optional(),
   })
@@ -437,6 +443,12 @@ export const Belief = z
   })
   .strict();
 
+export const Tenet = z
+  .object({ id, name: z.string(), description: z.string(), tier: z.number().int(), effects: z.array(z.lazy(() => Effect)) })
+  .strict();
+
+export const Ideology = z.object({ id, name: z.string(), description: z.string(), color: z.string(), tenets: z.array(Tenet) }).strict();
+
 export const Project = z
   .object({
     id,
@@ -593,6 +605,9 @@ export const Rules = z
     trade: z.record(z.string(), z.number()),
     naval: z.object({ embarkStrength: z.array(z.number()), embarkMoves: z.number(), admiralAura: z.number(), admiralHeal: z.number() }).strict(),
     air: z.record(z.string(), z.number()),
+    culture: z.object({ workCulture: z.number(), workTourism: z.number(), themeBonus: z.number(), wonderTourism: z.number(), levels: z.array(z.number()), openBordersPct: z.number(), tradeRoutePct: z.number(), sameReligionPct: z.number(), differentIdeologyPct: z.number(), sameIdeologyPct: z.number(), concertTurns: z.number() }).strict(),
+    ideology: z.record(z.string(), z.number()),
+    archaeology: z.record(z.string(), z.number()),
     diplomacy: z
       .object({
         dealTurns: z.number(),

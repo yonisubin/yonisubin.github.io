@@ -29,6 +29,7 @@ import { bumpEffects, cityEffects, costPct, inScope, isCoastal, sum } from './ef
 import { applyOneShots } from './policies';
 import { addWarmonger } from './diplomacy';
 import { onCityStateConquered, questEvent } from './citystates';
+import { recordSite } from './archaeology';
 import { recomputeAllVisibility } from './visibility';
 import type { StrengthReport } from './combat';
 
@@ -99,6 +100,7 @@ export function foundCity(s: GameState, p: number, tile: number): City {
     manualSpecialists: {},
     followers: {},
     pressure: {},
+    works: {},
   };
   c.hp = cityMaxHp(c);
   s.cities[id] = c;
@@ -612,6 +614,8 @@ export function destroyCity(s: GameState, c: City): void {
     }
   tileAt(s, c.tile).road = true;
   for (const [w, cid] of Object.entries(s.wonders)) if (cid === c.id) delete s.wonders[w];
+  for (const ids of Object.values(c.works ?? {})) for (const id of ids) delete s.greatWorks[id];
+  recordSite(s, c.tile, 'city');
   delete s.cities[c.id];
   bumpEffects(s);
   notify(s, c.owner, `${c.name} has been razed to the ground.`, 'info', c.tile);

@@ -47,6 +47,8 @@ export function playerEffects(s: GameState, p: number): Fx[] {
     if (tree) add(tree.opener, tree.name);
     const pol = D.policies.get(id);
     if (pol) add(pol.effects, pol.name);
+    const tenet = D.tenets.get(id);
+    if (tenet) add(tenet.effects, tenet.name);
   }
   for (const [w, cid] of Object.entries(s.wonders ?? {})) {
     const city = s.cities[cid];

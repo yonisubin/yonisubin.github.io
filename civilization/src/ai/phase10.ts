@@ -10,6 +10,8 @@ import { isCoastalTile } from '../core/systems/domain';
 import { availableBeliefs, canChoosePantheon, faithItems, majority, maxReligions, spreadTarget } from '../core/systems/religion';
 import { routeOptions, routesOf, tradeSlots } from '../core/systems/trade';
 import { buildOptions } from '../core/systems/units';
+import { canSeeSite } from '../core/systems/archaeology';
+import { findSlot } from '../core/systems/culture';
 
 const pers = (s: GameState, p: number) => get(D.factions, s.players[p].faction).leader.personality;
 
@@ -18,6 +20,10 @@ export function phase10UnitScore(s: GameState, p: number, id: string, coastal: b
   const u = get(D.units, id);
   const units = playerUnits(s, p);
   const count = (pred: (x: Unit) => boolean) => units.filter(pred).length;
+  if (u.archaeology) {
+    const sites = Object.keys(s.antiquity).filter((t) => canSeeSite(s, p, Number(t))).length;
+    return sites > count((x) => !!unitDef(x).archaeology) && !!findSlot(s, p, 'artifact') ? 25 : 0;
+  }
   if (u.role === 'trade') {
     const free = tradeSlots(s, p) - routesOf(s, p).length - count((x) => !!unitDef(x).trade);
     if (free <= 0) return 0;
@@ -45,6 +51,7 @@ export function phase10UnitScore(s: GameState, p: number, id: string, coastal: b
 
 export function phase10UnitTurn(s: GameState, p: number, u: Unit): boolean {
   const def = unitDef(u);
+  if (def.archaeology) return archaeologistTurn(s, p, u);
   if (def.role === 'trade') return traderTurn(s, p, u);
   if (def.role === 'work_sea') return workBoatTurn(s, p, u);
   if (def.religious) return religiousTurn(s, p, u);
@@ -56,6 +63,23 @@ export function phase10UnitTurn(s: GameState, p: number, u: Unit): boolean {
   if (def.domain === 'air') return airTurn(s, p, u);
   if (def.domain === 'sea') return shipTurn(s, p, u);
   return false;
+}
+
+function archaeologistTurn(s: GameState, p: number, u: Unit): boolean {
+  if (u.job) return true;
+  if (canSeeSite(s, p, u.tile)) {
+    applyAction(s, p, { type: 'dig', unit: u.id, choice: findSlot(s, p, 'artifact') ? 'artifact' : 'landmark' });
+    return true;
+  }
+  const site = Object.keys(s.antiquity)
+    .map(Number)
+    .filter((t) => canSeeSite(s, p, t) && !Object.values(s.units).some((o) => o.tile === t && o.id !== u.id && unitDef(o).archaeology))
+    .sort((a, b) => (tileAt(s, a).owner === p ? 0 : 15) + distance(dims(s), a, u.tile) - ((tileAt(s, b).owner === p ? 0 : 15) + distance(dims(s), b, u.tile)))[0];
+  if (site !== undefined) {
+    applyAction(s, p, { type: 'move', unit: u.id, to: site });
+    if (s.units[u.id] && u.tile === site) applyAction(s, p, { type: 'dig', unit: u.id, choice: findSlot(s, p, 'artifact') ? 'artifact' : 'landmark' });
+  }
+  return true;
 }
 
 function traderTurn(s: GameState, p: number, u: Unit): boolean {
