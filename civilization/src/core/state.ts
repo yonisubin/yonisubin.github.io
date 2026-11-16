@@ -386,7 +386,7 @@ export interface Diplomacy {
 
 export interface Settings {
   seed: string;
-  mapType: 'continents' | 'pangaea';
+  mapType: import('../mapgen/generate').MapType;
   mapSize: string;
   difficulty: string;
   pace: string;
@@ -398,6 +398,33 @@ export interface Settings {
   victories: Record<VictoryKind, boolean>;
   /** Turn limit (default: the pace's). */
   maxTurns: number;
+  worldAge: 3 | 4 | 5;
+  temperature: 'cool' | 'temperate' | 'hot';
+  rainfall: 'arid' | 'normal' | 'wet';
+  seaLevel: 'low' | 'medium' | 'high';
+  resources: 'sparse' | 'standard' | 'abundant' | 'legendary' | 'strategic';
+  /** Era the game starts in (0 Ancient … 7 Information). */
+  startEra: number;
+  /** More barbarians, earlier. */
+  raging: boolean;
+  noRazing: boolean;
+  /** The human may only ever have one city. */
+  oneCity: boolean;
+  /** A player is out only when it has lost all cities and all units. */
+  completeKills: boolean;
+  /** Culture and promotions can be banked: no prompt to spend them. */
+  policySaving: boolean;
+  promotionSaving: boolean;
+  noStartBias: boolean;
+  /** AIs are always at war with the human / no one can ever declare war. */
+  alwaysWar: boolean;
+  alwaysPeace: boolean;
+  /** Seconds per turn before it ends by itself (0 = off). */
+  turnTimer: number;
+  quickCombat: boolean;
+  quickMovement: boolean;
+  /** Advisor hints. */
+  tutorial: boolean;
 }
 
 export interface GameState {

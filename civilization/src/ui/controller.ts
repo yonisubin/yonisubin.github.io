@@ -145,7 +145,20 @@ export async function endTurn(force = false): Promise<void> {
   });
 }
 
+let startedAt = Date.now();
+export const turnStartedAt = () => startedAt;
+
+// Turn timer: when it runs out, the turn ends by itself.
+setInterval(() => {
+  const st = ui();
+  const s = st.game;
+  if (!s || st.setup || st.busy || s.winner || s.settings.turnTimer <= 0) return;
+  bump();
+  if (Date.now() - startedAt >= s.settings.turnTimer * 1000) endTurn(true);
+}, 1000);
+
 function afterTurn(s: GameState): void {
+  startedAt = Date.now();
   if (s.turn % D.rules.autosaveEveryTurns === 0) saveGame('Autosave', s).catch(() => {});
   try {
     localStorage.setItem('civ:lastSave', 'Autosave');
@@ -157,6 +170,7 @@ function afterTurn(s: GameState): void {
 
 export function startGame(o: NewGameOptions): void {
   const s = newGame(o);
+  startedAt = Date.now();
   set({ game: s, setup: false, panel: 'none', selCity: null, selUnit: null, endClosed: false, endTab: 'summary', replayTurn: 0 });
   bump();
   nextUnit();

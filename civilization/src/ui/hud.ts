@@ -43,9 +43,17 @@ import { plunderable } from '../core/systems/trade';
 import { balanceDeal, cityStateHtml, giftTargets, leaderHtml, proposalHtml, tradeHtml } from './diplomacy';
 import { opinion } from '../core/systems/diplomacy';
 import { influence, relation } from '../core/systems/citystates';
+import { MAP_TYPES, type MapType } from '../mapgen/generate';
 import { drawEndgame, endgameHtml, hallOfFameHtml, recordHallOfFame } from './endgame';
+import { turnStartedAt } from './controller';
 import { act, endTurn, endTurnLabel, load, nextUnit, quickSave, selectCity, selectUnit, startGame, toast } from './controller';
 import { set, store, ui } from './store';
+
+export const MAP_NAMES: Record<string, string> = {
+  continents: 'Continents', pangaea: 'Pangaea', archipelago: 'Archipelago', fractal: 'Fractal', small_continents: 'Small Continents', terra: 'Terra',
+  inland_sea: 'Inland Sea', lakes: 'Lakes', highlands: 'Highlands', ice_age: 'Ice Age', tilted_axis: 'Tilted Axis', great_plains: 'Great Plains',
+  oval: 'Oval', north_vs_south: 'North vs South', skirmish: 'Skirmish', earth: 'Earth',
+};
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const $ = (id: string) => document.getElementById(id)!;
@@ -381,7 +389,8 @@ function renderNotes(s: GameState): void {
 function renderEndTurn(s: GameState): void {
   const label = endTurnLabel();
   const n = s.human >= 0 ? nextRequiredAction(s, s.human) : { kind: 'done' };
-  setHtml($('endturn'), `<button class="end ${n.kind === 'done' || n.kind === 'unit' ? '' : 'need'}" data-a="end-turn">${esc(label)}</button>`);
+  const timer = s.settings.turnTimer > 0 ? ` · ${Math.max(0, Math.ceil(s.settings.turnTimer - (Date.now() - turnStartedAt()) / 1000))}s` : '';
+  setHtml($('endturn'), `<button class="end ${n.kind === 'done' || n.kind === 'unit' ? '' : 'need'}" data-a="end-turn">${esc(label)}${timer}</button>`);
 }
 
 // ---- Modals: tech tree, relations, menu, capture, game over ----
@@ -709,7 +718,7 @@ function renderSetup(): void {
     <details ${cont ? '' : 'open'}><summary>Set up a game</summary>
     <div class="grid">
       <label>Civilization<select id="o-faction"><option value="random">Random</option>${opt(factions, '')}</select></label>
-      <label>Map<select id="o-map">${opt([{ id: 'continents', name: 'Continents' }, { id: 'pangaea', name: 'Pangaea' }], 'continents')}</select></label>
+      <label>Map<select id="o-map">${opt([{ id: 'random', name: 'Random' }, ...MAP_TYPES.map((m) => ({ id: m, name: MAP_NAMES[m] }))], 'continents')}</select></label>
       <label>Size<select id="o-size">${opt([...D.mapSizes.values()], 'tiny')}</select></label>
       <label>Difficulty<select id="o-diff">${opt([...D.difficulty.values()], 'prince')}</select></label>
       <label>Pace<select id="o-pace">${opt([...D.pace.values()], 'standard')}</select></label>
@@ -719,6 +728,31 @@ function renderSetup(): void {
       <label>Turn limit<input id="o-maxturns" type="number" min="50" max="1500" placeholder="by pace"></label>
     </div>
     <div class="row">Victories: ${['domination', 'science', 'culture', 'diplomatic', 'time'].map((v) => `<label class="check"><input type="checkbox" id="o-v-${v}" checked> ${v}</label>`).join(' ')}</div>
+    <details><summary>Advanced setup</summary><div class="grid">
+      <label>Civilizations<input id="o-civs" type="number" min="2" max="${D.factions.size}" placeholder="by size"></label>
+      <label>City-states<input id="o-cs" type="number" min="0" max="${D.cityStates.size}" placeholder="by size"></label>
+      <label>World age<select id="o-age"><option value="3">3 billion years (rugged)</option><option value="4" selected>4 billion years</option><option value="5">5 billion years (smooth)</option></select></label>
+      <label>Temperature<select id="o-temp"><option>cool</option><option selected>temperate</option><option>hot</option></select></label>
+      <label>Rainfall<select id="o-rain"><option>arid</option><option selected>normal</option><option>wet</option></select></label>
+      <label>Sea level<select id="o-sea"><option>low</option><option selected>medium</option><option>high</option></select></label>
+      <label>Resources<select id="o-res"><option>sparse</option><option selected>standard</option><option>abundant</option><option value="legendary">legendary start</option><option value="strategic">strategic balance</option></select></label>
+      <label>Starting era<select id="o-era">${ERA_NAMES.map((e, i) => `<option value="${i}">${e}</option>`).join('')}</select></label>
+      <label>Turn timer (seconds)<input id="o-timer" type="number" min="0" max="600" placeholder="off"></label>
+      ${[
+        ['o-raging', 'Raging barbarians'],
+        ['o-norazing', 'No city razing'],
+        ['o-onecity', 'One-City Challenge'],
+        ['o-kills', 'Complete kills'],
+        ['o-psave', 'Policy saving'],
+        ['o-prsave', 'Promotion saving'],
+        ['o-nobias', 'Disable start bias'],
+        ['o-war', 'Always war'],
+        ['o-peace', 'Always peace'],
+        ['o-qcombat', 'Quick combat'],
+        ['o-qmove', 'Quick movement'],
+      ].map(([id, label]) => `<label class="check"><input type="checkbox" id="${id}"> ${label}</label>`).join('')}
+      <label class="check"><input type="checkbox" id="o-tutorial" checked> Advisor hints</label>
+    </div></details>
     <div id="faction-info" class="sub"></div>
     <button class="primary" data-a="start">Start game</button></details>
     <details><summary>Hall of Fame</summary>${hallOfFameHtml()}</details>
@@ -756,9 +790,10 @@ function updateFactionInfo(): void {
 function readSetup() {
   const v = (id: string) => (document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null)?.value ?? '';
   const c = (id: string) => (document.getElementById(id) as HTMLInputElement | null)?.checked ?? true;
+  const c2 = (id: string) => (document.getElementById(id) as HTMLInputElement | null)?.checked ?? false;
   return {
     faction: v('o-faction') || 'random',
-    mapType: (v('o-map') || 'continents') as 'continents' | 'pangaea',
+    mapType: (v('o-map') || 'continents') as MapType | 'random',
     mapSize: v('o-size') || 'tiny',
     difficulty: v('o-diff') || 'prince',
     pace: v('o-pace') || 'standard',
@@ -766,6 +801,27 @@ function readSetup() {
     barbarians: c('o-barb'),
     ruins: c('o-ruins'),
     maxTurns: Number(v('o-maxturns')) || undefined,
+    civs: Number(v('o-civs')) || undefined,
+    cityStates: v('o-cs') === '' ? undefined : Number(v('o-cs')),
+    worldAge: Number(v('o-age') || 4) as 3 | 4 | 5,
+    temperature: (v('o-temp') || 'temperate') as 'temperate',
+    rainfall: (v('o-rain') || 'normal') as 'normal',
+    seaLevel: (v('o-sea') || 'medium') as 'medium',
+    resources: (v('o-res') || 'standard') as 'standard',
+    startEra: Number(v('o-era') || 0),
+    turnTimer: Number(v('o-timer')) || 0,
+    raging: c2('o-raging'),
+    noRazing: c2('o-norazing'),
+    oneCity: c2('o-onecity'),
+    completeKills: c2('o-kills'),
+    policySaving: c2('o-psave'),
+    promotionSaving: c2('o-prsave'),
+    noStartBias: c2('o-nobias'),
+    alwaysWar: c2('o-war'),
+    alwaysPeace: c2('o-peace'),
+    quickCombat: c2('o-qcombat'),
+    quickMovement: c2('o-qmove'),
+    tutorial: c('o-tutorial'),
     victories: { domination: c('o-v-domination'), science: c('o-v-science'), culture: c('o-v-culture'), diplomatic: c('o-v-diplomatic'), time: c('o-v-time') },
   };
 }

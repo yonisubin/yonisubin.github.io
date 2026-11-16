@@ -1,7 +1,8 @@
 // The game API: newGame(settings), applyAction(state, action) and endTurn(state, hooks).
 // Actions validate first and change nothing when they fail.
 import { D, get, unitForFaction } from '../data';
-import { generateMap } from '../mapgen/generate';
+import { generateMap, MAP_TYPES, type MapType } from '../mapgen/generate';
+import { DEFAULT_OPTIONS } from './options';
 import { neighbors } from './hex';
 import { hashSeed, shuffle } from './rng';
 import {
@@ -46,7 +47,8 @@ import { specialistSlots } from './systems/yields';
 import { militaryStrength } from './power';
 import { logEvent } from './query';
 
-export interface NewGameOptions extends Partial<Settings> {
+export interface NewGameOptions extends Partial<Omit<Settings, 'mapType'>> {
+  mapType?: MapType | 'random';
   /** Faction for the human player ('random' or an id). */
   faction?: string;
   /** Number of major players (default from map size). */
@@ -75,9 +77,14 @@ export function newDiplomacy(P: number): GameState['diplomacy'] {
 }
 
 export function newGame(o: NewGameOptions = {}): GameState {
+  const seed0 = o.seed ?? String(Date.now() % 1e9);
+  // "Random" map type: chosen from the seed.
+  const mapType: MapType = !o.mapType || o.mapType === 'random' ? (o.mapType === 'random' ? MAP_TYPES[Math.abs(hashSeed(seed0 + 'map')) % MAP_TYPES.length] : 'continents') : o.mapType;
   const settings: Settings = {
-    seed: o.seed ?? String(Date.now() % 1e9),
-    mapType: o.mapType ?? 'continents',
+    ...DEFAULT_OPTIONS,
+    ...Object.fromEntries(Object.entries(o).filter(([k, v]) => v !== undefined && k in DEFAULT_OPTIONS)),
+    seed: seed0,
+    mapType,
     mapSize: o.mapSize ?? 'tiny',
     difficulty: o.difficulty ?? 'prince',
     pace: o.pace ?? 'standard',
@@ -96,15 +103,20 @@ export function newGame(o: NewGameOptions = {}): GameState {
     h: size.height,
     players: civs,
     ruins: settings.ruins,
-    barbarianCamps: settings.barbarians ? size.barbarianCamps : 0,
+    barbarianCamps: settings.barbarians ? size.barbarianCamps * (settings.raging ? 2 : 1) : 0,
     minors: Math.min(o.cityStates ?? size.cityStates, D.cityStates.size),
+    worldAge: settings.worldAge,
+    temperature: settings.temperature,
+    rainfall: settings.rainfall,
+    seaLevel: settings.seaLevel,
+    resources: settings.resources,
   });
 
   // Factions: the human's choice first, the rest shuffled; then match factions to starts by bias.
   let factionIds = shuffle(holder, [...D.factions.keys()]);
   const humanFaction = o.faction && o.faction !== 'random' && D.factions.has(o.faction) ? o.faction : factionIds[0];
   factionIds = [humanFaction, ...factionIds.filter((f) => f !== humanFaction)].slice(0, civs);
-  const starts = assignStarts(map, factionIds);
+  const starts = settings.noStartBias ? map.starts.slice(0, factionIds.length) : assignStarts(map, factionIds);
 
   const n = map.w * map.h;
   const base = (i: number): Player => ({
@@ -223,9 +235,35 @@ export function newGame(o: NewGameOptions = {}): GameState {
       if (at >= 0) createUnit(s, type, i, at);
     }
   });
+  if (settings.startEra > 0) applyStartEra(s, starts);
   recomputeAllVisibility(s);
   recordTurn(s);
   return s;
+}
+
+/**
+ * Later-era starts: every player gets the earlier eras' techs, some gold, extra Workers and
+ * Settlers, and its warrior becomes the best defender it can field.
+ */
+function applyStartEra(s: GameState, starts: number[]): void {
+  const era = s.settings.startEra;
+  for (const pl of s.players) {
+    if (pl.isBarbarian) continue;
+    for (const t of D.techs.values()) if (t.era < era && !t.repeatable && !pl.techs.includes(t.id)) pl.techs.push(t.id);
+    if (pl.isMinor) continue;
+    pl.gold += 100 * era;
+    pl.freePolicies += Math.max(0, era - 1);
+    const at = starts[pl.id];
+    const extra = [...(era >= 1 ? ['worker'] : []), ...(era >= 2 ? ['settler'] : []), ...(era >= 3 ? ['worker'] : []), ...(era >= 4 ? ['settler'] : [])];
+    for (const base of extra) {
+      const type = unitForFaction(base, pl.faction);
+      const t = freeTileNear(s, type, pl.id, at, 3);
+      if (t >= 0) createUnit(s, type, pl.id, t);
+    }
+    // Upgrade the starting warrior to the best melee defender available.
+    const best = [...D.units.values()].filter((u) => u.class === 'melee' && !u.faction && !u.resource && (!u.tech || pl.techs.includes(u.tech)) && u.cost > 0).sort((a, b) => b.strength - a.strength)[0];
+    for (const u of Object.values(s.units)) if (u.owner === pl.id && unitDef(u).class === 'melee' && best) u.type = unitForFaction(best.id, pl.faction);
+  }
 }
 
 /** Give each faction the start that best matches its start bias (greedy). */
@@ -617,6 +655,7 @@ export function applyAction(s: GameState, p: number, a: Action): ActionResult {
       if (s.players[p].isMinor) return fail('city-states do not declare war');
       if (!pl.met.includes(q)) return fail('you have not met them');
       if (s.diplomacy.war[p][q]) return fail('already at war');
+      if (s.settings.alwaysPeace && !s.players[q].isMinor) return fail('this world is at peace (Always peace)');
       if (s.turn - s.diplomacy.changed[p][q] < D.rules.peaceTurns) return fail(`peace treaty holds for ${D.rules.peaceTurns - (s.turn - s.diplomacy.changed[p][q])} more turns`);
       setWar(s, p, q, true);
       return OK;
@@ -624,6 +663,7 @@ export function applyAction(s: GameState, p: number, a: Action): ActionResult {
     case 'makePeace': {
       const q = a.target;
       if (!s.diplomacy.war[p]?.[q]) return fail('not at war');
+      if (s.settings.alwaysWar && !s.players[q].isMinor) return fail('this world is always at war (Always war)');
       const other = s.players[q];
       if (!other.isHuman && !aiAcceptsPeace(s, q, p)) return fail(`${other.leader} refuses to make peace.`);
       setWar(s, p, q, false);
@@ -680,6 +720,7 @@ export { militaryStrength };
 
 /** AI peace rule: after the treaty minimum, accept if losing or the war has dragged on. */
 export function aiAcceptsPeace(s: GameState, ai: number, other: number): boolean {
+  if (s.settings.alwaysWar && (s.players[other].isHuman || s.players[ai].isHuman)) return false;
   const since = s.turn - s.diplomacy.changed[ai][other];
   if (since < D.rules.peaceTurns) return false;
   if (s.players[ai].isMinor) {
@@ -783,6 +824,7 @@ export function endTurn(s: GameState, hooks: TurnHooks = {}): void {
     checkElimination(s, pl.id);
   }
   recomputeAllVisibility(s);
+  applyAlwaysWar(s);
   recordTurn(s);
   checkVictory(s);
 }
@@ -842,6 +884,12 @@ export function checkVictory(s: GameState): void {
 }
 
 /** Is it safe to say the human has nothing left to do (for the End Turn button)? */
+/** Always war: every AI civilization that has met the human is at war with them. */
+function applyAlwaysWar(s: GameState): void {
+  if (!s.settings.alwaysWar || s.human < 0) return;
+  for (const q of s.players[s.human].met) if (!s.players[q].isMinor && !s.diplomacy.war[s.human][q]) setWar(s, q, s.human, true);
+}
+
 /** Citadels hurt enemy units next to them at the start of their owner's turn. */
 function citadelDamage(s: GameState, p: number): void {
   for (let i = 0; i < s.map.tiles.length; i++) {
@@ -863,13 +911,13 @@ function citadelDamage(s: GameState, p: number): void {
 export function nextRequiredAction(s: GameState, p: number): { kind: 'research' | 'production' | 'unit' | 'capture' | 'promotion' | 'policy' | 'pantheon' | 'ideology' | 'congress' | 'done'; id?: number } {
   const pl = s.players[p];
   if (pl.pendingCaptures.length) return { kind: 'capture', id: pl.pendingCaptures[0] };
-  if (canPickPolicy(s, p)) return { kind: 'policy' };
+  if (canPickPolicy(s, p) && !s.settings.policySaving) return { kind: 'policy' };
   if (canChoosePantheon(s, p)) return { kind: 'pantheon' };
   if (canChooseIdeology(s, p)) return { kind: 'ideology' };
   if (s.congress && s.congress.nextSession === s.turn && s.congress.proposals.length && !s.congress.votes[p]) return { kind: 'congress' };
   if (!pl.research && playerCities(s, p).length && pl.techs.length < D.techs.size) return { kind: 'research' };
   for (const c of playerCities(s, p)) if (!c.queue.length && !c.puppet && !c.razing) return { kind: 'production', id: c.id };
-  for (const u of playerUnits(s, p)) if (u.pendingPromotions > 0 && u.moves > 0) return { kind: 'promotion', id: u.id };
+  if (!s.settings.promotionSaving) for (const u of playerUnits(s, p)) if (u.pendingPromotions > 0 && u.moves > 0) return { kind: 'promotion', id: u.id };
   for (const u of playerUnits(s, p)) if (u.moves > 0 && u.order === 'none' && !u.job && !u.path.length && !u.exploring) return { kind: 'unit', id: u.id };
   return { kind: 'done' };
 }

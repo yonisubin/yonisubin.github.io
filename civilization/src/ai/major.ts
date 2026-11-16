@@ -197,7 +197,7 @@ function decideCaptureAI(s: GameState, p: number, id: number): void {
   const far = cap ? distance(dims(s), cap.tile, c.tile) > D.rules.city.razeVsAnnexDistance : true;
   const unhappy = happinessOf(s, p).net < 0;
   let choice: 'annex' | 'puppet' | 'raze' = far || unhappy ? 'puppet' : 'annex';
-  if (unhappy && c.pop <= 2 && !c.wasCapital) choice = 'raze';
+  if (unhappy && c.pop <= 2 && !c.wasCapital && !s.settings.noRazing) choice = 'raze';
   applyAction(s, p, { type: 'capture', city: id, choice });
 }
 

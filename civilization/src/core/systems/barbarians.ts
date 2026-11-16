@@ -34,14 +34,14 @@ export function barbarianSpawns(s: GameState): void {
   const b = D.rules.barbarians;
   const bid = barbarianId(s);
   if (bid < 0) return;
-  if (s.turn >= b.firstSpawnTurn) {
+  if (s.turn >= b.firstSpawnTurn / (s.settings.raging ? 2 : 1)) {
     for (const key of Object.keys(s.camps)) {
       const tile = Number(key);
       if (!s.map.tiles[tile].camp) {
         delete s.camps[key];
         continue;
       }
-      if (s.turn - s.camps[key] < b.spawnEveryTurns + randInt(s, 3)) continue;
+      if (s.turn - s.camps[key] < b.spawnEveryTurns / (s.settings.raging ? 2 : 1) + randInt(s, 3)) continue;
       const nearby = allUnits(s).filter((u) => u.owner === bid && distance(dims(s), u.tile, tile) <= 4).length;
       if (nearby >= b.maxUnitsPerCamp) continue;
       const type = barbarianUnitType(s);
@@ -54,7 +54,8 @@ export function barbarianSpawns(s: GameState): void {
   const size = D.mapSizes.get(s.settings.mapSize)!;
   const eras = majorPlayers(s).filter((p) => p.alive).map(eraOf).sort((a, z) => a - z);
   const lateGame = (eras[Math.floor(eras.length / 2)] ?? 0) >= b.stopEra;
-  if (!lateGame && Object.keys(s.camps).length < size.barbarianCamps * 1.5 && rand(s) * 100 < b.newCampChancePct / 4) {
+  const rage = s.settings.raging ? 2 : 1;
+  if (!lateGame && Object.keys(s.camps).length < size.barbarianCamps * 1.5 * rage && rand(s) * 100 < (b.newCampChancePct * rage) / 4) {
     const n = s.map.tiles.length;
     for (let tries = 0; tries < 40; tries++) {
       const i = randInt(s, n);

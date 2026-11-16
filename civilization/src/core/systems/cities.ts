@@ -38,6 +38,7 @@ import type { StrengthReport } from './combat';
 
 export function canFoundAt(s: GameState, p: number, tile: number): string | null {
   const t = tileAt(s, tile);
+  if (s.settings.oneCity && s.players[p].isHuman && playerCities(s, p).length >= 1) return 'One-City Challenge: no more cities';
   if (!isPassableLand(t)) return 'cannot found a city here';
   if (t.owner >= 0 && t.owner !== p) return 'this land belongs to someone else';
   for (const c of allCities(s)) if (distance(dims(s), c.tile, tile) < D.rules.minCityDistance) return `too close to ${c.name}`;
@@ -328,6 +329,7 @@ export function cannotBuild(s: GameState, c: City, item: QueueItem): string | nu
       if (!r || r.total - r.used < 1) return `needs ${get(D.resources, u.resource).name}`;
     }
     if (u.id === 'settler' && happinessOf(s, c.owner).net <= D.rules.happiness.veryUnhappy) return 'your people are too unhappy';
+    if (u.canFound && s.settings.oneCity && pl.isHuman) return 'One-City Challenge';
     if (u.requiresProject && !pl.projects.includes(u.requiresProject) && s.worldProjects[u.requiresProject] === undefined) return `needs the ${get(D.projects, u.requiresProject).name}`;
     if (u.faithCost > 0) return 'bought with faith';
     if (u.nuke && s.congress?.active.some((r) => r.resolution === 'nuclear_ban')) return 'banned by the Atomic Accord';
@@ -594,6 +596,7 @@ export function captureCity(s: GameState, c: City, by: number): void {
 
 /** Decide what to do with a captured city (annex, puppet, or raze). */
 export function decideCapture(s: GameState, c: City, choice: 'annex' | 'puppet' | 'raze'): string | null {
+  if (choice === 'raze' && s.settings.noRazing) return 'razing is turned off in this game';
   if (choice === 'raze' && c.wasCapital && c.originalOwner !== c.owner) return 'an original capital cannot be razed';
   const pl = s.players[c.owner];
   pl.pendingCaptures = pl.pendingCaptures.filter((x) => x !== c.id);
@@ -637,6 +640,8 @@ export function checkElimination(s: GameState, p: number): void {
   const hasCities = playerCities(s, p).length > 0;
   const hasSettler = Object.values(s.units).some((u) => u.owner === p && unitDef(u).canFound);
   if (hasCities || (!pl.hadCity && hasSettler)) return;
+  // Complete kills: also every unit must be gone.
+  if (s.settings.completeKills && Object.values(s.units).some((u) => u.owner === p)) return;
   pl.alive = false;
   for (const u of Object.values(s.units)) if (u.owner === p) removeUnit(s, u);
   for (const q of s.players) notify(s, q.id, `The ${pl.name} ${pl.hadCity ? 'have been destroyed' : 'have vanished'}.`, q.id === p ? 'bad' : 'info');

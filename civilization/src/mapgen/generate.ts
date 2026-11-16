@@ -7,6 +7,7 @@ import { distance, idx, MapDims, neighbor, neighbors, rowOf, colOf, within } fro
 import { pickWeighted, rand, randInt, RngHolder, shuffle } from '../core/rng';
 import type { Tile } from '../core/state';
 import { mapNoise } from './noise';
+import { earthLand } from './earth';
 
 export interface GeneratedMap {
   w: number;
@@ -18,8 +19,14 @@ export interface GeneratedMap {
   minorStarts: number[];
 }
 
+export const MAP_TYPES = [
+  'continents', 'pangaea', 'archipelago', 'fractal', 'small_continents', 'terra', 'inland_sea', 'lakes',
+  'highlands', 'ice_age', 'tilted_axis', 'great_plains', 'oval', 'north_vs_south', 'skirmish', 'earth',
+] as const;
+export type MapType = (typeof MAP_TYPES)[number];
+
 export interface MapGenOptions {
-  type: 'continents' | 'pangaea';
+  type: MapType;
   w: number;
   h: number;
   players: number;
@@ -27,6 +34,112 @@ export interface MapGenOptions {
   barbarianCamps: number;
   /** City-states to place. */
   minors?: number;
+  /** World age (3, 4 or 5 billion years: more or fewer hills and mountains). */
+  worldAge?: 3 | 4 | 5;
+  temperature?: 'cool' | 'temperate' | 'hot';
+  rainfall?: 'arid' | 'normal' | 'wet';
+  seaLevel?: 'low' | 'medium' | 'high';
+  resources?: 'sparse' | 'standard' | 'abundant' | 'legendary' | 'strategic';
+}
+
+/** Per-script knobs on top of the shared generator. */
+interface Script {
+  land: number;
+  mountains: number;
+  hills: number;
+  tempShift?: number;
+  wetShift?: number;
+  lakeMax?: number;
+  /** Starts only on the biggest landmass (Terra). */
+  oneLandmass?: boolean;
+  /** Temperature runs east–west instead of north–south. */
+  tilted?: boolean;
+}
+
+const SCRIPTS: Record<MapType, Script> = {
+  continents: { land: 0.34, mountains: 0.06, hills: 0.2 },
+  pangaea: { land: 0.36, mountains: 0.06, hills: 0.2 },
+  archipelago: { land: 0.28, mountains: 0.04, hills: 0.2 },
+  fractal: { land: 0.36, mountains: 0.07, hills: 0.2 },
+  small_continents: { land: 0.32, mountains: 0.05, hills: 0.2 },
+  terra: { land: 0.36, mountains: 0.06, hills: 0.2, oneLandmass: true },
+  inland_sea: { land: 0.55, mountains: 0.06, hills: 0.2 },
+  lakes: { land: 0.52, mountains: 0.05, hills: 0.18, lakeMax: 60 },
+  highlands: { land: 0.42, mountains: 0.12, hills: 0.4 },
+  ice_age: { land: 0.36, mountains: 0.06, hills: 0.2, tempShift: -0.25 },
+  tilted_axis: { land: 0.36, mountains: 0.06, hills: 0.2, tilted: true },
+  great_plains: { land: 0.42, mountains: 0.02, hills: 0.08, wetShift: -0.08 },
+  oval: { land: 0.38, mountains: 0.06, hills: 0.2 },
+  north_vs_south: { land: 0.36, mountains: 0.06, hills: 0.2 },
+  skirmish: { land: 0.45, mountains: 0.05, hills: 0.22 },
+  earth: { land: 0, mountains: 0.07, hills: 0.2 },
+};
+
+/** Base height of every tile for a map script (higher = more likely land). */
+function heightmap(rng: RngHolder, o: MapGenOptions, m: MapDims, seed: number): Float64Array {
+  const n = o.w * o.h;
+  const height = new Float64Array(n);
+  const blobs: { col: number; row: number; r: number; s: number; squash?: number }[] = [];
+  const t = o.type;
+  if (t === 'pangaea' || t === 'skirmish' || t === 'great_plains') {
+    const c = randInt(rng, o.w);
+    blobs.push({ col: c, row: o.h / 2, r: o.w * (t === 'skirmish' ? 0.35 : 0.28), s: 0.55 });
+    for (let k = 0; k < 3; k++) blobs.push({ col: c + (rand(rng) - 0.5) * o.w * 0.35, row: o.h * (0.3 + rand(rng) * 0.4), r: o.w * 0.14, s: 0.35 });
+  } else if (t === 'oval') {
+    blobs.push({ col: randInt(rng, o.w), row: o.h / 2, r: o.w * 0.33, s: 1.2, squash: 0.8 });
+  } else if (t === 'terra') {
+    // The Old World (everyone starts here) and an empty New World across the ocean.
+    const c = randInt(rng, o.w);
+    blobs.push({ col: c, row: o.h / 2, r: o.w * 0.22, s: 0.65 }, { col: c + o.w * 0.08, row: o.h * 0.35, r: o.w * 0.12, s: 0.35 });
+    blobs.push({ col: c + o.w / 2, row: o.h / 2, r: o.w * 0.15, s: 0.55 });
+  } else if (t === 'small_continents') {
+    const count = 5 + randInt(rng, 3);
+    for (let k = 0; k < count; k++) blobs.push({ col: (k * o.w) / count + rand(rng) * 4, row: o.h * (0.25 + rand(rng) * 0.5), r: o.w * 0.08, s: 0.6 });
+  } else if (t === 'north_vs_south') {
+    blobs.push({ col: randInt(rng, o.w), row: o.h * 0.27, r: o.w * 0.4, s: 0.6, squash: 0.35 }, { col: randInt(rng, o.w), row: o.h * 0.73, r: o.w * 0.4, s: 0.6, squash: 0.35 });
+  } else if (t === 'continents' || t === 'highlands' || t === 'ice_age' || t === 'tilted_axis') {
+    const count = o.w >= 80 ? 3 : 2;
+    const start = rand(rng) * o.w;
+    for (let k = 0; k < count; k++) {
+      const col = start + (k * o.w) / count + (rand(rng) - 0.5) * o.w * 0.08;
+      blobs.push({ col, row: o.h * (0.35 + rand(rng) * 0.3), r: o.w * (0.17 + rand(rng) * 0.04), s: 0.55 });
+      blobs.push({ col: col + (rand(rng) - 0.5) * o.w * 0.12, row: o.h * (0.25 + rand(rng) * 0.5), r: o.w * 0.1, s: 0.3 });
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    const col = colOf(m, i), row = rowOf(m, i);
+    if (t === 'earth') {
+      height[i] = earthLand(col, row, o.w, o.h) ? 1 + mapNoise(seed, o.w, col, row, 12, 3) * 0.3 : mapNoise(seed, o.w, col, row, 12, 3) * 0.3;
+      continue;
+    }
+    // Archipelago and fractal are all noise; the others are noise shaped by blobs.
+    const freq = t === 'archipelago' ? 18 : t === 'fractal' ? 9 : 7;
+    let hgt = mapNoise(seed, o.w, col, row, freq, 5) * (t === 'archipelago' || t === 'fractal' ? 1.2 : 0.8) + mapNoise(seed + 7, o.w, col, row, 16, 3) * 0.25;
+    for (const b of blobs) {
+      // Wrapped horizontal distance in tile units (rows are 0.866 tile apart vertically).
+      let dx = Math.abs(col - b.col) % o.w;
+      dx = Math.min(dx, o.w - dx);
+      // Continents are taller than wide (north–south), like real ones.
+      const dy = (row - b.row) * 0.866 * (b.squash ? 1 / b.squash : 0.55);
+      const d = Math.sqrt(dx * dx + dy * dy) / b.r;
+      hgt += b.s * 0.8 * Math.exp(-d * d * 1.6);
+    }
+    if (t === 'inland_sea') {
+      // One great sea in the middle of a world of land.
+      const dx = (col - o.w / 2) / (o.w * 0.28), dy = (row - o.h / 2) / (o.h * 0.3);
+      hgt += 0.6 - Math.exp(-(dx * dx + dy * dy)) * 1.2;
+    }
+    if (t === 'north_vs_south') {
+      // An ocean band along the equator keeps the halves apart.
+      const eq = Math.abs(row - o.h / 2) / (o.h / 2);
+      if (eq < 0.12) hgt -= 1;
+    }
+    // Poles: push the top and bottom rows under the sea.
+    const lat = Math.abs(row - (o.h - 1) / 2) / ((o.h - 1) / 2);
+    hgt -= Math.max(0, lat - 0.7) * 1.5;
+    height[i] = hgt;
+  }
+  return height;
 }
 
 const blankTile = (): Tile => ({
@@ -58,45 +171,15 @@ export function generateMap(rng: RngHolder, o: MapGenOptions): GeneratedMap {
   const tiles: Tile[] = Array.from({ length: n }, blankTile);
   const seed = randInt(rng, 1 << 30);
 
-  // ---- Heightmap: noise plus continent "blobs" at seed points, minus the poles. ----
-  const blobs: { col: number; row: number; r: number; s: number }[] = [];
-  if (o.type === 'pangaea') {
-    const c = randInt(rng, o.w);
-    blobs.push({ col: c, row: o.h / 2, r: o.w * 0.28, s: 0.55 });
-    for (let k = 0; k < 3; k++)
-      blobs.push({ col: c + (rand(rng) - 0.5) * o.w * 0.35, row: o.h * (0.3 + rand(rng) * 0.4), r: o.w * 0.14, s: 0.35 });
-  } else {
-    const count = o.w >= 80 ? 3 : 2;
-    const start = rand(rng) * o.w;
-    for (let k = 0; k < count; k++) {
-      const col = start + (k * o.w) / count + (rand(rng) - 0.5) * o.w * 0.08;
-      blobs.push({ col, row: o.h * (0.35 + rand(rng) * 0.3), r: o.w * (0.17 + rand(rng) * 0.04), s: 0.55 });
-      blobs.push({ col: col + (rand(rng) - 0.5) * o.w * 0.12, row: o.h * (0.25 + rand(rng) * 0.5), r: o.w * 0.1, s: 0.3 });
-    }
-  }
-  const height = new Float64Array(n);
-  for (let i = 0; i < n; i++) {
-    const col = colOf(m, i), row = rowOf(m, i);
-    let hgt = mapNoise(seed, o.w, col, row, 7, 5) * 0.8 + mapNoise(seed + 7, o.w, col, row, 16, 3) * 0.25;
-    for (const b of blobs) {
-      // Wrapped horizontal distance in tile units (rows are 0.866 tile apart vertically).
-      let dx = Math.abs(col - b.col) % o.w;
-      dx = Math.min(dx, o.w - dx);
-      // Continents are taller than wide (north–south), like real ones.
-      const dy = (row - b.row) * 0.866 * 0.55;
-      const d = Math.sqrt(dx * dx + dy * dy) / b.r;
-      hgt += b.s * 0.8 * Math.exp(-d * d * 1.6);
-    }
-    // Poles: push the top and bottom rows under the sea.
-    const lat = Math.abs(row - (o.h - 1) / 2) / ((o.h - 1) / 2);
-    hgt -= Math.max(0, lat - 0.7) * 1.5;
-    height[i] = hgt;
-  }
+  const script = SCRIPTS[o.type] ?? SCRIPTS.continents;
+  const height = heightmap(rng, o, m, seed);
 
   // ---- Land/sea by quantile, so every map has about the same land share. ----
-  const landShare = o.type === 'pangaea' ? 0.36 : 0.34;
+  // (Earth uses its outline as is: land is height ≥ 1.)
+  const seaShift = o.seaLevel === 'low' ? 0.05 : o.seaLevel === 'high' ? -0.05 : 0;
+  const landShare = Math.min(0.75, script.land + seaShift);
   const sorted = Array.from(height).sort((a, b) => a - b);
-  const seaLevel = sorted[Math.floor(n * (1 - landShare))];
+  const seaLevel = o.type === 'earth' ? 1 : sorted[Math.floor(n * (1 - landShare))];
   const maxH = sorted[n - 1];
   for (let i = 0; i < n; i++) {
     const row = rowOf(m, i);
@@ -109,7 +192,7 @@ export function generateMap(rng: RngHolder, o: MapGenOptions): GeneratedMap {
   labelAreas(m, tiles);
   const waterBodies = floodComponents(m, tiles, (t) => !isLandTerrain(t.terrain));
   for (const body of waterBodies) {
-    if (body.length <= 10) for (const i of body) tiles[i].terrain = 'lake';
+    if (body.length <= (script.lakeMax ?? 10)) for (const i of body) tiles[i].terrain = 'lake';
   }
   for (let i = 0; i < n; i++) {
     if (tiles[i].terrain !== 'ocean') continue;
@@ -126,8 +209,10 @@ export function generateMap(rng: RngHolder, o: MapGenOptions): GeneratedMap {
     ridge.set(i, r * r * 0.75 + tiles[i].elevation * 0.35 + mapNoise(seed + 93, o.w, colOf(m, i), rowOf(m, i), 30, 2) * 0.2);
   }
   const byElev = [...landIdx].sort((a, b) => ridge.get(b)! - ridge.get(a)!);
-  const mountainCut = Math.floor(byElev.length * 0.06);
-  const hillsCut = Math.floor(byElev.length * 0.2);
+  // Younger worlds (3 billion years) are rougher; older ones smoother.
+  const age = o.worldAge === 3 ? 1.4 : o.worldAge === 5 ? 0.65 : 1;
+  const mountainCut = Math.floor(byElev.length * script.mountains * age);
+  const hillsCut = mountainCut + Math.floor(byElev.length * script.hills * age);
   byElev.forEach((i, k) => {
     if (k < mountainCut) tiles[i].terrain = 'mountain';
     else if (k < hillsCut) tiles[i].hills = true;
@@ -139,9 +224,11 @@ export function generateMap(rng: RngHolder, o: MapGenOptions): GeneratedMap {
   const wets = new Float64Array(n);
   for (const i of landIdx) {
     const col = colOf(m, i), row = rowOf(m, i);
-    const lat = Math.abs(row - (o.h - 1) / 2) / ((o.h - 1) / 2);
-    const temp = 1 - lat * 1.15 + (mapNoise(seed + 31, o.w, col, row, 10, 3) - 0.5) * 0.35 - (tiles[i].elevation - 0.3) * 0.25;
-    let wet = mapNoise(seed + 57, o.w, col, row, 15, 4);
+    // Tilted axis: the cold "poles" sit east and west instead of north and south.
+    const lat = script.tilted ? Math.abs(Math.cos((col / o.w) * Math.PI * 2)) : Math.abs(row - (o.h - 1) / 2) / ((o.h - 1) / 2);
+    const tempShift = (script.tempShift ?? 0) + (o.temperature === 'cool' ? -0.12 : o.temperature === 'hot' ? 0.12 : 0);
+    const temp = 1 - lat * 1.15 + tempShift + (mapNoise(seed + 31, o.w, col, row, 10, 3) - 0.5) * 0.35 - (tiles[i].elevation - 0.3) * 0.25;
+    let wet = mapNoise(seed + 57, o.w, col, row, 15, 4) + (script.wetShift ?? 0) + (o.rainfall === 'arid' ? -0.12 : o.rainfall === 'wet' ? 0.12 : 0);
     if (neighbors(m, i).some((j) => !isLandTerrain(tiles[j].terrain))) wet += 0.08;
     temps[i] = temp;
     wets[i] = wet;
@@ -170,21 +257,22 @@ export function generateMap(rng: RngHolder, o: MapGenOptions): GeneratedMap {
       continue;
     }
     if (temp > 0.72 && wet > 0.52 && (t.terrain === 'grassland' || t.terrain === 'plains') && r < 0.75) t.feature = 'jungle';
-    else if (wet > 0.5 && r < 0.6 && temp > 0.2) t.feature = 'forest';
+    else if (wet > 0.5 && r < (o.type === 'great_plains' ? 0.25 : 0.6) && temp > 0.2) t.feature = 'forest';
     else if (t.terrain === 'grassland' && !t.hills && wet > 0.6 && r > 0.9) t.feature = 'marsh';
   }
   for (let i = 0; i < n; i++) {
     const row = rowOf(m, i);
-    if (tiles[i].terrain === 'ocean' && (row <= 1 || row >= o.h - 2) && (row === 0 || row === o.h - 1 || rand(rng) < 0.5)) tiles[i].feature = 'ice';
+    const icy = o.type === 'ice_age' ? 3 : 1;
+    if (tiles[i].terrain === 'ocean' && (row <= icy || row >= o.h - 1 - icy) && (row === 0 || row === o.h - 1 || rand(rng) < 0.5)) tiles[i].feature = 'ice';
   }
 
   // ---- Resources ----
-  placeResources(rng, m, tiles, seed);
+  placeResources(rng, m, tiles, seed, o.resources === 'sparse' ? 0.6 : o.resources === 'abundant' ? 1.5 : 1);
 
   // ---- Areas, starts, balance, ruins, camps ----
   labelAreas(m, tiles);
-  const starts = placeStarts(rng, m, tiles, o.players);
-  for (const s of starts) balanceStart(rng, m, tiles, s);
+  const starts = placeStarts(rng, m, tiles, o.players, !!script.oneLandmass);
+  for (const s of starts) balanceStart(rng, m, tiles, s, o.resources);
   const minorStarts = placeMinorStarts(rng, m, tiles, starts, o.minors ?? 0);
   for (const s of minorStarts) {
     const t = tiles[s];
@@ -194,7 +282,7 @@ export function generateMap(rng: RngHolder, o: MapGenOptions): GeneratedMap {
   }
   const all = [...starts, ...minorStarts];
   if (o.ruins) placeRuins(rng, m, tiles, all);
-  const camps = placeInitialCamps(rng, m, tiles, all, o.barbarianCamps);
+  const camps = placeInitialCamps(rng, m, tiles, starts, minorStarts, o.barbarianCamps);
   return { w: o.w, h: o.h, tiles, starts, camps, minorStarts };
 }
 
@@ -328,7 +416,7 @@ export function resourceFits(tile: Tile, resId: string): boolean {
   return true;
 }
 
-function placeResources(rng: RngHolder, m: MapDims, tiles: Tile[], seed: number): void {
+function placeResources(rng: RngHolder, m: MapDims, tiles: Tile[], seed: number, amount = 1): void {
   const all = [...D.resources.values()];
   const bonus = all.filter((r) => r.kind === 'bonus');
   const strategic = all.filter((r) => r.kind === 'strategic');
@@ -344,7 +432,7 @@ function placeResources(rng: RngHolder, m: MapDims, tiles: Tile[], seed: number)
   for (let i = 0; i < tiles.length; i++) {
     const t = tiles[i];
     if (t.terrain === 'mountain' || t.feature === 'ice' || t.terrain === 'ocean') continue;
-    const r = rand(rng);
+    const r = rand(rng) / amount;
     let list: typeof all = [];
     let weight: (x: (typeof all)[number]) => number = () => 1;
     if (isWater(t)) {
@@ -409,9 +497,12 @@ export function siteScore(m: MapDims, tiles: Tile[], s: number): number {
   return score;
 }
 
-function placeStarts(rng: RngHolder, m: MapDims, tiles: Tile[], count: number): number[] {
+function placeStarts(rng: RngHolder, m: MapDims, tiles: Tile[], count: number, oneLandmass = false): number[] {
   const areaSize = new Map<number, number>();
   for (const t of tiles) if (t.area) areaSize.set(t.area, (areaSize.get(t.area) ?? 0) + 1);
+  // Terra: everyone starts on the biggest landmass.
+  const biggest = [...areaSize.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  if (oneLandmass) for (const k of [...areaSize.keys()]) if (k !== biggest) areaSize.set(k, 0);
   const landTotal = [...areaSize.values()].reduce((a, b) => a + b, 0);
   const candidates: { i: number; s: number }[] = [];
   for (let i = 0; i < tiles.length; i++) {
@@ -464,7 +555,7 @@ function placeMinorStarts(rng: RngHolder, m: MapDims, tiles: Tile[], starts: num
 }
 
 /** Make sure a start has some food, a luxury, horses and iron nearby. */
-function balanceStart(rng: RngHolder, m: MapDims, tiles: Tile[], s: number): void {
+function balanceStart(rng: RngHolder, m: MapDims, tiles: Tile[], s: number, resources?: MapGenOptions['resources']): void {
   const t = tiles[s];
   if (t.feature && t.feature !== 'floodplains') t.feature = null;
   t.resource = null;
@@ -488,6 +579,12 @@ function balanceStart(rng: RngHolder, m: MapDims, tiles: Tile[], s: number): voi
   ensure(3, isKind('luxury'), shuffle(rng, [...D.resources.values()].filter((r) => r.kind === 'luxury').map((r) => r.id)), 1);
   ensure(5, (id) => id === 'horses', ['horses'], 1);
   ensure(5, (id) => id === 'iron', ['iron'], 1);
+  if (resources === 'legendary') {
+    ensure(2, (id) => isKind('bonus')(id), shuffle(rng, ['wheat', 'cattle', 'deer', 'bananas', 'sheep', 'stone']), 4);
+    ensure(3, isKind('luxury'), shuffle(rng, [...D.resources.values()].filter((r) => r.kind === 'luxury' && !r.minorOnly).map((r) => r.id)), 3);
+  }
+  if (resources === 'strategic' || resources === 'legendary')
+    for (const r of ['coal', 'oil', 'aluminum', 'uranium']) ensure(6, (id) => id === r, [r], 1);
   for (const j of near(3)) {
     tiles[j].ruin = false;
     tiles[j].camp = false;
@@ -507,13 +604,15 @@ function placeRuins(rng: RngHolder, m: MapDims, tiles: Tile[], starts: number[])
   }
 }
 
-function placeInitialCamps(rng: RngHolder, m: MapDims, tiles: Tile[], starts: number[], count: number): number[] {
+function placeInitialCamps(rng: RngHolder, m: MapDims, tiles: Tile[], starts: number[], minorStarts: number[], count: number): number[] {
   const land = shuffle(rng, [...Array(tiles.length).keys()].filter((i) => isPassableLand(tiles[i]) && !tiles[i].ruin));
   const placed: number[] = [];
   for (const i of land) {
     if (placed.length >= count) break;
-    if (starts.some((s) => distance(m, s, i) < 8)) continue;
-    if (placed.some((p) => distance(m, p, i) < 6)) continue;
+    // Far from civilizations' starts; city-states can live closer to barbarians.
+    if (starts.some((s) => distance(m, s, i) < 8) || minorStarts.some((s) => distance(m, s, i) < 5)) continue;
+    // Many camps (raging barbarians) may sit closer together.
+    if (placed.some((p) => distance(m, p, i) < (count > 8 ? 4 : 6))) continue;
     tiles[i].camp = true;
     tiles[i].resource = null;
     placed.push(i);

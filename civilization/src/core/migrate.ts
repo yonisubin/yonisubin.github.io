@@ -1,11 +1,13 @@
 // Bring older saves up to date: fill in fields added by later phases with their defaults.
 import { D, get } from '../data';
 import type { GameState } from './state';
+import { DEFAULT_OPTIONS } from './options';
 
 export function migrate(s: GameState): GameState {
   const st = s.settings as Partial<GameState['settings']>;
   st.victories ??= { domination: true, science: true, culture: true, diplomatic: true, time: true };
   st.maxTurns ??= get(D.pace, s.settings.pace).maxTurns;
+  Object.assign(st, { ...DEFAULT_OPTIONS, ...st });
   s.replay ??= [];
   s.events ??= [];
   s.wonders ??= {};
