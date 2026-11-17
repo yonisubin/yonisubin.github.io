@@ -20,7 +20,7 @@ import type { PortalSystem } from '../portals/portals';
 import { Carry } from '../player/carry';
 import type { Player, TeleportEvent } from '../player/controller';
 import type { Effects } from '../render/effects';
-import { buildLevelMeshes } from '../render/levelMeshes';
+import { applyAmbience, buildLevelMeshes, themeOf } from '../render/levelMeshes';
 import type { ChamberContext, DeathCause, RuntimeSettings } from './context';
 
 export interface ChamberDeps {
@@ -102,7 +102,8 @@ export class Chamber implements ChamberContext {
 
     // World: brushes (colliders + meshes).
     this.physics.loadLevel(level);
-    const visuals = buildLevelMeshes(level);
+    const visuals = buildLevelMeshes(level, { dress: true });
+    applyAmbience(deps.scene, themeOf(level));
     this.levelMaterials = visuals.materials;
     this.group.add(visuals.group);
     deps.scene.add(this.group);

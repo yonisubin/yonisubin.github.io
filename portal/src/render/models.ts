@@ -2,6 +2,7 @@
 // Shared materials/textures are created once and flagged `userData.shared` so disposing a chamber
 // doesn't free them.
 import * as THREE from 'three';
+import { CONFIG } from '../core/config';
 
 function shared<T extends THREE.Material | THREE.BufferGeometry>(x: T): T {
   x.userData.shared = true;
@@ -67,8 +68,33 @@ function cubeFace(companion: boolean): THREE.CanvasTexture {
   });
 }
 
+/** The parts of a cube face that glow (the lamp / the emblem), white on black: an emissive map. */
+function cubeGlow(companion: boolean): THREE.CanvasTexture {
+  return canvasTex(128, (g, s) => {
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, s, s);
+    if (companion) {
+      g.strokeStyle = '#3fbf9a';
+      g.lineWidth = s * 0.06;
+      for (const dx of [-0.09, 0.09]) {
+        g.beginPath();
+        g.arc(s / 2 + dx * s, s / 2, s * 0.16, 0, Math.PI * 2);
+        g.stroke();
+      }
+    } else {
+      g.fillStyle = '#5fd3ff';
+      g.beginPath();
+      g.arc(s / 2, s / 2, s * 0.12, 0, Math.PI * 2);
+      g.fill();
+    }
+  });
+}
+
 export function cubeModel(size: number, companion: boolean): THREE.Object3D {
-  const m = mat(companion ? 'cubeC' : 'cube', () => new THREE.MeshLambertMaterial({ map: cubeFace(companion) }));
+  // Emissive lamp / emblem: lit the same in a dark service corridor as under the practical lights.
+  const m = mat(companion ? 'cubeC' : 'cube', () =>
+    new THREE.MeshLambertMaterial({ map: cubeFace(companion), emissive: 0xffffff, emissiveMap: cubeGlow(companion), emissiveIntensity: CONFIG.visuals.propGlow }),
+  );
   return new THREE.Mesh(new THREE.BoxGeometry(size, size, size), m);
 }
 

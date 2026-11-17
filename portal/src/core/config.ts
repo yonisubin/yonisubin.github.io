@@ -253,6 +253,25 @@ export const CONFIG = {
     nudgeMax: 1.8,
   },
 
+  /** Look of the chambers (render/levelMeshes.ts): themes, lights, floors, wear. */
+  visuals: {
+    /** Clean practicals: panels a touch brighter than the texture, floors with a soft sheen. */
+    cleanPanelTint: 0xffffff,
+    cleanFloorSpecular: 0x2c3034,
+    cleanFloorShininess: 70,
+    industrialFloorSpecular: 0x0a0907,
+    industrialFloorShininess: 10,
+    /** Scene lights per theme: hemisphere (sky / ground colours), key and fill directionals. */
+    clean: { hemi: 1.75, sky: 0xf6f9ff, ground: 0x5a6066, key: 1.2, keyColor: 0xffffff, fill: 0.5 },
+    industrial: { hemi: 0.75, sky: 0xd8cbb0, ground: 0x2a241e, key: 0.55, keyColor: 0xffd9a8, fill: 0.2 },
+    /** Wear decals: chance per eligible wall face, and how far they float off the wall. */
+    wearChanceClean: 0.35,
+    wearChanceIndustrial: 0.8,
+    wearOffset: 0.004,
+    /** Emissive strength of prop lamps (cube lamp, companion emblem, button plates). */
+    propGlow: 0.9,
+  },
+
   debug: {
     /** Toggle key for the debug overlay lives in input/; this only sets the default. */
     overlay: false,

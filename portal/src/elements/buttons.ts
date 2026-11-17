@@ -25,7 +25,10 @@ export class FloorButton extends BaseElement {
     this.lampMat = new THREE.MeshBasicMaterial({ color: 0x3a1d18 });
     const base = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.15, r * 1.25, 0.06, 32), MAT.dark());
     base.position.set(o.x, o.y + 0.03, o.z);
-    this.plate = new THREE.Mesh(new THREE.CylinderGeometry(r, r, E.buttonHeight, 32), new THREE.MeshLambertMaterial({ color }));
+    this.plate = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r, E.buttonHeight, 32),
+      new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: CONFIG.visuals.propGlow * 0.25 }),
+    );
     this.plate.position.set(o.x, o.y + E.buttonHeight / 2, o.z);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(r * 1.08, 0.025, 6, 40), this.lampMat);
     ring.rotation.x = Math.PI / 2;
