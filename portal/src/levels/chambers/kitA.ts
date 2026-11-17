@@ -33,7 +33,14 @@ export interface Hole {
   a1: number;
   y0: number;
   y1: number;
+  /** Fill the opening with a full-thickness piece of this tag (a white panel set into a metal wall,
+   *  or a window). Panels must be part of the wall: a thin slab in front of it would leave the wall
+   *  behind an aperture solid. */
+  fill?: SurfaceTag;
 }
+
+/** A panel of `tag` set into a wall: [a0, a1] along it, [y0, y1] up. */
+export const panel = (a0: number, a1: number, y0: number, y1: number, tag: SurfaceTag = 'portalable'): Hole => ({ a0, a1, y0, y1, fill: tag });
 
 type Side = 'n' | 's' | 'e' | 'w';
 
@@ -68,6 +75,7 @@ function wallWithHoles(side: Side, o: Required<Pick<ShellOptions, 'min' | 'max' 
     if (h.a0 > at + 1e-6) out.push(mk(at, h.a0, y0, y1));
     if (h.y0 > y0 + 1e-6) out.push(mk(h.a0, h.a1, y0, h.y0));
     if (h.y1 < y1 - 1e-6) out.push(mk(h.a0, h.a1, h.y1, y1));
+    if (h.fill) out.push(alongX ? box([h.a0, h.y0, c0], [h.a1, h.y1, c1], h.fill) : box([c0, h.y0, h.a0], [c1, h.y1, h.a1], h.fill));
     at = h.a1;
   }
   if (a1 > at + 1e-6) out.push(mk(at, a1, y0, y1));

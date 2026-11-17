@@ -18,4 +18,10 @@ export const LINES_A: Record<string, Line> = {
   'c02.middle.1': { text: 'This plate only accepts cases. Please do not stand on it. It finds that familiar, and the paperwork is awkward.' },
   'c02.east.1': { text: 'You have now visited all three cells. A full rotation. In some departments that counts as a degree.' },
   'c02.exitReached.1': { text: 'Practical Two complete. I have noted that you waited for things. Patience is graded separately, and quietly.' },
+  // --- 03 Half a Fold: the device fires blue; amber is fixed ---------------------------------------
+  'c03.chamberStart.1': { text: 'You have been issued the Fold. It is a surveying instrument. Please do not point it at anyone, or at me, or at the cafeteria.' },
+  'c03.chamberStart.2': { text: 'For now it opens the blue end only. The amber end has been installed by staff. Staff are no longer available for questions.' },
+  'c03.floor.1': { text: 'Apertures take to the white panels. Dark metal declines. This is not personal. Metal declines everything.' },
+  'c03.shelf.1': { text: 'Up you go. The shelf is three and a half metres high. You did not climb it. I will be writing "arrived" rather than "climbed".' },
+  'c03.exitReached.1': { text: 'Practical Three complete. You have carried a case through a hole in the wall. Your file now lists you as "a carrier". It is a compliment.' },
 };

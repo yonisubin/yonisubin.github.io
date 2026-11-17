@@ -205,6 +205,18 @@ const SOLUTIONS = {
     H.through(0, -12); // → east cell
     H.toExit();
   },
+  c03: (H) => {
+    H.walkTo(0, -3);
+    H.walkTo(4, -4.9, { tol: 0.2 });
+    H.grab('cube1');
+    H.walkTo(-4, -7, { tol: 0.3 });
+    H.turnToward([-8, 1.0, -7]); // the low white panel on the west wall
+    H.say(`fire a ${H.tf.fire('a').ok}`);
+    H.through(-9, -7); // out of the fixed amber end on the shelf, still carrying
+    H.carryTo(3, -16.5);
+    H.say(`plate ${H.el('plate').outputs.pressed}`);
+    H.toExit();
+  },
 };
 
 run('chambersA', async ({ page }, t) => {
