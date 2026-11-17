@@ -15,6 +15,7 @@ import { Crusher, Door, Lift, Panel, Platform } from './movers';
 import { PelletCatcher, PelletLauncher } from './pellets';
 import { Cube, Debris, PhysProp, Sphere } from './prop';
 import { RocketTurret, Turret } from './turret';
+import { Chute, Erasure, ExitZone, Zone } from './story';
 
 class Inert extends BaseElement {}
 
@@ -49,6 +50,11 @@ const TYPES: Record<EntityType, Ctor> = {
   light: LightElement,
   decal: Decal,
   commentaryNode: CommentaryNode,
+  // Story elements (workstream B).
+  zone: Zone,
+  chute: Chute,
+  exitZone: ExitZone,
+  erasure: Erasure,
 };
 
 export function createElement(ctx: ChamberContext, entity: Entity): Element {
