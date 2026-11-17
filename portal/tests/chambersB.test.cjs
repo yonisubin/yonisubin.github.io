@@ -419,6 +419,49 @@ const SOLUTIONS = {
     out.exited = R.exited('escape2'); out.deaths = R.ev('death'); out.h = tf.chamber.health;
     return out;
   },
+  // Boss: per stage, B on the white panel (from mid-arena), A on the alcove baffle, show yourself, step behind it; carry the component to the disposal unit.
+  finale: () => {
+    const tf = window.twinfold, out = { stages: [] };
+    R.load('finale');
+    const RT = R.el('rockets'), core = R.el('core');
+    const BX = [-2, -10, 5], PZ = [-27, -29.4, -24.9];
+    R.path([[12, -10.5], [12, -13]]);
+    
+    for (let k = 0; k < 3; k++) {
+      const st = {};
+      const bx = BX[k];
+      R.walk(-3, -20);
+      st.b = R.fire('b', -15, 8, PZ[k]);
+      R.walk(bx, -15); st.bInfo = tf.lastFire('b') && { r: tf.lastFire('b').reason, p: tf.lastFire('b').point }; st.panels = [0,1,2].map((i) => R.el('target' + i).outputs.moved);
+      st.a = R.fire('a', bx, 1.5, -11.3).ok;
+      // Into the alcove past the baffle's east edge, in view of the turret.
+      R.path([[bx + 1.15, -12.2], [bx + 1.15, -10.2]]);
+      const f0 = RT.fired, h0 = core.hits;
+      st.fired = R.wait(() => RT.fired > f0, 8);
+      R.walk(bx, -10.2);
+      st.hit = R.wait(() => core.hits > h0, 8);
+      st.pending = core.pending;
+      tf.simulate(1.5);
+      const part = R.el(core.pending);
+      st.partAt = part && part.position();
+      R.path([[bx + 1.15, -12.2]]);
+      if (!part) { out.stages.push(st); break; }
+      const pp = part.position();
+      R.walk(pp.x + 1.1, pp.z, { tol: 0.2 });
+      st.grab = R.grab(core.pending);
+      R.walk(8, -22.6, { pitch: -0.2 });
+      R.turn(0, -0.2, 0.4);
+      tf.simulate(0.5);
+      st.disposed = R.wait(() => core.stage > k, 3);
+      st.health = tf.chamber.health; st.deaths = R.ev('death').length;
+      out.stages.push(st);
+      if (!st.disposed) break;
+    }
+    out.defeated = core.outputs.defeated;
+    out.bossEvents = R.ev('boss').map((b) => b.event + '@' + b.stage);
+    out.erasureRan = R.el('erasure').stage;
+    return out;
+  },
 };
 
 module.exports = { installReplay, SOLUTIONS };
