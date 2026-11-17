@@ -16,11 +16,16 @@ export class CameraRig {
   private residualStart = new THREE.Quaternion();
   private residualT = 1;
   readonly residual = new THREE.Quaternion();
+  /** Settings (options menu). */
+  sensitivity: number = CONFIG.camera.mouseSensitivity;
+  invertY = false;
+  /** Reduce camera roll: the tilt after a portal recovers in a fraction of the time. */
+  reduceRoll = false;
 
   look(dx: number, dy: number): void {
-    const s = CONFIG.camera.mouseSensitivity;
+    const s = this.sensitivity;
     this.yaw -= dx * s;
-    this.pitch = THREE.MathUtils.clamp(this.pitch - dy * s, -CONFIG.camera.maxPitch, CONFIG.camera.maxPitch);
+    this.pitch = THREE.MathUtils.clamp(this.pitch - (this.invertY ? -dy : dy) * s, -CONFIG.camera.maxPitch, CONFIG.camera.maxPitch);
   }
 
   /** Upright orientation from yaw/pitch only (what movement uses). */
@@ -60,7 +65,8 @@ export class CameraRig {
 
   update(dt: number): void {
     if (this.residualT >= 1) return;
-    this.residualT = Math.min(1, this.residualT + dt / CONFIG.camera.rollRecoverySeconds);
+    const seconds = CONFIG.camera.rollRecoverySeconds * (this.reduceRoll ? CONFIG.camera.reducedRollFactor : 1);
+    this.residualT = Math.min(1, this.residualT + dt / seconds);
     const t = this.residualT;
     const ease = t * t * (3 - 2 * t); // smoothstep: starts and ends gently
     this.residual.slerpQuaternions(this.residualStart, IDENTITY, ease);

@@ -12,7 +12,8 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { CONFIG, JUMP_SPEED, type PortalId } from '../core/config';
 import type { Input } from '../input/input';
-import type { Physics } from '../physics/world';
+import type { Mover, Physics } from '../physics/world';
+import { faceTag } from '../levels/level';
 import type { Portal, PortalSystem } from '../portals/portals';
 import { teleportMatrix, teleportRotation, toLocal } from '../portals/transform';
 import { CameraRig } from './cameraRig';
@@ -24,7 +25,11 @@ export interface TeleportEvent {
   from: PortalId;
   to: PortalId;
   speed: number;
+  /** The world → world transform that was applied (the carry system follows it). */
+  matrix: THREE.Matrix4;
 }
+
+export type FootSurface = 'panel' | 'metal' | 'glass' | 'other';
 
 export class Player {
   readonly rig = new CameraRig();
@@ -44,21 +49,36 @@ export class Player {
   lastHits: { kind: string; normal: [number, number, number] }[] = [];
   lastDesired = new THREE.Vector3();
   lastMoved = new THREE.Vector3();
+  /** Settings: crouch key toggles instead of being held. */
+  toggleCrouch = false;
+  /** Collider handle of the prop being carried (the KCC ignores it: you can't stand on it). */
+  heldHandle = -1;
+  /** What the feet stood on in the last step. */
+  groundSurface: FootSurface = 'other';
+  groundHandle = -1;
 
-  readonly collider: RAPIER.Collider;
-  private readonly kcc: RAPIER.KinematicCharacterController;
+  collider!: RAPIER.Collider;
+  private kcc!: RAPIER.KinematicCharacterController;
   private jumpArmed = true;
   private masked: Portal[] = [];
+  private crouchWasHeld = false;
+  private crouchToggled = false;
+  private groundMover: Mover | null = null;
 
   constructor(
     private readonly physics: Physics,
     private readonly portals: PortalSystem,
   ) {
-    const world = physics.world;
+    this.attach();
+  }
+
+  /** (Re)create the capsule and character controller in the physics world (after a world reset). */
+  attach(): void {
+    const world = this.physics.world;
     // A free collider (no rigid body): the KCC reads its pose, and we set it directly every step,
     // which also makes teleporting trivial.
     this.collider = world.createCollider(RAPIER.ColliderDesc.capsule(halfSegFor(P.height), P.radius));
-    physics.register(this.collider, { kind: 'player' });
+    this.physics.register(this.collider, { kind: 'player' });
     this.kcc = world.createCharacterController(P.skin);
     this.kcc.setUp({ x: 0, y: 1, z: 0 });
     this.kcc.setMaxSlopeClimbAngle(P.maxSlope);
@@ -66,7 +86,13 @@ export class Player {
     // No snap-to-ground: Rapier's snap truncates movement next to portal tunnels, and gravity
     // pressing down every step already keeps the controller grounded on flat test-chamber floors.
     this.kcc.disableSnapToGround();
+    // Walking into a prop pushes it (the KCC applies impulses as if it weighed this much).
     this.kcc.setApplyImpulsesToDynamicBodies(true);
+    this.kcc.setCharacterMass(CONFIG.player.mass);
+    this.setCrouched(this.crouched);
+    this.masked = [];
+    this.groundMover = null;
+    this.syncCollider();
   }
 
   get height(): number {
@@ -106,18 +132,46 @@ export class Player {
   private readonly filter = (c: RAPIER.Collider): boolean => {
     const info = this.physics.infoOf(c);
     if (!info) return true;
-    if (info.kind === 'player') return false;
+    if (info.kind === 'player' || info.kind === 'sensor') return false;
     if (info.kind === 'tunnel') return this.masked.some((p) => p.id === info.portal);
-    if (info.kind === 'brush') return !this.masked.some((p) => p.brushIndex === info.index);
+    if (info.kind === 'brush' || info.kind === 'solid') return !this.masked.some((p) => p.surface === c.handle);
+    if (info.kind === 'prop') return c.handle !== this.heldHandle;
     return true;
   };
+
+  /** Restore the view and crouch state exactly (saves). */
+  setView(yaw: number, pitch: number): void {
+    this.rig.reset(yaw);
+    this.rig.pitch = pitch;
+  }
+
+  /** Crouch now (restoring a save). */
+  forceCrouch(on: boolean): void {
+    this.setCrouched(on);
+    this.crouchToggled = on;
+    this.eyeOffset = on ? P.crouchHeight / 2 - P.crouchEyeFromTop : P.eyeHeight - P.height / 2;
+    this.syncCollider();
+    this.eye(this.prevEye);
+  }
 
   step(dt: number, input: Input): TeleportEvent | null {
     this.eye(this.prevEye);
     this.rig.update(dt);
 
+    // Standing on something that moved this step (platform, lift): move with it.
+    if (this.groundMover && this.grounded) {
+      const d = this.groundMover.delta;
+      this.position.x += d.x;
+      this.position.y += d.y;
+      this.position.z += d.z;
+      this.prevEye.set(this.prevEye.x + d.x, this.prevEye.y + d.y, this.prevEye.z + d.z);
+    }
+
     // --- Crouch (ground: keep the feet; air: pull the legs up, keep the head) -------------------
-    const wantCrouch = input.isHeld('crouch');
+    const held = input.isHeld('crouch');
+    if (this.toggleCrouch && held && !this.crouchWasHeld) this.crouchToggled = !this.crouchToggled;
+    this.crouchWasHeld = held;
+    const wantCrouch = this.toggleCrouch ? this.crouchToggled : held;
     if (wantCrouch && !this.crouched) {
       const dh = (P.height - P.crouchHeight) / 2;
       const eyeWorld = this.position.y + this.eyeOffset;
@@ -193,10 +247,20 @@ export class Player {
       moved = new THREE.Vector3(m.x, m.y, m.z);
       this.grounded = this.kcc.computedGrounded();
       this.lastHits = [];
+      this.groundMover = null;
+      this.groundHandle = -1;
+      const feet = this.position.y - this.halfSeg;
       for (let i = 0; i < this.kcc.numComputedCollisions(); i++) {
         const h = this.kcc.computedCollision(i);
         if (!h || !h.collider) continue;
         const info = this.physics.infoOf(h.collider);
+        // A contact under the bottom hemisphere is the ground: remember what it is.
+        if (h.witness1.y < feet - P.radius * 0.5) {
+          this.groundHandle = h.collider.handle;
+          this.groundMover = info?.kind === 'solid' ? info.mover ?? null : null;
+          this.groundSurface =
+            info?.kind === 'brush' ? ({ portalable: 'panel', metal: 'metal', glass: 'glass' } as const)[faceTag(info.brush, '+y')] : info?.kind === 'solid' ? 'metal' : 'other';
+        }
         const kind = !info ? '?' : info.kind === 'brush' ? `brush${info.index}` : info.kind === 'tunnel' ? `tunnel-${info.portal}` : info.kind;
         this.lastHits.push({ kind, normal: [h.normal1.x, h.normal1.y, h.normal1.z] });
       }
@@ -317,8 +381,9 @@ export class Player {
       }
     }
     this.teleports++;
+    this.groundMover = null;
     this.masked = this.portals.overlapping(this.position, this.halfSeg, P.radius, 0.1);
-    return { from: from.id, to: to.id, speed: this.velocity.length() };
+    return { from: from.id, to: to.id, speed: this.velocity.length(), matrix: m };
   }
 
   private fits(center: THREE.Vector3, halfSeg: number): boolean {

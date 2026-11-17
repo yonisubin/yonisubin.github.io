@@ -56,6 +56,8 @@ export interface RenderStats {
 
 export class PortalRenderer {
   recursionDepth: number = CONFIG.portal.recursionDepth;
+  /** Portal colours (settings: colourblind palettes); used for the flat fill at the depth limit. */
+  colors: { a: number; b: number } = { ...CONFIG.portal.colors };
   readonly stats: RenderStats = { views: 0, maxLevel: 0 };
 
   private readonly passScene = new THREE.Scene();
@@ -137,7 +139,7 @@ export class PortalRenderer {
     this.renderer.clearDepth();
     for (const p of visible) {
       const mat = level < this.recursionDepth ? this.depthMat : this.flatMat;
-      if (mat === this.flatMat) mat.uniforms.uColor.value.setHex(CONFIG.portal.colors[this.portals.other(p.id)!.id]).multiplyScalar(0.5);
+      if (mat === this.flatMat) mat.uniforms.uColor.value.setHex(this.colors[this.portals.other(p.id)!.id]).multiplyScalar(0.5);
       this.drawBox(p, cam, mat, level);
     }
     this.setSceneStencil(level);

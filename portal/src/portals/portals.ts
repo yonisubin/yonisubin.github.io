@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { CONFIG, type PortalId } from '../core/config';
-import type { FaceKey, SurfaceTag } from '../levels/level';
+import { faceKeyFromNormal, type FaceKey, type SurfaceTag } from '../levels/level';
 import type { Physics } from '../physics/world';
 import { type PortalFrame, toLocal } from './transform';
 
@@ -14,12 +14,24 @@ export interface Portal extends PortalFrame {
   up: THREE.Vector3;
   /** Index of the brush the portal sits on: masked (non-solid) for things passing through. */
   brushIndex: number;
+  /** Collider handle of the surface the portal sits on (a brush, or a portalable element panel). */
+  surface: number;
   face: FaceKey;
   /** Four colliders lining the hole behind the surface, so you can't slip sideways into the wall. */
   tunnel: RAPIER.Collider[];
+  /** Pre-placed by the chamber (fixedPortal): grills don't erase it, the device can't move it. */
+  fixed: boolean;
 }
 
-export type PlaceFailReason = 'nothing' | 'not-portalable' | 'glass' | 'no-room' | 'overlap' | 'blocked';
+/** A portal as plain JSON (saves). */
+export interface PortalState {
+  position: [number, number, number];
+  quaternion: [number, number, number, number];
+  fixed: boolean;
+}
+
+/** 'device': the chamber's device can't fire that colour (level.device). */
+export type PlaceFailReason = 'nothing' | 'not-portalable' | 'glass' | 'no-room' | 'overlap' | 'blocked' | 'device';
 
 export type PlaceResult =
   | { ok: true; portal: Portal }
@@ -34,8 +46,84 @@ export class PortalSystem {
   b: Portal | null = null;
   /** Portals placed so far (for the challenge counter later, and tests). */
   placedCount = 0;
+  /** Nudge search radius (wider with the accessibility assist). */
+  nudgeMax: number = CONFIG.portal.nudgeMax;
+  /** Bumped whenever a portal opens, moves or closes (so dependents can refresh). */
+  version = 0;
 
   constructor(private readonly physics: Physics) {}
+
+  /** Forget both portals without touching colliders (the physics world was replaced). */
+  reset(): void {
+    this.a = this.b = null;
+    this.version++;
+  }
+
+  /** Remove the device's own portals (grills); fixed ones stay. */
+  clearDevice(): boolean {
+    let any = false;
+    for (const id of ['a', 'b'] as const) {
+      const p = this.get(id);
+      if (p && !p.fixed) {
+        this.remove(id);
+        any = true;
+      }
+    }
+    return any;
+  }
+
+  /** Close any portal standing on this collider (its surface moved: spec placement rule 5). */
+  removeOnSurface(handle: number): boolean {
+    let any = false;
+    for (const id of ['a', 'b'] as const) {
+      if (this.get(id)?.surface === handle) {
+        this.remove(id);
+        any = true;
+      }
+    }
+    return any;
+  }
+
+  snapshot(id: PortalId): PortalState | null {
+    const p = this.get(id);
+    if (!p) return null;
+    return { position: p.position.toArray() as [number, number, number], quaternion: p.quaternion.toArray() as [number, number, number, number], fixed: p.fixed };
+  }
+
+  /**
+   * Open portal `id` exactly at a frame (fixed portals, save restore). The surface under it is found
+   * with a short ray back into the wall. Returns null if there is no surface there.
+   */
+  placeAt(id: PortalId, position: THREE.Vector3, quaternion: THREE.Quaternion, fixed: boolean): Portal | null {
+    const n = new THREE.Vector3(0, 0, 1).applyQuaternion(quaternion);
+    const origin = position.clone().addScaledVector(n, 0.05);
+    const hit = this.physics.world.castRay(new RAPIER.Ray(origin, n.clone().negate()), 0.3, true, undefined, undefined, undefined, undefined, (c) => {
+      const i = this.physics.infoOf(c);
+      return !!i && (i.kind === 'brush' || i.kind === 'solid');
+    });
+    if (!hit) return null;
+    const info = this.physics.infoOf(hit.collider);
+    const face = faceKeyFromNormal(n) ?? '+y';
+    this.remove(id);
+    const portal: Portal = {
+      id,
+      position: position.clone(),
+      quaternion: quaternion.clone(),
+      normal: n,
+      right: new THREE.Vector3(1, 0, 0).applyQuaternion(quaternion),
+      up: new THREE.Vector3(0, 1, 0).applyQuaternion(quaternion),
+      brushIndex: info?.kind === 'brush' ? info.index : -1,
+      surface: hit.collider.handle,
+      face,
+      tunnel: [],
+      fixed,
+    };
+    portal.tunnel = this.buildTunnel(portal);
+    if (id === 'a') this.a = portal;
+    else this.b = portal;
+    this.version++;
+    return portal;
+  }
 
   get(id: PortalId): Portal | null {
     return id === 'a' ? this.a : this.b;
@@ -63,6 +151,7 @@ export class PortalSystem {
     }
     if (id === 'a') this.a = null;
     else this.b = null;
+    this.version++;
   }
 
   /**
@@ -72,12 +161,17 @@ export class PortalSystem {
   fire(id: PortalId, origin: THREE.Vector3, dir: THREE.Vector3, upHint: THREE.Vector3, exclude?: RAPIER.Collider): PlaceResult {
     const world = this.physics.world;
     const ray = new RAPIER.Ray(origin, dir);
-    // Portal shots ignore portal tunnels and the shooter; glass stops them (and fizzles).
+    // Portal shots ignore portal tunnels, sensors (grills pass shots), the held prop and the shooter;
+    // glass stops them (and fizzles); props and moving solids block them.
     const hit = world.castRayAndGetNormal(ray, CONFIG.portal.range, true, undefined, undefined, exclude, undefined, (c) => {
       const i = this.physics.infoOf(c);
-      return !!i && i.kind === 'brush';
+      if (!i) return false;
+      if (i.kind === 'prop') return !i.prop.held;
+      return i.kind === 'brush' || i.kind === 'solid';
     });
     if (!hit) return { ok: false, reason: 'nothing' };
+    const existing = this.get(id);
+    if (existing?.fixed) return { ok: false, reason: 'not-portalable' };
     const point = new THREE.Vector3().copy(origin).addScaledVector(dir, hit.timeOfImpact);
     const normal = new THREE.Vector3(hit.normal.x, hit.normal.y, hit.normal.z);
     const surface = this.physics.surfaceAt(hit.collider, normal);
@@ -139,7 +233,7 @@ export class PortalSystem {
     if (fits(hitOnPlane)) center = hitOnPlane;
     else {
       const step = 0.05;
-      const maxR = CONFIG.portal.nudgeMax;
+      const maxR = this.nudgeMax;
       let best = Infinity;
       const c = new THREE.Vector3();
       for (let i = -maxR; i <= maxR + 1e-9; i += step) {
@@ -171,13 +265,16 @@ export class PortalSystem {
       right,
       up,
       brushIndex: surface.index,
+      surface: hit.collider.handle,
       face: surface.face,
       tunnel: [],
+      fixed: false,
     };
     portal.tunnel = this.buildTunnel(portal);
     if (id === 'a') this.a = portal;
     else this.b = portal;
     this.placedCount++;
+    this.version++;
     return { ok: true, portal };
   }
 
