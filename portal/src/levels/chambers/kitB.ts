@@ -141,3 +141,13 @@ export function note(id: string, at: Vec3, text: string): Entity {
 export function scrawl(id: string, at: Vec3, yaw: number, text: string, size: [number, number] = [2.4, 0.6], ink = '#3b2f2a', image?: string): Entity {
   return { id, type: 'decal', position: at, yaw, props: { text, size, ink, ...(image ? { image } : {}) } };
 }
+
+/** Translate brushes by d (to reuse a room layout elsewhere). */
+export function moveBrushes(bs: Brush[], d: Vec3, theme?: Theme): Brush[] {
+  return bs.map((b) => ({
+    ...b,
+    min: [b.min[0] + d[0], b.min[1] + d[1], b.min[2] + d[2]] as Vec3,
+    max: [b.max[0] + d[0], b.max[1] + d[1], b.max[2] + d[2]] as Vec3,
+    ...(theme ? { theme } : {}),
+  }));
+}

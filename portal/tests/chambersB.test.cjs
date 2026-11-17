@@ -394,6 +394,31 @@ const SOLUTIONS = {
     out.exited = R.exited('escape1'); out.deaths = R.ev('death'); out.h = tf.chamber.health; out.fired = ['tA','tB','tC'].map((i) => R.el(i).fired);
     return out;
   },
+  // Fling off the records shaft, read the den, then shield with the cube down the Registry and blind the bunker.
+  escape2: () => {
+    const tf = window.twinfold, out = {};
+    R.load('escape2');
+    R.path([[0, -9.6], [2, -14]]);
+    out.b = R.fire('b', 8, 2.5, -20).ok;
+    R.path([[0, -9.8], [0, -10.7]], { tol: 0.04 });
+    out.a = R.fire('a', 0, -10, -14).ok;
+    out.fling = R.dropShaft(-11);
+    R.wait(() => tf.player.grounded, 4);
+    out.landed = R.p();
+    R.path([[-15, -20.5], [-19, -20.5], [-15, -20.5], [-11, -27], [-11, -30.6]]);
+    out.den = R.ev('trigger').some((t) => t.name === 'escape2.den');
+    out.grab = R.grab('cube1');
+    R.turn(0, -0.45, 0.4);
+    R.walk(-11, -44.9, { pitch: -0.45, max: 30 });
+    R.drop();
+    tf.simulate(1);
+    out.plate = R.el('plate').outputs.pressed;
+    out.fired = R.el('tur').fired;
+    R.path([[-13.75, -47.5], [-13.75, -54.1]]);
+    tf.simulate(1);
+    out.exited = R.exited('escape2'); out.deaths = R.ev('death'); out.h = tf.chamber.health;
+    return out;
+  },
 };
 
 module.exports = { installReplay, SOLUTIONS };
