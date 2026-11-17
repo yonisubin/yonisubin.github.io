@@ -76,9 +76,10 @@ run(
     await page.click('#overlay [data-id=restart]');
     const afterRestart = await page.evaluate(() => {
       const p = window.twinfold.player.position;
-      return { state: window.twinfoldShell.app.state, x: p.x, z: p.z };
+      const sp = window.twinfoldShell.session.current().spawn.position;
+      return { state: window.twinfoldShell.app.state, x: p.x, z: p.z, sx: sp[0], sz: sp[2] };
     });
-    t.ok('Restart chamber respawns at the start', afterRestart.state === 'game' && Math.abs(afterRestart.x + 3) < 0.01 && Math.abs(afterRestart.z - 12) < 0.01, JSON.stringify(afterRestart));
+    t.ok('Restart chamber respawns at the start', afterRestart.state === 'game' && Math.abs(afterRestart.x - afterRestart.sx) < 0.01 && Math.abs(afterRestart.z - afterRestart.sz) < 0.01, JSON.stringify(afterRestart));
 
     // --- HUD from events -------------------------------------------------------------------
     const hud = await page.evaluate(() => {
