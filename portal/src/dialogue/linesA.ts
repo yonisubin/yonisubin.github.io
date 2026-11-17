@@ -50,4 +50,12 @@ export const LINES_A: Record<string, Line> = {
   'c07.loop.2': { text: 'I have started the stopwatch. Your record will be "ongoing". To leave, put one end somewhere else. Or do not. I am in no hurry.' },
   'c07.shelf.1': { text: 'You fell up a shelf. Physics would like it noted that it was entirely within its rights.' },
   'c07.exitReached.1': { text: 'Practical Seven complete. Speed in, speed out. You may keep the speed. You may not keep the lift.' },
+  // --- 08 Launch: the fling ----------------------------------------------------------------------------
+  'c08.chamberStart.1': { text: 'Practical Eight. You have learned that speed survives the fold. Today it survives a change of direction. Down becomes across. Across becomes, ideally, the other side.' },
+  'c08.chamberStart.2': { text: 'This marks the end of Orientation. If you complete it, you will be enrolled in Midterms automatically. If you do not, the same thing happens, but more slowly.' },
+  'c08.catwalk.1': { text: 'The viewing catwalk. It exists so that someone can see the launch face. The architect was very clear that it should be you.' },
+  'c08.tower.1': { text: 'Nine metres. Two point three seconds of thinking time on the way down, if you count the pit. Most applicants use them to think "ah".' },
+  'c08.chasm.1': { text: 'You have reached the chasm floor by the traditional route. The lift is to your left. I have entered this as a field trip.' },
+  'c08.far.1': { text: 'Flight complete. Distance: excellent. Landing: present. I am awarding you an A for trajectory and declining to grade the rest.' },
+  'c08.exitReached.1': { text: 'Practical Eight complete. That concludes Orientation. The next term is called Midterms. It is called that because it is in the middle, and because it is terrible.' },
 };
