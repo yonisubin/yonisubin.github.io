@@ -133,7 +133,8 @@ export class Input {
       if (this.isTyping(e)) return;
       const acts = this.codeMap.get(e.code);
       // Function keys the game uses must not reload the page / open dev tools.
-      if (acts || e.code === 'F5' || e.code === 'F9') e.preventDefault();
+      // (In menus the keys keep their normal meaning: Space presses buttons, arrows scroll.)
+      if ((acts && this.enabledFlag) || e.code === 'F5' || e.code === 'F9') e.preventDefault();
       if (acts) for (const a of acts) this.down(a, e.repeat);
     });
     window.addEventListener('keyup', (e) => {

@@ -35,7 +35,7 @@ function label(text: string, color = '#ffffff'): THREE.Sprite {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-  s.scale.set(1.6, 0.3, 1);
+  s.scale.set(2.4, 0.45, 1);
   s.renderOrder = 20;
   return s;
 }
@@ -54,6 +54,8 @@ export class EditorView {
   private raycaster = new THREE.Raycaster();
   /** Height of the work plane (new brushes start here; clicks on empty space land here). */
   workY = 0;
+  /** Cutaway: brushes starting this high above the work plane are hidden (ceilings). */
+  hideCeilings = true;
   /** A preview box while dragging out a brush / trigger. */
   private ghost: THREE.Mesh;
   private running = false;
@@ -131,9 +133,10 @@ export class EditorView {
     }
     this.brushMeshes = vis.group.children.slice(0, level.brushes.length) as THREE.Mesh[];
     this.brushMeshes.forEach((m, i) => {
+      m.visible = !(this.hideCeilings && level.brushes[i].min[1] >= this.workY + 2);
       m.userData.pick = { kind: 'brush', index: i };
-      this.pickables.push(m);
       this.disposables.push(m.geometry);
+      if (m.visible) this.pickables.push(m);
     });
 
     // Entities: coloured boxes with a label above.

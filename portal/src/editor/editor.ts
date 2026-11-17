@@ -167,6 +167,13 @@ export class Editor {
       b.classList.toggle('on', this.tool === t);
       this.toolbar.append(b);
     });
+    const cut = h('input', { type: 'checkbox', 'data-id': 'hideCeilings' });
+    cut.checked = this.view.hideCeilings;
+    cut.addEventListener('change', () => {
+      this.view.hideCeilings = cut.checked;
+      this.refresh();
+    });
+    this.toolbar.append(h('label', { class: 'sub' }, cut, ' Hide ceilings'));
     if (this.tool === 'paint') {
       const sel = h('select', { 'data-id': 'paintTag' });
       for (const t of TAGS) sel.append(h('option', { value: t }, t));
