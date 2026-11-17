@@ -568,6 +568,43 @@ run('chambersA', async ({ page }, t) => {
     t.ok(`${m.id} has the anatomy (entry, sign, exit door, exit booth) and an info sign number`, m.hasAnatomy && typeof m.info?.number === 'number');
   }
 
+  // --- Look and cost: every chamber renders within a draw-call budget; the industrial theme. ------
+  const look = await page.evaluate((ids) => {
+    const tf = window.twinfold, sh = window.twinfoldShell, gl = tf.gl;
+    gl.info.autoReset = false;
+    const out = { calls: {}, wear: {} };
+    for (const id of ids) {
+      const lvl = sh.chambers.getChamber(id);
+      if (!lvl) continue;
+      tf.session.loadChamber(lvl);
+      tf.simulate(0.2);
+      gl.info.reset();
+      tf.renderNow();
+      out.calls[id] = gl.info.render.calls / Math.max(1, tf.renderer.stats.views);
+      let wear = 0;
+      tf.scene.traverse((o) => { if (o.userData && o.userData.wear) wear += o.count; });
+      out.wear[id] = wear;
+    }
+    // The industrial theme: c05 re-skinned. Lights dim and warm, textures differ, it renders.
+    const hemi = tf.scene.getObjectByName('hemi');
+    out.cleanHemi = hemi.intensity;
+    const c05 = sh.chambers.getChamber('c05');
+    tf.session.loadChamber({ ...c05, id: 'c05-industrial', info: { ...c05.info, theme: 'industrial' } });
+    tf.simulate(0.2);
+    tf.renderNow();
+    out.industrialHemi = hemi.intensity;
+    const mats = new Set();
+    tf.scene.traverse((o) => { if (o.isMesh && Array.isArray(o.material)) o.material.forEach((m) => m.map && mats.add(m.map.uuid)); });
+    out.industrialMaps = mats.size;
+    gl.info.autoReset = true;
+    return out;
+  }, A_IDS);
+  const worst = Object.entries(look.calls).sort((p, q) => q[1] - p[1])[0];
+  t.ok('every chamber draws in under 160 calls per view at its spawn', worst && worst[1] < 160, `worst ${worst && worst[0]}: ${worst && worst[1].toFixed(0)}`);
+  t.ok('every chamber has procedural wear decals', Object.values(look.wear).every((n) => n > 0), JSON.stringify(look.wear));
+  t.ok('the industrial theme dims the lights', look.industrialHemi < look.cleanHemi * 0.6, `${look.industrialHemi} vs ${look.cleanHemi}`);
+  t.ok('the industrial theme has its own textures', look.industrialMaps >= 2);
+
   // --- Solution replays. ------------------------------------------------------------------------
   const only = (process.env.CHAMBERS || '').split(',').filter(Boolean);
   for (const id of A_IDS) {
