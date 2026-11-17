@@ -82,4 +82,7 @@ export const LINES_A: Record<string, Line> = {
   'adv3.chamberStart.1': { text: 'Advanced Practical Three. The same lesson as before, with less floor. The Endowment considers floor a luxury. The Endowment does not have to stand on anything.' },
   'adv3.loop.1': { text: 'Falling forever over a flooded pit. I will note your composure. I will also note the pit.' },
   'adv3.exitReached.1': { text: 'Complete. You landed on the pads, then on the shelf, in that order. Alumna Two reversed it. Only once.' },
+  'adv4.chamberStart.1': { text: 'Advanced Practical Four. The chasm floor has been removed for maintenance. The maintenance is indefinite. So is the chasm.' },
+  'adv4.far.1': { text: 'On the pier. Your trajectory was within tolerance. I tightened the tolerance while you were airborne, and you were still within it. Irritating.' },
+  'adv4.exitReached.1': { text: 'Complete. No net, no lift, no incident. I will have to invent an incident for the report. I will make it a small one.' },
 };

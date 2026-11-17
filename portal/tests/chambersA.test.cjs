@@ -454,6 +454,25 @@ const SOLUTIONS = {
     H.say(`bell ${H.press('bell')}`);
     H.toExit();
   },
+  adv4: (H) => {
+    H.walkTo(0, -3);
+    H.walkTo(7, -4);
+    H.walkTo(7, -14.5);
+    H.walkTo(7, -21, { tol: 0.3 }); // the end of the catwalk
+    H.shoot('b', [0, 3.6, -16.01]); // amber on the launch face
+    H.walkTo(7, -14.5);
+    H.walkTo(7, -3);
+    H.walkTo(-5.5, -3.5, { tol: 0.2 }); // tower lift
+    H.waitFor(() => H.el('towerLift').outputs.top, 8);
+    H.walkTo(-4.5, -9, { tol: 0.3 });
+    H.walkTo(-3.4, -9, { tol: 0.1 });
+    H.shoot('a', [1, -4, -9]); // blue on the drop pit's floor
+    H.say(`dove ${H.airTo(1, -9, 4)} at ${H.fmt([H.P.velocity.x, H.P.velocity.y, H.P.velocity.z])}`);
+    H.airTo(0, -31, 4); // flung over the bottomless chasm onto the pier
+    H.walkTo(3, -31.8, { tol: 0.3 });
+    H.say(`bell ${H.press('bell')}`);
+    H.toExit();
+  },
 };
 
 run('chambersA', async ({ page }, t) => {
