@@ -88,4 +88,7 @@ export const LINES_A: Record<string, Line> = {
   'adv5.chamberStart.1': { text: 'Advanced Practical Five. The case was filed in the wrong room. Please return it. Returns are processed through the clearing field, which processes everything.' },
   'adv5.north.1': { text: 'You cleared the trench. The case did not have to. It is, as ever, better treated than you.' },
   'adv5.exitReached.1': { text: 'Return accepted. Restocking fee waived, this once. I am told generosity is good for morale. I am still waiting to see whose.' },
+  'adv6.chamberStart.1': { text: 'Advanced Practical Six, the last of the advanced set. More islands, less island. I have prepared a short speech for the end. It is about you, and it is short.' },
+  'adv6.island3.1': { text: 'The case. It has been on this island longer than some faculty were employed. It does not complain. You could learn from it.' },
+  'adv6.exitReached.1': { text: 'Complete. That is every advanced practical. Here is the speech: well done. I have kept a copy in your file, in case you need to hear it again.' },
 };

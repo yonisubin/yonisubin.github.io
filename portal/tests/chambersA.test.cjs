@@ -504,6 +504,33 @@ const SOLUTIONS = {
     hop();
     H.toExit();
   },
+  adv6: (H) => {
+    const { tf } = H;
+    // Amber onto the next pylon, blue onto the face we're standing by, walk into blue.
+    const hop = (bTarget, aTarget, dir) => {
+      H.turnToward(bTarget);
+      const b = tf.fire('b');
+      H.turnToward(aTarget);
+      const a = tf.fire('a');
+      H.say(`hop b ${b.ok} a ${a.ok} through ${H.through(aTarget[0] + dir, aTarget[2])}`);
+    };
+    H.walkTo(0, -3);
+    H.walkTo(2, -4, { tol: 0.3 });
+    H.shoot('b', [-6.5, 1.2, -9.5]); // pylon 1
+    H.walkTo(-6, -2.8, { tol: 0.3 });
+    H.turnToward([-10, 1.1, -2.75]);
+    H.say(`a ${tf.fire('a').ok}`);
+    H.through(-11, -2.75); // → island 1
+    hop([6.5, 1.2, -15.5], [-6.5, 1.2, -9.5], -1.5); // → island 2
+    hop([-6.5, 1.2, -21.5], [6.5, 1.2, -15.5], 1.5); // → island 3
+    H.walkTo(-5.6, -21.5, { tol: 0.15 });
+    H.grab('cube1');
+    hop([6.5, 1.2, -27.5], [-6.5, 1.2, -21.5], -1.5); // → island 4
+    hop([-5.5, 1.1, -36], [6.5, 1.2, -27.5], 1.5); // → the exit ledge's back-wall panel
+    H.carryTo(7.8, -34.5);
+    H.say(`plate ${H.el('plate').outputs.pressed}`);
+    H.toExit();
+  },
 };
 
 run('chambersA', async ({ page }, t) => {
@@ -521,7 +548,8 @@ run('chambersA', async ({ page }, t) => {
         errors: v.errors,
         warnings: v.warnings,
         next: lvl.next ?? null,
-        nextOk: !!lvl.next && (lvl.next === 'c11' || !!sh.chambers.getChamber(lvl.next)),
+        // The last advanced chamber ends the advanced set (no next); every other one chains on.
+        nextOk: id === 'adv6' ? !lvl.next : !!lvl.next && (lvl.next === 'c11' || !!sh.chambers.getChamber(lvl.next)),
         missingLines: lines.filter((l) => !(l in sh.LINES)),
         hasAnatomy: ['entry', 'sign', 'exit', 'exitDoor'].every((e) => (lvl.entities ?? []).some((x) => x.id === e)),
         info: lvl.info,
@@ -535,7 +563,7 @@ run('chambersA', async ({ page }, t) => {
     }
     t.ok(`${m.id} loads with no loader errors`, m.errors.length === 0, m.errors.slice(0, 2).join('; '));
     t.ok(`${m.id} has no loader warnings`, m.warnings.length === 0, m.warnings.slice(0, 2).join('; '));
-    t.ok(`${m.id} → next ${m.next} exists (or is c11)`, m.nextOk);
+    t.ok(`${m.id} → next ${m.next} exists (or is c11; adv6 ends the set)`, m.nextOk);
     t.ok(`${m.id} dialogue lines exist`, m.missingLines.length === 0, m.missingLines.join(', '));
     t.ok(`${m.id} has the anatomy (entry, sign, exit door, exit booth) and an info sign number`, m.hasAnatomy && typeof m.info?.number === 'number');
   }
