@@ -11,13 +11,25 @@ run(
 
     // Draw a brush with the mouse: Brush tool, drag on the grid.
     await page.click('#editor [data-id=tool-brush]');
-    const box = await page.evaluate(() => {
-      const r = window.twinfoldShell.app.editor.view.canvas.getBoundingClientRect();
-      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    const pts = await page.evaluate(() => {
+      // A fixed top-down view so nothing (walls) hides what the mouse draws; drag from the screen
+      // point of (-2, 0, -2) to that of (2, 0, 2).
+      const v = window.twinfoldShell.app.editor.view;
+      v.resize();
+      v.controls.target.set(0, 0, 0);
+      v.camera.position.set(0, 30, 0.01);
+      v.controls.update();
+      v.camera.updateMatrixWorld();
+      const r = v.canvas.getBoundingClientRect();
+      const scr = (x, z) => {
+        const p = new window.twinfold.THREE.Vector3(x, 0, z).project(v.camera);
+        return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height };
+      };
+      return { a: scr(-2, -2), b: scr(2, 2) };
     });
-    await page.mouse.move(box.x - 40, box.y - 10);
+    await page.mouse.move(pts.a.x, pts.a.y);
     await page.mouse.down();
-    await page.mouse.move(box.x + 40, box.y + 40, { steps: 5 });
+    await page.mouse.move(pts.b.x, pts.b.y, { steps: 5 });
     await page.mouse.up();
     const drawn = await page.evaluate(() => {
       const l = window.twinfoldShell.app.editor.level;
@@ -31,7 +43,14 @@ run(
     t.ok('Ctrl+Y redoes it', (await page.evaluate(() => window.twinfoldShell.app.editor.level.brushes.length)) === n0 + 1);
     // Keyboard nudging and resizing of the selection (select it with the Select tool).
     await page.click('#editor [data-id=tool-select]');
-    await page.mouse.click(box.x, box.y + 15);
+    // Click the screen point of the new brush's top centre.
+    const top = await page.evaluate(() => {
+      const ed = window.twinfoldShell.app.editor, b = ed.level.brushes.at(-1), v = ed.view;
+      const p = new window.twinfold.THREE.Vector3((b.min[0] + b.max[0]) / 2, b.max[1], (b.min[2] + b.max[2]) / 2).project(v.camera);
+      const r = v.canvas.getBoundingClientRect();
+      return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height };
+    });
+    await page.mouse.click(top.x, top.y);
     t.ok('clicking with the Select tool selects the brush', await page.evaluate((n) => JSON.stringify(window.twinfoldShell.app.editor.doc.selection) === JSON.stringify({ kind: 'brush', index: n }), n0), await page.evaluate(() => JSON.stringify(window.twinfoldShell.app.editor.doc.selection)));
     await page.evaluate((n) => window.twinfoldShell.app.editor.doc.select({ kind: 'brush', index: n }), n0);
     const moved = await page.evaluate(() => JSON.parse(JSON.stringify(window.twinfoldShell.app.editor.level.brushes.at(-1))));
@@ -155,5 +174,5 @@ run(
     await page.click('#editor [data-id=exitEditor]');
     t.ok('Exit goes back to the main menu', (await page.evaluate(() => window.twinfoldShell.app.menu.screen)) === 'main');
   },
-  { query: '?editor' },
+  { query: '?editor', viewport: { width: 1100, height: 700 } },
 );

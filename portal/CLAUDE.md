@@ -39,9 +39,29 @@ portal/src/
   render/portalEffects.ts # opening shape, animated rim, closed swirl, stencil box geometry, fizzle bursts
   render/portalRenderer.ts# recursive stencil rendering, oblique near plane, flat colour at the depth limit
   ui/hud.ts           # crosshair with two half-rings, debug overlay (` or F3)
-  audio/sound.ts      # synthesised portal open / fizzle / pass / footstep / land
   game/game.ts        # simulation wiring, fixed-step loop, exposes window.twinfold for tests
-  main.ts             # app shell: starts the game, overlay / menus, pointer lock
+  --- shell (workstream B) ---
+  main.ts             # starts the game, builds the App; URL switches ?autostart ?editor ?unlockall #play=…;
+                      # window.twinfoldShell for tests
+  core/shellConfig.ts # every tunable number of the shell (dialogue timing, music, HUD, editor grid...)
+  input/input.ts      # also: rebindable bindings (twinfold:bindings), pause / quicksave / quickload actions,
+                      # gamepad (standard mapping, no aim assist), toggle crouch, enabled flag for menus
+  levels/loader.ts    # validate + normalise LevelData v2 (errors vs fixed-up warnings), JSON import / export
+  levels/chambers/    # registry: chambers by id, CAMPAIGN / ADVANCED / CHAPTERS, CHALLENGES medal table
+  ui/app.ts           # the shell state machine (menu / game / paused / elevator / editor / testplay) and wiring
+  ui/devSession.ts    # DEV ADAPTER: a GameSession over window.twinfold until the real one exists
+  ui/menu.ts          # main menu, pause menu and every screen (#overlay); ui/optionsMenu.ts the options tabs
+  ui/options.ts       # options model, twinfold:options, palettes, → SessionSettings
+  ui/shellHud.ts      # prompt, damage vignette, subtitles, captions, challenge timer, chamber card, toasts
+  ui/background.ts    # animated 3D menu background; ui/logo.ts the wordmark (SVG); ui/dom.ts helpers
+  dialogue/           # manager.ts (queue, priorities, interrupts, ducking, hooks), voice.ts (Web Audio
+                      # speech babble), lines.ts (line ids), character.md (the Provost and the world)
+  save/               # db.ts (IndexedDB `twinfold`), saves.ts (slots, autosave, quicksave, progress),
+                      # leaderboard.ts (medals, local boards)
+  audio/sound.ts      # synthesised sfx catalogue (+ fallback), footsteps by surface, buses, ducking, hum
+  audio/music.ts      # adaptive music (menu / chamber + tension / elevator, stingers); director.ts: events → audio
+  editor/             # puzzle maker: editor.ts (UI, tools, inspector), doc.ts (level + undo), view.ts
+                      # (three.js preview, picking), catalog.ts (entity palette, ports), drafts.ts, share.ts
   core/events.ts      # event bus (contract)
   core/session.ts     # GameSession interface (contract)
   elements/element.ts # Element interface (contract)
@@ -87,7 +107,17 @@ Phases 1–4 of the plan at the end of the spec are built, in the gray-box test 
 3. Teleporting the player with momentum (speed kept, direction rotated), camera roll easing back upright, infinite fall (holds 38 m/s), fling, minimum exit speed out of floor portals.
 4. Recursive stencil rendering with oblique clipping, flat-colour fallback at the depth limit (9), and no flash while walking through.
 
-Not built yet (next phases): physics props and carrying (5), buttons/doors/wiring/elevators (6), pellets, grills, hazards, platforms, turrets (7), the level editor and chambers (8+), dialogue and the AI overseer, menus, saves, challenges. Restart key: R.
+Not built yet (next phases): physics props and carrying (5), buttons/doors/wiring/elevators (6), pellets, grills, hazards, platforms, turrets (7), the chambers (8+). Restart key: R.
+
+**Shell (workstream B)**, built against the `GameSession` contract (`ui/devSession.ts` stands in for it until the simulation returns `handle.session`):
+
+- Main menu over an animated 3D background (New Game, Continue, Load Game, Chapter Select, Challenges, Advanced Chambers, Extras → puzzle maker / commentary toggle / credits, Options, Quit → title card); pause menu on Esc (Resume, Save, Load, Options, Restart chamber, Quit to menu); HUD from events (use prompt, damage vignette, subtitles, captions, challenge timer, chamber-complete card); original logo.
+- Options in `twinfold:options` (video, audio, controls with key rebinding and gamepad, gameplay, accessibility with 5 opening palettes), pushed via `session.applySettings`.
+- Saves in IndexedDB `twinfold`: 6 slots + autosave (on `autosave`) + quicksave/quickload (F5/F9), campaign progress (finishing the story unlocks challenges and advanced chambers).
+- Dialogue manager + synthesised overseer voice; the AI overseer **the Provost** of the Hollowmere Kinematics Institute (`dialogue/character.md`), generic lines in `dialogue/lines.ts`.
+- Challenges (least openings / steps / time, medals from `levels/chambers` `CHALLENGES`, local leaderboards).
+- Audio: named sfx for `sfx` events, footsteps by surface, carry hum, adaptive music, elevator music, room tone, buses with ducking.
+- Puzzle maker (`?editor` or Extras): 0.5 m grid brushes, face tags, every entity type, wiring, triggers, checkpoints, dialogue hooks, spawn, level info, undo/redo, drafts, JSON import/export, share links (`#play=…`), test-play with Esc back.
 
 ---
 

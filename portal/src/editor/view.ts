@@ -246,6 +246,7 @@ export class EditorView {
   }
 
   private ray(ev: { clientX: number; clientY: number }): void {
+    this.camera.updateMatrixWorld();
     const r = this.canvas.getBoundingClientRect();
     const ndc = new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
@@ -253,6 +254,8 @@ export class EditorView {
 
   /** What's under the mouse: the nearest object, else the work plane. */
   pick(ev: { clientX: number; clientY: number }, kinds?: Pick['kind'][]): Pick | null {
+    // Meshes rebuilt since the last frame have no world matrices yet.
+    this.scene.updateMatrixWorld();
     this.ray(ev);
     const hits = this.raycaster.intersectObjects(this.pickables, false);
     for (const hit of hits) {
