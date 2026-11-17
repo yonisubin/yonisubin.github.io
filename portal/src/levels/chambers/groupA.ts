@@ -5,6 +5,7 @@ import type { ChallengeTable } from './types';
 import { C01 } from './c01';
 import { C02 } from './c02';
 import { C03 } from './c03';
+import { C04 } from './c04';
 
-export const CHAMBERS_A: LevelData[] = [C01, C02, C03];
+export const CHAMBERS_A: LevelData[] = [C01, C02, C03, C04];
 export const CHALLENGES_A: ChallengeTable = {};

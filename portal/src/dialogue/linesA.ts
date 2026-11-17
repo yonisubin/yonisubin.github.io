@@ -24,4 +24,10 @@ export const LINES_A: Record<string, Line> = {
   'c03.floor.1': { text: 'Apertures take to the white panels. Dark metal declines. This is not personal. Metal declines everything.' },
   'c03.shelf.1': { text: 'Up you go. The shelf is three and a half metres high. You did not climb it. I will be writing "arrived" rather than "climbed".' },
   'c03.exitReached.1': { text: 'Practical Three complete. You have carried a case through a hole in the wall. Your file now lists you as "a carrier". It is a compliment.' },
+  // --- 04 Errand: the pellet and its receptacle -------------------------------------------------------
+  'c04.chamberStart.1': { text: 'Practical Four. The bright ball is an energy pellet. It is on an errand. Its errand is the receptacle on the south wall.' },
+  'c04.chamberStart.2': { text: 'The pellet does not know the way. You do. Please give it directions, and then please get out of its way.' },
+  'c04.lane.1': { text: 'You are standing in the pellet\'s lane. The lane is marked. I marked it myself, at some expense.' },
+  'c04.death.1': { text: 'The pellet completed its errand through you. That is the wrong receptacle. I will file it as a delivery error.' },
+  'c04.exitReached.1': { text: 'Errand complete. The pellet has been delivered and the launcher has gone quiet. It is proud. So, in a limited way, am I.' },
 };

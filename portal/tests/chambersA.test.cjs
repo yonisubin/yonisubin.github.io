@@ -217,6 +217,13 @@ const SOLUTIONS = {
     H.say(`plate ${H.el('plate').outputs.pressed}`);
     H.toExit();
   },
+  c04: (H) => {
+    H.walkTo(0, -2);
+    H.shoot('a', [8, 1.2, -8]); // the white panel where the pellet bounces
+    H.waitFor(() => H.el('catcher').outputs.caught, 25);
+    H.say(`caught ${H.el('catcher').outputs.caught}`);
+    H.toExit();
+  },
 };
 
 run('chambersA', async ({ page }, t) => {
