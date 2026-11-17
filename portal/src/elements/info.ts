@@ -197,6 +197,10 @@ export class Indicator extends BaseElement {
     return this.input('on', false);
   }
 
+  protected onInput(): void {
+    this.setOutput('on', this.lit());
+  }
+
   update(): void {
     const on = this.lit();
     this.setOutput('on', on);
