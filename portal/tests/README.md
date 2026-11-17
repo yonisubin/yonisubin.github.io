@@ -5,9 +5,10 @@ Headless checks of the real game: each `*.test.cjs` opens the production build i
 GameSession, `twinfold.levels` the built-in levels, `twinfold.element(id)` an element, `twinfold.log`
 every event emitted) and prints ✓ / ✗ per check.
 `twinfold.simulate(seconds)` runs fixed 60 Hz physics steps immediately, so results don't depend
-on the (very slow) headless frame rate. The harness opens `?autostart` (straight into the first
-chamber) unless a test passes `{ query }` (e.g. `''` for the main menu, `'?editor'`, `'#play=…'`,
-`'?chamber=sandbox'`);
+on the (very slow) headless frame rate. The harness opens `?chamber=testroom` (straight into the gray-box
+test room, which the movement / placement / travel... checks are written against) unless a test passes
+`{ query }` (e.g. `'?autostart'` for the campaign's first chamber, `''` for the main menu, `'?editor'`,
+`'#play=…'`, `'?chamber=sandbox'`);
 it waits for `window.twinfold.ready` and `window.twinfoldShell.ready`, and allows audio without a click.
 
 ```bash
@@ -41,3 +42,4 @@ Playwright is not a dependency; install it once if needed:
 | `audio.test.cjs` | sfx names (and fallback), footsteps by surface without doubles, carry hum, volumes, music modes, tension, stingers, ducking |
 | `loader.test.cjs` | validation errors, fix-ups with warnings, registry (test room, sandbox, fixed room), stable export, `?chamber=sandbox` starts in the sandbox |
 | `input.test.cjs` | simulated gamepad (stick move / look, A, RT edge), toggle crouch (option → player, pressing C), menus disable gameplay keys, F5 kept from the browser |
+| `chambersA.test.cjs` | workstream A's chambers c01–c10 and adv1–adv6: each passes the loader with no errors or warnings, its `next` exists (c10 → c11, adv6 ends the set), its dialogue lines exist, it has the anatomy (entry booth, sign, exit door, exit booth); every chamber draws under 160 calls per view and has wear decals; the industrial theme dims the lights; a scripted solution replay per chamber (walk, jump, aim, fire, carry, ride, dive, fling through `window.twinfold`) reaches `exitReached`, earning silver or better where medals are set. `CHAMBERS=c05,c07` limits the replays, `VERBOSE=1` prints their logs |
