@@ -36,4 +36,10 @@ export const LINES_A: Record<string, Line> = {
   'c05.pit.1': { text: 'You are in the pit. The pit is three metres deep and has no stairs, by design. I hope you planned. I am assuming you planned.' },
   'c05.shelf.1': { text: 'And out again. Two ends, one decision each. You may find that is the whole curriculum.' },
   'c05.exitReached.1': { text: 'Practical Five complete. The device is yours now. It is on loan. Everything here is on loan.' },
+  // --- 06 Commute: platforms on rails -----------------------------------------------------------------
+  'c06.chamberStart.1': { text: 'Practical Six. The Institute operates a modest transit system. It runs on time, because it has nothing else to do.' },
+  'c06.chasm.1': { text: 'You missed the shuttle. There is a lift in the corner. It is slow, and it will not judge you. I will.' },
+  'c06.far.1': { text: 'Arrived. Please note that the case you need is also commuting. It has a better seat than you did.' },
+  'c06.pillar.1': { text: 'Wait for it to come to you. The platform keeps to a timetable. It is the only thing here that does.' },
+  'c06.exitReached.1': { text: 'Practical Six complete. You have travelled, waited and collected. I have described that in your file as "logistics".' },
 };

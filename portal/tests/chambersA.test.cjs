@@ -148,6 +148,28 @@ function installHelpers() {
     tf.simulate(0.3);
     return P.teleports > n;
   };
+  /** Is the player standing on this mover element? */
+  H.onMover = (el) => el.parts.some((p) => p.collider.handle === P.groundHandle);
+  /** Step onto a moving platform: follow its centre until standing on it, then stand still. */
+  H.board = (el, seconds = 4) => {
+    for (let i = 0; i < seconds * 60 && !H.onMover(el); i++) {
+      const c = el.current();
+      const dx = c.x - P.position.x, dz = c.z - P.position.z;
+      H.steer(Math.atan2(-dx, -dz));
+      tf.hold('forward', Math.hypot(dx, dz) > 0.3);
+      tf.simulate(STEP);
+    }
+    // A few more steps toward the middle, then stop.
+    for (let i = 0; i < 20; i++) {
+      const c = el.current();
+      const dx = c.x - P.position.x, dz = c.z - P.position.z;
+      H.steer(Math.atan2(-dx, -dz));
+      tf.hold('forward', Math.hypot(dx, dz) > 0.4);
+      tf.simulate(STEP);
+    }
+    tf.hold('forward', false);
+    return H.onMover(el);
+  };
   H.exited = () => H.events('exitReached').some((e) => e.chamberId === tf.session.current().id);
   /** Walk into the exit booth and wait for exitReached. */
   H.toExit = () => {
@@ -236,6 +258,28 @@ const SOLUTIONS = {
     H.say(`fire a ${H.tf.fire('a').ok}`);
     H.through(0, -11); // out onto the shelf
     H.carryTo(-0.5, -20.5);
+    H.say(`plate ${H.el('plate').outputs.pressed}`);
+    H.toExit();
+  },
+  c06: (H) => {
+    const S = H.el('shuttle'), C = H.el('carrier');
+    const sz = () => S.current().z;
+    H.walkTo(0, -5.4);
+    // Let the shuttle go and come back, then step on as it arrives.
+    H.waitFor(() => sz() < -15, 20);
+    H.waitFor(() => sz() > -7.6, 20);
+    H.say(`boarded ${H.board(S)}`);
+    H.waitFor(() => sz() < -15.2, 10);
+    H.walkTo(0, -20, { tol: 0.3 }); // walk off at the far side
+    H.shoot('a', [-8, 1.2, -24]); // far side, low west panel
+    H.shoot('b', [8, 5, -13.5]); // panel above the pillar
+    H.through(-9, -24);
+    H.walkTo(4.6, -12.5, { tol: 0.2 });
+    H.waitFor(() => C.current().x > 2.7, 20); // the carrier stops by the pillar
+    H.grab('cube1');
+    H.walkTo(6, -16.5, { tol: 0.3 });
+    H.walkTo(6, -20, { tol: 0.3 }); // off the pillar's north end
+    H.carryTo(0, -24);
     H.say(`plate ${H.el('plate').outputs.pressed}`);
     H.toExit();
   },

@@ -15,9 +15,11 @@ async function openGame(options = {}) {
     page.on('console', (m) => {
       if (m.type() === 'error') errors.push(m.text());
     });
-    // By default the game starts straight in the first chamber (?autostart skips the main menu).
-    // Pass { query: '' } (or another query / hash) to test the shell from the menu.
-    await page.goto(URL + (options.query ?? '?autostart'));
+    // By default the game starts straight in the gray-box test room (?chamber=testroom skips the main
+    // menu; the checks of movement, placement, travel... are written against it now that the
+    // campaign's first chamber is a real practical). Pass { query: '?autostart' } for the campaign's
+    // first chamber, or { query: '' } (or another query / hash) to test the shell from the menu.
+    await page.goto(URL + (options.query ?? '?chamber=testroom'));
     await page.waitForFunction(() => window.twinfold && window.twinfold.ready, null, { timeout: 120000 });
     if (options.shell !== false) await page.waitForFunction(() => window.twinfoldShell && window.twinfoldShell.ready, null, { timeout: 60000 });
     return { browser, page, errors };

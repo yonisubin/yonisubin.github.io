@@ -25,6 +25,8 @@ export const CONFIG = {
     /** Terminal velocity: caps the speed built in an infinite fall. */
     maxFallSpeed: 38,
     stepHeight: 0.45,
+    /** Riding a platform, the feet stay this much more than the KCC skin above its top. */
+    rideClearance: 0.004,
     /** Ground acceleration towards the wished velocity; also how fast friction stops you. */
     groundAccel: 45,
     /** Air control: small acceleration toward input. It may steer but never slow you down. */

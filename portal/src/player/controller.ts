@@ -13,7 +13,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { CONFIG, JUMP_SPEED, type PortalId } from '../core/config';
 import type { Input } from '../input/input';
 import type { Mover, Physics } from '../physics/world';
-import { faceTag } from '../levels/level';
+import { faceTag, type Brush } from '../levels/level';
 import type { Portal, PortalSystem } from '../portals/portals';
 import { teleportMatrix, teleportRotation, toLocal } from '../portals/transform';
 import { CameraRig } from './cameraRig';
@@ -64,6 +64,8 @@ export class Player {
   private crouchWasHeld = false;
   private crouchToggled = false;
   private groundMover: Mover | null = null;
+  /** World box of the moving part under the feet (riding), for keeping clear of its top. */
+  private groundBox: (() => Brush) | null = null;
 
   constructor(
     private readonly physics: Physics,
@@ -92,6 +94,7 @@ export class Player {
     this.setCrouched(this.crouched);
     this.masked = [];
     this.groundMover = null;
+    this.groundBox = null;
     this.syncCollider();
   }
 
@@ -144,6 +147,7 @@ export class Player {
     const info = this.physics.infoOf(c);
     this.groundHandle = c.handle;
     this.groundMover = info?.kind === 'solid' ? info.mover ?? null : null;
+    this.groundBox = info?.kind === 'solid' && info.mover ? info.box ?? null : null;
     this.groundSurface =
       info?.kind === 'brush' ? ({ portalable: 'panel', metal: 'metal', glass: 'glass' } as const)[faceTag(info.brush, '+y')] : info?.kind === 'solid' ? 'metal' : 'other';
   }
@@ -174,6 +178,18 @@ export class Player {
       this.position.y += d.y;
       this.position.z += d.z;
       this.prevEye.set(this.prevEye.x + d.x, this.prevEye.y + d.y, this.prevEye.z + d.z);
+      // Rapier's KCC can wedge itself on a kinematic box when the capsule sinks a hair inside its
+      // skin (every later move returns zero, so you couldn't walk on a platform). Keep the feet a
+      // little more than the skin above the part's top while riding it.
+      const box = this.groundBox?.();
+      if (box) {
+        const clear = box.max[1] + P.skin + P.rideClearance;
+        const feet = this.position.y - this.height / 2;
+        if (feet < clear && feet > box.max[1] - P.stepHeight) {
+          this.position.y += clear - feet;
+          this.prevEye.y += clear - feet;
+        }
+      }
     }
 
     // --- Crouch (ground: keep the feet; air: pull the legs up, keep the head) -------------------
@@ -257,6 +273,7 @@ export class Player {
       this.grounded = this.kcc.computedGrounded();
       this.lastHits = [];
       this.groundMover = null;
+      this.groundBox = null;
       this.groundHandle = -1;
       const feet = this.position.y - this.halfSeg;
       for (let i = 0; i < this.kcc.numComputedCollisions(); i++) {
