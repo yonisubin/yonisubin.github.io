@@ -32,6 +32,8 @@ export interface GameEvents {
   footstep: { surface: 'panel' | 'metal' | 'glass' | 'other' };
   /** Boss fight beats. */
   boss: { stage: number; event: 'hit' | 'componentDetached' | 'componentDisposed' | 'defeated' };
+  /** Use prompt for what the crosshair is on ("E  pick up"), or null to hide it. The HUD shows it. */
+  prompt: { text: string | null };
   /** A sound effect the shell may caption (closed captions). */
   sfx: { name: string; caption?: string };
 }
