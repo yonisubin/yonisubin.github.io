@@ -312,7 +312,7 @@ export class Chamber implements ChamberContext {
     if (this.dead || this.exited) return this.setPrompt(null);
     if (this.carry.held) return this.setPrompt('E  drop');
     const t = this.useTarget();
-    this.setPrompt(t && isUsable(t) ? t.useText() : null);
+    this.setPrompt(t instanceof PhysProp || (t && isUsable(t)) ? (t as PhysProp).useText() : null);
   }
 
   /** The Use key. */

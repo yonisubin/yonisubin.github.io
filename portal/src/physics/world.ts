@@ -87,8 +87,12 @@ export class Physics {
 
   /** One fixed step of the rigid-body simulation (props, kinematic solids), with the portal hook. */
   step(): void {
-    this.world.step(undefined, this.hooks);
+    // Rapier only consults hooks on the stepWithEvents path, i.e. when given an event queue.
+    this.world.step(this.queue, this.hooks);
+    this.queue.clear();
   }
+
+  private readonly queue = new RAPIER.EventQueue(false);
 
   register(c: RAPIER.Collider, info: ColliderInfo): void {
     this.info.set(c.handle, info);
