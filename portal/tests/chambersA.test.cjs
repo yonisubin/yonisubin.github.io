@@ -461,6 +461,12 @@ run('chambersA', async ({ page }, t) => {
     const c = r.counters;
     t.ok(`${id}: scripted solution reaches the exit`, r.exited, `${r.exited ? '' : 'at ' + r.at.map((x) => x.toFixed(2)).join(' ') + ' · ' + r.log.slice(-6).join(' | ')}`);
     if (r.exited) console.log(`    ${id}: ${c.portals} portals, ${c.steps} steps, ${c.time.toFixed(1)} s`);
+    // Medal tables are set from these runs: a clean scripted run earns at least silver everywhere.
+    const medals = await page.evaluate((id) => window.twinfoldShell.chambers.CHALLENGES[id] ?? null, id);
+    if (medals && r.exited) {
+      const short = Object.entries(medals).filter(([mode, th]) => c[mode] > th.silver).map(([mode, th]) => `${mode} ${c[mode].toFixed(1)} > ${th.silver}`);
+      t.ok(`${id}: the replay earns silver or better in every challenge`, short.length === 0, short.join(', '));
+    }
     if (process.env.VERBOSE) console.log(r.log.join('\n'));
   }
 });
