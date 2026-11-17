@@ -26,21 +26,48 @@ Before considering a task done: `npm run typecheck:portal`, `npm run build:porta
 portal/src/
   core/config.ts      # EVERY tunable number (movement, portal size, nudge, recursion depth, colours...)
   input/input.ts      # keyboard/mouse → abstract actions (held + edge-triggered); the only place with key codes
-  physics/world.ts    # Rapier world, level brush colliders, collider registry (brush / tunnel / player)
+  physics/world.ts    # Rapier world (reset per chamber), brush colliders, collider registry (brush / tunnel /
+                      # player / prop / clone / solid / sensor), the contact hook that masks portal walls for props
   levels/level.ts     # level data format: box brushes with a surface tag per face (portalable/metal/glass)
   levels/testRoom.ts  # the gray-box test room (pit, chasm, launch block, ledge, glass pane, crate)
+  levels/sandbox.ts   # SANDBOX: one hall with every element (props, buttons, gates, doors, platform, lift, panel,
+                      # pellets, grill, liquid, pit, crusher, turrets, rocket turret, boss core + disposal, elevators);
+                      # FIXED_ROOM: one-colour device + a cycling fixed portal. ?chamber=sandbox|fixedroom in the URL
   portals/transform.ts# teleport transform M = T_B · R180(up) · T_A⁻¹ (pure maths)
   portals/portals.ts  # the two portals: placement (hitscan, tags, fit + nudge search, overlap, fizzle reasons),
-                      # tunnel colliders around each hole, which portals a capsule overlaps (wall masking)
-  player/controller.ts# kinematic capsule (Rapier KCC): momentum rules, crouch, manual step-up, wall masking,
-                      # eye-based crossing + teleport, floor-exit boost, push-out on wall exits
-  player/cameraRig.ts # yaw/pitch + residual tilt after a teleport, eased upright over ~0.5 s
+                      # placeAt (fixed portals, restores), tunnel colliders, wall masking, close-on-moving-surface
+  player/controller.ts# kinematic capsule (Rapier KCC): momentum rules, crouch (hold/toggle), manual step-up, wall
+                      # masking, eye-based crossing + teleport, floor-exit boost, riding movers, ground probe
+  player/carry.ts     # carrying: velocity servo to a hold point ~1.2 m ahead, yaw lock, forced drop, holdM through portals
+  player/cameraRig.ts # yaw/pitch (+ sensitivity / invert) + residual tilt after a teleport, eased upright
+  elements/base.ts    # BaseElement: outputs → wiring, wired inputs, owned meshes/bodies/colliders, Usable/Renderable
+  elements/prop.ts    # PhysProp (dynamic body, CCD, portal crossing with M incl. angular velocity, clone while
+                      # straddling, dissolve) + cube / companion cube / sphere / debris
+  elements/buttons.ts # floorButton (any / cube / sphere), pedestalButton (toggle or countdown with ticks)
+  elements/movers.ts  # door, platform (waypoints), lift, panel (slide/turn), crusher — kinematic solids riders follow
+  elements/info.ts    # indicator strips + check/timer icons, chamber info sign (canvas), light, decal, commentary node
+  elements/elevators.ts # entry booth (opens after the start), exit booth (exitReached → ride → elevatorDone)
+  elements/fixedPortal.ts # pre-placed portal end, optional cycling positions
+  elements/pellets.ts # pellet launcher + catcher; flyStep() (portals, then bounce) shared with rockets
+  elements/hazards.ts # grill (erases portals, dissolves props, passes shots), toxic liquid
+  elements/turret.ts  # turret states + barks, rocket turret (homing-ish rockets through portals)
+  elements/boss.ts    # bossCore / disposal stubs with the `boss` event hooks
+  elements/registry.ts# EntityType → element class
+  logic/wiring.ts     # wires: several into one input are AND-ed; pushes setInput on change
+  logic/gate.ts       # gate entity: and / or / not / timer (pulse stretcher)
+  logic/triggers.ts   # trigger volumes (once) and checkpoints
   render/levelMeshes.ts   # brushes → meshes with canvas-drawn panel / metal textures, lights
+  render/models.ts    # procedural prop / turret models and shared materials (original designs)
+  render/effects.ts   # dissolve ghosts, bursts, bullet tracers
   render/portalEffects.ts # opening shape, animated rim, closed swirl, stencil box geometry, fizzle bursts
   render/portalRenderer.ts# recursive stencil rendering, oblique near plane, flat colour at the depth limit
   ui/hud.ts           # crosshair with two half-rings, debug overlay (` or F3)
   audio/sound.ts      # synthesised portal open / fizzle / pass / footstep / land
-  game/game.ts        # simulation wiring, fixed-step loop, exposes window.twinfold for tests
+  game/chamber.ts     # one loaded chamber: builds/disposes everything, per-step world update, health, counters,
+                      # prompt / footstep / idle / out-of-bounds events, Use, chamber state for saves
+  game/context.ts     # ChamberContext: what elements see of the chamber
+  game/session.ts     # the GameSession implementation (load / restart / respawn / snapshot / restore / settings)
+  game/game.ts        # renderer + fixed-step loop, startGame() → { session, events, ... }, window.twinfold
   main.ts             # app shell: starts the game, overlay / menus, pointer lock
   core/events.ts      # event bus (contract)
   core/session.ts     # GameSession interface (contract)
@@ -87,7 +114,13 @@ Phases 1–4 of the plan at the end of the spec are built, in the gray-box test 
 3. Teleporting the player with momentum (speed kept, direction rotated), camera roll easing back upright, infinite fall (holds 38 m/s), fling, minimum exit speed out of floor portals.
 4. Recursive stencil rendering with oblique clipping, flat-colour fallback at the depth limit (9), and no flash while walking through.
 
-Not built yet (next phases): physics props and carrying (5), buttons/doors/wiring/elevators (6), pellets, grills, hazards, platforms, turrets (7), the level editor and chambers (8+), dialogue and the AI overseer, menus, saves, challenges. Restart key: R.
+Phases 5–7 (workstream A), exercised in `levels/sandbox.ts`:
+
+5. Props (cube, companion cube, sphere, debris) as Rapier dynamic bodies with CCD; they pass portals with M applied to position, orientation, linear and angular velocity (centre crossing inside the opening), walls masked through a contact hook (Rapier only runs hooks when `step` gets an event queue), a kinematic clone on the far side while straddling, a floor-exit boost and the 38 m/s cap. Carrying with Use: velocity servo to a hold point, yaw locked to the view, drops when forced > 1.5 m away, can't be stood on while held, follows the camera through portals (`holdM`). The player pushes props and stands on them.
+6. Elements implement `Element` (`elements/`), wired by `logic/wiring.ts` (AND of several wires; `gate` for or/not/timer); triggers and checkpoints; entry/exit elevators (`exitReached` → 3 s ride → `elevatorDone`); fixed portals and `level.device`; moving surfaces close portals and refuse shots. `GameSession` is `game/session.ts`; `startGame()` returns `{ input, sound, canvas, session, events }`. Counters (portals, footsteps, time), autosave at chamber start and checkpoints, snapshot/restore round-trips exactly (chamber-wide state rides in `entities['#chamber']`; runtime boss parts are recreated by their core). Settings: fov, sensitivity (rad/px if < 0.05, else a multiplier), invertY, renderScale, recursionDepth, portalColors, reduceRoll, reduceFlashing, highContrastHazards (liquid), assist (slow motion when flung, wider nudge), toggleCrouch.
+7. Pellets (bounce, portals, kill, expire/respawn) and catchers; grills; toxic liquid; bottomless pits (below the lowest brush − 8 m); crushers; turrets (idle / active / searching / tipped / dissolved / destroyed, 60° cone, laser sight, 4–10 damage bullets, carried-from-behind = no fire, original barks as `sfx` captions); rocket turret (homing-ish, through portals); health with regeneration; death → last autosave in 1.2 s; `bossCore` / `disposal` stubs emitting `boss` events.
+
+Not built yet: the level editor and chambers (8+), dialogue and the AI overseer, menus, saves, challenges (workstream B), shooting portals through portals, portals that ride moving surfaces, the P2-style elements. Restart key: R.
 
 ---
 

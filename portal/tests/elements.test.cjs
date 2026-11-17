@@ -12,6 +12,7 @@ run('elements', async ({ page }, t) => {
     S.loadChamber(tf.levels.sandbox);
     out.loaded = S.current().id;
     out.entityCount = tf.chamber.elements.size;
+    tf.renderNow(); // compiles every element's shaders (page errors would fail the run)
     out.entryClosed = el('entry').doorOpen();
     tf.simulate(1.5);
     out.entryOpen = el('entry').doorOpen();
