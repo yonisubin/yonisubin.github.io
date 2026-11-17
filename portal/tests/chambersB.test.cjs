@@ -12,7 +12,9 @@ function installReplay() {
   R.el = (id) => tf.element(id);
   R.ev = (n) => tf.log.filter((e) => e[0] === n).map((e) => e[1]);
   R.load = (id) => {
-    tf.session.loadChamber(window.twinfoldShell.chambers.getChamber(id));
+    // Through the shell, as the campaign does (dialogue hooks, commentary option, cards).
+    const shell = window.twinfoldShell;
+    shell.app.startCampaignAt(shell.chambers.getChamber(id));
     tf.simulate(1.2);
   };
   R.dead = () => tf.chamber.dead;
@@ -353,7 +355,7 @@ const SOLUTIONS = {
     R.path([[4, -40], [4, -44.5]]);
     R.walk(0, -50.8, { max: 4 });
     out.onDais = R.el('onDais').outputs.entered;
-    out.exit = R.wait(() => R.exited('c18'), 12);
+    out.exit = R.wait(() => R.exited('c18'), 40);
     out.done = R.wait(() => R.ev('elevatorDone').some((e) => e.chamberId === 'c18'), 6);
     out.deaths = R.ev('death'); out.p = R.p();
     return out;
@@ -466,9 +468,94 @@ const SOLUTIONS = {
 
 module.exports = { installReplay, SOLUTIONS };
 
+const B_IDS = ['c11', 'c12', 'c13', 'c14', 'c15', 'c16', 'c17', 'c18', 'c19', 'escape1', 'escape2', 'finale'];
+
 if (require.main === module) {
   run('chambersB', async ({ page }, t) => {
     await page.evaluate(installReplay);
-    t.ok('replay helpers installed', await page.evaluate(() => !!window.R));
+
+    // --- Data: loader, next links, dialogue hooks, chapters, medals ------------------------------
+    const d = await page.evaluate((ids) => {
+      const s = window.twinfoldShell, C = s.chambers;
+      const out = { load: {}, next: {}, missingLines: [], industrial: {} };
+      for (const id of ids) {
+        const l = C.getChamber(id);
+        if (!l) {
+          out.load[id] = 'missing';
+          continue;
+        }
+        const v = s.validateLevel(JSON.parse(JSON.stringify(l)));
+        out.load[id] = v.errors.length ? v.errors.join('; ') : 'ok';
+        out.next[id] = C.nextChamber(id);
+        for (const hk of l.dialogue ?? []) for (const line of hk.lines) if (!(line in s.LINES)) out.missingLines.push(`${id}:${line}`);
+        out.industrial[id] = l.info?.theme === 'industrial' || l.brushes.some((b) => b.theme === 'industrial');
+      }
+      out.chapters = C.CHAPTERS.map((c) => c.title);
+      out.medals = ['c11', 'c13', 'c14', 'c16', 'c17'].map((id) => !!C.CHALLENGES[id] && ['portals', 'steps', 'time'].every((m) => C.CHALLENGES[id][m]));
+      out.campaign = C.CAMPAIGN.filter((id) => ids.includes(id));
+      return out;
+    }, B_IDS);
+    t.ok('every B chamber is registered and loads with no loader errors', B_IDS.every((id) => d.load[id] === 'ok'), JSON.stringify(d.load));
+    const chain = B_IDS.slice(0, -1).every((id, i) => d.next[id] === B_IDS[i + 1]) && d.next.finale === null;
+    t.ok('next links chain c11 → … → c19 → escape1 → escape2 → finale', chain, JSON.stringify(d.next));
+    t.ok('the campaign lists them in order', JSON.stringify(d.campaign) === JSON.stringify(B_IDS), d.campaign.join(','));
+    t.ok('every dialogue hook names a real line', d.missingLines.length === 0, d.missingLines.join(', '));
+    t.ok('escape levels are industrial', d.industrial.escape1 && d.industrial.escape2 && d.industrial.c19);
+    t.ok('chapter titles are original names', d.chapters.length >= 3 && d.chapters.every((c) => !/^Chapter \d/.test(c)), d.chapters.join(' / '));
+    t.ok('medal thresholds for c11, c13, c14, c16, c17', d.medals.every(Boolean), JSON.stringify(d.medals));
+
+    // --- Developer commentary: nodes only when the option is on, spoken as a subtitle ----------
+    const cm = await page.evaluate(() => {
+      const s = window.twinfoldShell, tf = window.twinfold;
+      s.app.setOption('commentary', false);
+      R.load('c11');
+      const off = !!tf.element('cn11a');
+      s.app.setOption('commentary', true);
+      R.load('c11');
+      const node = tf.element('cn11a');
+      node.use();
+      const sub = document.querySelector('#hud') ? document.body.textContent.includes('Developer commentary') : false;
+      s.app.setOption('commentary', false);
+      return { off, on: !!node, sub, log: s.app.log.includes('commentary') };
+    });
+    t.ok('commentary nodes are hidden with commentary off', !cm.off);
+    t.ok('… and present with it on, playing as a subtitle', cm.on && cm.sub && cm.log, JSON.stringify(cm));
+
+    // --- Solution replays --------------------------------------------------------------------------
+    const counters = {};
+    for (const id of B_IDS) {
+      const r = await page.evaluate(`(${SOLUTIONS[id].toString()})()`);
+      const res = await page.evaluate((cid) => ({ exited: R.exited(cid), deaths: R.ev('death').length, ex: R.ev('exitReached').filter((e) => e.chamberId === cid).pop() || null }), id);
+      if (id === 'finale') {
+        t.ok('finale: three rockets redirected into the core, three components disposed', r.stages.length === 3 && r.stages.every((x) => x.hit && x.grab && x.disposed), JSON.stringify(r.stages.map((x) => [x.b, x.a, x.hit, x.grab, x.disposed])));
+        t.ok('finale: the panels shift each stage', r.stages.every((x) => x.panel), JSON.stringify(r.stages.map((x) => x.panel)));
+        t.ok('finale: boss sequence ends in defeated', r.defeated && r.bossEvents[r.bossEvents.length - 1] === 'defeated@3', r.bossEvents.join(','));
+        t.ok('finale: the Erasure counted down through three stages', r.erasureRan === 3, String(r.erasureRan));
+      } else {
+        t.ok(`${id}: solution replay reaches the exit`, res.exited, JSON.stringify(r));
+      }
+      if (res.ex) counters[id] = { portals: res.ex.portals, steps: res.ex.steps, time: Math.round(res.ex.time * 10) / 10 };
+    }
+    console.log('  counters from the replays:', JSON.stringify(counters));
+
+    // --- Ending + credits after the boss -----------------------------------------------------------
+    await page.waitForFunction(() => window.twinfoldShell.app.state === 'ending', null, { timeout: 60000 });
+    const e1 = await page.evaluate(() => {
+      const app = window.twinfoldShell.app;
+      app.ending.advance(2);
+      return { phase: app.ending.phase, line: document.querySelector('#ending .endingLine').textContent, paused: window.twinfold.session.isPaused() };
+    });
+    t.ok('the ending starts after the defeat, paused, with the Provost\'s last lines', e1.phase === 'lines' && e1.line.length > 10 && e1.paused, JSON.stringify(e1));
+    const e2 = await page.evaluate(() => {
+      const app = window.twinfoldShell.app;
+      const ending = app.ending;
+      ending.advance(120);
+      return { phase: ending.phase, music: app.music.mode, log: app.log.slice(-4), said: ending.spoken.length };
+    });
+    t.ok('… then the credits roll over the credits theme', e2.log.includes('credits') && (e2.phase === 'credits' || e2.phase === 'done') && e2.said >= 5, JSON.stringify(e2));
+    await page.evaluate(() => window.twinfoldShell.app.ending && window.twinfoldShell.app.ending.advance(200));
+    await page.waitForFunction(() => window.twinfoldShell.app.menu.screen === 'end', null, { timeout: 20000 });
+    const e3 = await page.evaluate(() => ({ story: window.twinfoldShell.app.saves.progress.storyFinished, log: window.twinfoldShell.app.log.slice(-3) }));
+    t.ok('finishing the credits marks the story complete', e3.story === true && e3.log.includes('story finished'), JSON.stringify(e3));
   });
 }

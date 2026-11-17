@@ -20,8 +20,10 @@ import { ShellHud } from './shellHud';
 import { MenuBackground } from './background';
 import { DEFAULT_OPTIONS, PALETTES, cssFilter, loadOptions, saveOptions, toSessionSettings, type Options } from './options';
 import { formatTime } from './dom';
+import { Ending } from './ending';
+import { SHELL } from '../core/shellConfig';
 
-export type AppState = 'menu' | 'game' | 'paused' | 'elevator' | 'editor' | 'testplay';
+export type AppState = 'menu' | 'game' | 'paused' | 'elevator' | 'editor' | 'testplay' | 'ending';
 
 /** What the current run is: the story, one chamber from a link / the editor, or a challenge. */
 export type RunMode =
@@ -51,6 +53,12 @@ export class App {
   private hadLock = false;
   /** Shell-side log of what happened (tests). */
   readonly log: string[] = [];
+  /** The ending + credits, while they run. */
+  ending: Ending | null = null;
+  /** Seconds until the ending starts (after the core is defeated), or -1. */
+  private endingIn = -1;
+  /** Seconds a developer-commentary subtitle stays up, or -1. */
+  private commentaryLeft = -1;
 
   constructor(
     readonly handle: GameHandle,
@@ -61,7 +69,10 @@ export class App {
     this.music = new Music(this.sound);
     this.dialogue = new DialogueManager(this.sound);
     this.hud = new ShellHud(document.getElementById('hud')!);
-    this.dialogue.onSubtitle = (s) => this.hud.showSubtitle(s);
+    // During the ending the overlay shows the Provost's lines itself.
+    this.dialogue.onSubtitle = (s) => {
+      if (this.state !== 'ending') this.hud.showSubtitle(s);
+    };
     this.dialogue.onCaption = (t) => this.hud.caption(t);
     this.background = new MenuBackground(document.body);
     this.menu = new Menu(this);
@@ -90,6 +101,18 @@ export class App {
     ev.on('exitReached', (e) => void this.onExit(e.chamberId, e));
     ev.on('elevatorDone', ({ chamberId, next }) => void this.onElevatorDone(chamberId, next));
     ev.on('death', () => this.log.push('death'));
+    ev.on('boss', ({ event }) => {
+      if (event !== 'defeated') return;
+      this.log.push('boss defeated');
+      if (this.state === 'game' && this.run.kind !== 'challenge') this.endingIn = SHELL.ending.startDelay;
+    });
+    // Developer commentary nodes speak through captions; show them as a subtitle of their own.
+    ev.on('sfx', ({ name, caption }) => {
+      if (name !== 'commentary' || !caption) return;
+      this.hud.showSubtitle({ speaker: 'Developer commentary', text: caption });
+      this.commentaryLeft = Math.max(SHELL.ending.commentaryMin, caption.length * SHELL.ending.commentaryPerChar);
+      this.log.push('commentary');
+    });
     this.applyOptions();
 
     // Pointer lock lost while playing (Esc in the browser) → pause (or back to the editor).
@@ -118,7 +141,8 @@ export class App {
     const direct = params.get('chamber');
     const directLevel = direct ? getChamber(direct) : null;
     if (directLevel) this.startLevel(directLevel, { kind: 'campaign' }, false);
-    else if (params.has('autostart')) this.startLevel(getChamber(firstChamber())!, { kind: 'campaign' }, false);
+    // ?autostart (the tests' default) opens the gray-box test room; New Game starts the campaign.
+    else if (params.has('autostart')) this.startLevel(getChamber('testroom') ?? getChamber(firstChamber())!, { kind: 'campaign' }, false);
     else if (shared) await this.openShared(shared);
     else if (params.has('editor')) await this.openEditor();
     else this.toMainMenu();
@@ -131,6 +155,15 @@ export class App {
     this.lastFrame = now;
     this.dialogue.update(dt);
     this.hud.update(dt);
+    if (this.commentaryLeft >= 0) {
+      this.commentaryLeft -= dt;
+      if (this.commentaryLeft < 0 && !this.dialogue.speaking) this.hud.showSubtitle(null);
+    }
+    if (this.endingIn >= 0) {
+      this.endingIn -= dt;
+      if (this.endingIn < 0) this.startEnding();
+    }
+    if (this.state === 'ending') this.ending?.update(dt);
     if (this.input.consume('pause')) this.escape();
     if (this.input.consume('quicksave') && this.state === 'game') void this.quicksave();
     if (this.input.consume('quickload') && (this.state === 'game' || this.state === 'paused')) void this.quickload();
@@ -144,7 +177,8 @@ export class App {
 
   /** Esc / Start: pause in play, back in menus, resume from the pause menu, editor from test-play. */
   escape(): void {
-    if (this.state === 'game') this.pause();
+    if (this.state === 'ending') this.ending?.skip();
+    else if (this.state === 'game') this.pause();
     else if (this.state === 'testplay') this.backToEditor();
     else if (this.state === 'paused') {
       if (this.menu.screen === 'pause') this.resume();
@@ -188,6 +222,7 @@ export class App {
   // --- Starting and stopping play --------------------------------------------------------------
 
   private startLevel(level: LevelData, run: RunMode, lock = true): void {
+    this.endingIn = -1;
     this.run = run;
     this.level = level;
     this.hud.hideCard();
@@ -198,7 +233,7 @@ export class App {
     this.dialogue.clear();
     this.state = run.kind === 'custom' && run.source === 'editor' ? 'testplay' : 'game';
     this.session.setPaused(false);
-    this.session.loadChamber(level);
+    this.session.loadChamber(this.withCommentary(level));
     this.sound.unlock();
     if (lock) this.input.requestLock();
     this.log.push(`start ${level.id ?? level.name} (${run.kind})`);
@@ -251,6 +286,9 @@ export class App {
   }
 
   toMainMenu(): void {
+    this.endingIn = -1;
+    this.ending?.dispose();
+    this.ending = null;
     this.state = 'menu';
     this.run = { kind: 'campaign' };
     this.session.setPaused(true);
@@ -284,7 +322,12 @@ export class App {
     }
     this.state = 'elevator';
     const lines = [`Openings ${c.portals}`, `Steps ${c.steps}`, `Time ${formatTime(c.time)}`];
-    this.hud.showCard('Practical complete', lines, this.run.kind === 'campaign' ? 'Elevator — saving…' : '');
+    const level = this.currentLevel();
+    // The dais in practical 18 is not an elevator, and the escape areas are not practicals.
+    const graduation = !!level?.entities?.some((e) => e.type === 'exitZone');
+    const title = graduation ? 'Graduation' : level?.info?.theme === 'industrial' ? 'Area cleared' : 'Practical complete';
+    const sub = graduation ? 'Please remain on the dais…' : this.run.kind === 'campaign' ? 'Elevator — saving…' : '';
+    this.hud.showCard(title, lines, sub);
     if (this.run.kind === 'campaign') await this.saves.complete(chamberId).catch(() => undefined);
   }
 
@@ -307,6 +350,49 @@ export class App {
     this.music.stinger('finale');
     this.menu.open('end');
     this.log.push('story finished');
+  }
+
+  // --- Ending ----------------------------------------------------------------------------------
+
+  /** The Provost's last lines over the defeated Senate, then the credits; then the story is done. */
+  startEnding(): void {
+    this.endingIn = -1;
+    if (this.ending) return;
+    this.state = 'ending';
+    this.session.setPaused(true);
+    this.dialogue.clear();
+    this.hud.setPrompt(null);
+    this.hud.showSubtitle(null);
+    this.hud.hideCard();
+    this.music.play('off');
+    this.music.stinger('finale');
+    this.ending = new Ending(
+      (id) => void this.dialogue.say(id, { priority: 6 }),
+      () => {
+        this.dialogue.clear();
+        this.music.play('credits');
+        this.log.push('credits');
+      },
+      () => void this.finishEnding(),
+    );
+    this.log.push('ending');
+  }
+
+  private async finishEnding(): Promise<void> {
+    this.ending?.dispose();
+    this.ending = null;
+    await this.saves.finishStory().catch(() => undefined);
+    this.state = 'menu';
+    this.background.start();
+    this.music.play('menu');
+    this.menu.open('end');
+    this.log.push('story finished');
+  }
+
+  /** The level as played: developer-commentary nodes only when the option is on. */
+  withCommentary(level: LevelData): LevelData {
+    if (this.options.commentary || !level.entities?.some((e) => e.type === 'commentaryNode')) return level;
+    return { ...level, entities: level.entities.filter((e) => e.type !== 'commentaryNode') };
   }
 
   // --- Saves -----------------------------------------------------------------------------------
@@ -366,7 +452,7 @@ export class App {
     this.dialogue.clear();
     this.state = 'game';
     this.session.setPaused(false);
-    this.session.restore(rec.snapshot, level);
+    this.session.restore(rec.snapshot, this.withCommentary(level));
     this.music.play('chamber');
     this.input.requestLock();
     this.log.push(`load ${rec.key}`);

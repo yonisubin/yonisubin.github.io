@@ -18,7 +18,7 @@ run('loader', async ({ page }, t) => {
     out.version = v({ version: 3, name: 'x', spawn: { position: [0, 0, 0], yaw: 0 }, brushes: [{ min: [0, 0, 0], max: [1, 1, 1], tag: 'metal' }] });
     out.far = v({ name: 'x', spawn: { position: [0, 0, 1e9], yaw: 0 }, brushes: [{ min: [0, 0, 0], max: [1, 1, 1], tag: 'metal' }] });
     out.badWire = v({ name: 'x', spawn: { position: [0, 0, 0], yaw: 0 }, brushes: [{ min: [0, -1, 0], max: [1, 0, 1], tag: 'metal' }], entities: [{ id: 'b', type: 'floorButton', position: [0, 0, 0] }], wiring: [{ from: 'b', to: 'door.open' }] });
-    out.registry = { first: s.chambers.firstChamber(), test: !!s.chambers.getChamber('testroom'), next: s.chambers.nextChamber('testroom'), campaign: s.chambers.CAMPAIGN.length };
+    out.registry = { first: s.chambers.firstChamber(), campaign0: s.chambers.CAMPAIGN[0] ?? 'testroom', test: !!s.chambers.getChamber('testroom'), next: s.chambers.nextChamber('testroom'), campaign: s.chambers.CAMPAIGN.length };
     out.rooms = ['sandbox', 'fixedroom'].map((id) => {
       const l = s.chambers.getChamber(id);
       return !!l && s.validateLevel(JSON.parse(JSON.stringify(l))).errors.length === 0;
@@ -40,7 +40,7 @@ run('loader', async ({ page }, t) => {
   t.ok('other versions are rejected', !r.version.level && r.version.errors[0].includes('version'));
   t.ok('absurd coordinates are rejected', !r.far.level && r.far.errors[0].includes('2000 m'));
   t.ok('malformed wires explain the expected form', !r.badWire.level && r.badWire.errors.some((e) => e.includes('"entityId.port"')), r.badWire.errors.join(' | '));
-  t.ok('registry: test room registered, New Game starts there until wave 2', r.registry.test && r.registry.first === 'testroom' && r.registry.next === null && r.registry.campaign === 0, JSON.stringify(r.registry));
+  t.ok('registry: test room registered (outside the campaign), New Game starts the first campaign chamber', r.registry.test && r.registry.first === r.registry.campaign0 && r.registry.next === null && r.registry.campaign >= 12, JSON.stringify(r.registry));
   t.ok('export → import → export is stable', r.stable);
   t.ok('the sandbox and fixed room are registered and valid', r.rooms[0] && r.rooms[1], JSON.stringify(r.rooms));
 

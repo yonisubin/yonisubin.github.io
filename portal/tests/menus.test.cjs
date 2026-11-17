@@ -36,7 +36,7 @@ run(
     t.ok('Challenges are locked before the story is finished', await page.evaluate(() => !!document.querySelector('#overlay [data-locked]')));
     await page.click('#overlay [data-id=back]');
     await page.click('#overlay [data-id=chapterSelect]');
-    t.ok('Chapter select lists the test room', await page.evaluate(() => !!document.querySelector('#overlay [data-id=chamber-testroom]')));
+    t.ok('Chapter select opens the first chapter', await page.evaluate(() => { const b = document.querySelector('#overlay [data-id=chapter-0]'); return !!b && !b.disabled && b.textContent.includes(window.twinfoldShell.chambers.CHAPTERS[0].title); }));
     await page.click('#overlay [data-id=back]');
     await page.focus('#overlay [data-id=newGame]');
     await page.keyboard.press('ArrowDown');
@@ -52,11 +52,11 @@ run(
     await page.waitForFunction(() => window.twinfoldShell.app.state === 'game');
     const started = await page.evaluate(() => {
       const s = window.twinfoldShell;
-      return { overlay: getComputedStyle(document.getElementById('overlay')).display, chamber: s.session.current().id, log: s.app.log.slice(), bg: getComputedStyle(s.app.background.canvas).display };
+      return { overlay: getComputedStyle(document.getElementById('overlay')).display, chamber: s.session.current().id, first: s.chambers.firstChamber(), log: s.app.log.slice(), bg: getComputedStyle(s.app.background.canvas).display };
     });
     t.ok('New Game hides the menu', started.overlay === 'none');
     t.ok('… and the background', started.bg === 'none');
-    t.ok('… and starts the first chamber', started.chamber === 'testroom' && started.log.includes('chamberStart testroom'), started.log.join(' | '));
+    t.ok('… and starts the first chamber', started.chamber === started.first && started.log.includes(`chamberStart ${started.first}`), started.log.join(' | '));
 
     // --- Pause menu ------------------------------------------------------------------------
     await page.keyboard.press('Escape');
@@ -96,7 +96,7 @@ run(
     await page.waitForTimeout(1300);
     t.ok('the vignette fades', await page.evaluate(() => window.twinfoldShell.app.hud.vignetteOpacity < 0.05));
 
-    // --- Chamber complete → elevator → end of the (one-chamber) campaign → unlocks ----------
+    // --- Chamber complete → elevator → (the test room is outside the campaign) end → unlocks ---
     await page.evaluate(() => {
       const s = window.twinfoldShell;
       s.session.events.emit('exitReached', { chamberId: 'testroom', ...s.session.counters() });

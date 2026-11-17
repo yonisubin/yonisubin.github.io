@@ -5,11 +5,13 @@
 //   chamber   the calm test-chamber theme (D dorian pads + a plucked arpeggio), plus a TENSION layer
 //             (pulsing filtered bass and ticking hats) whose level follows setTension() and decays
 //   elevator  a light lounge loop (ii–V–I in F with a tremolo electric-piano voice and brushes)
+//   credits   the end-credits theme: a slow waltz (3/4) in F, celesta-like melody over pads and a
+//             walking bass, that lifts to D minor and back ("graduation", but meant this time)
 //   stingers  short phrases on milestones (checkpoint, chamber complete, death, story)
 import { SHELL } from '../core/shellConfig';
 import type { Sound } from './sound';
 
-export type MusicMode = 'off' | 'menu' | 'chamber' | 'elevator';
+export type MusicMode = 'off' | 'menu' | 'chamber' | 'elevator' | 'credits';
 export type Stinger = 'checkpoint' | 'complete' | 'death' | 'milestone' | 'finale';
 
 const mtof = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
@@ -30,6 +32,24 @@ const ELEVATOR_CHORDS = [
 ];
 const ELEVATOR_TUNE = [74, 72, 70, 69, 70, 72, 74, -1, 76, 74, 72, 70, 69, -1, 65, -1];
 const ARP = [0, 2, 1, 3, 2, 4, 3, 1];
+// Credits: F – Dm – Bb – C, Dm – Am – Bb – C (one 3/4 bar each, 12 sixteenths a bar).
+const CREDITS_CHORDS = [
+  [41, 57, 60, 65],
+  [38, 57, 62, 65],
+  [46, 58, 62, 65],
+  [48, 55, 60, 64],
+  [38, 57, 62, 65],
+  [45, 57, 60, 64],
+  [46, 58, 62, 65],
+  [48, 55, 60, 67],
+];
+// One melody note per beat (3 a bar), -1 = rest: an original tune, rising and settling.
+const CREDITS_TUNE = [
+  72, 74, 76, 77, -1, 76, 74, 72, 70, 72, -1, -1,
+  74, 76, 77, 81, 79, 77, 76, 74, 72, 74, -1, -1,
+  77, 76, 74, 72, 74, 76, 74, 72, 70, 69, -1, -1,
+  70, 72, 74, 72, 70, 69, 67, 69, 70, 72, -1, -1,
+];
 
 export class Music {
   mode: MusicMode = 'off';
@@ -107,11 +127,12 @@ export class Music {
     if (this.tension < 0.01 && this.tensionTarget === 0) this.tension = 0;
     this.tensionGain!.gain.setTargetAtTime(this.mode === 'chamber' ? this.tension * 0.5 : 0, ctx.currentTime, 0.3);
 
-    const bpm = this.mode === 'elevator' ? SHELL.music.elevatorBpm : SHELL.music.bpm;
+    const bpm = this.mode === 'elevator' ? SHELL.music.elevatorBpm : this.mode === 'credits' ? SHELL.music.creditsBpm : SHELL.music.bpm;
     const sixteenth = 60 / bpm / 4;
     if (this.nextTime < ctx.currentTime) this.nextTime = ctx.currentTime + 0.05;
     while (this.nextTime < ctx.currentTime + SHELL.music.lookahead) {
       if (this.mode === 'elevator') this.elevatorStep(this.step, this.nextTime, sixteenth);
+      else if (this.mode === 'credits') this.creditsStep(this.step, this.nextTime, sixteenth);
       else this.chamberStep(this.step, this.nextTime, sixteenth, this.mode === 'menu');
       this.step++;
       this.nextTime += sixteenth;
@@ -204,6 +225,26 @@ export class Music {
     if (inBar % 4 === 0) {
       const m = ELEVATOR_TUNE[(bar * 4 + inBar / 4) % ELEVATOR_TUNE.length];
       if (m > 0) this.note(mtof(m), t, s16 * 3.5, 0.05, 'triangle', out, 0.01, 2200);
+    }
+  }
+
+  private creditsStep(step: number, t: number, s16: number): void {
+    const out = this.layerGain!;
+    const bar = Math.floor(step / 12);
+    const inBar = step % 12;
+    const chord = CREDITS_CHORDS[bar % CREDITS_CHORDS.length];
+    // Pad: the chord, softly, once a bar.
+    if (inBar === 0) for (const m of chord.slice(1)) this.note(mtof(m), t, s16 * 12, 0.022, 'triangle', out, 0.6, 1600);
+    // Waltz bass on beat 1, chord dabs on beats 2 and 3.
+    if (inBar === 0) this.note(mtof(chord[0]), t, s16 * 4, 0.09, 'triangle', out, 0.01, 500);
+    if (inBar === 4 || inBar === 8) for (const m of chord.slice(1, 3)) this.note(mtof(m), t, s16 * 2, 0.018, 'sine', out, 0.01);
+    // Melody on every beat (celesta-like: a sine with a quick octave shimmer).
+    if (inBar % 4 === 0) {
+      const m = CREDITS_TUNE[(bar * 3 + inBar / 4) % CREDITS_TUNE.length];
+      if (m > 0) {
+        this.note(mtof(m), t, s16 * 3.5, 0.05, 'sine', out, 0.004);
+        this.note(mtof(m + 12), t, s16 * 1.5, 0.012, 'sine', out, 0.002);
+      }
     }
   }
 

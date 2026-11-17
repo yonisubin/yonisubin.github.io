@@ -7,8 +7,8 @@
 //   R3 (z -43..-60) the Commencement Hall: banners, an audience of empty chairs, and a dais in the
 //                   middle of the floor. Step onto it and the ceremony begins: the dais sinks into a
 //                   shaft that was never on any plan, and the Provost explains what graduation is.
-//                   Halfway down, the chamber ends (an exitZone, not a booth): practical 19 starts
-//                   at the bottom, in the Archive press.
+//                   At the bottom the chamber ends (an exitZone, not a booth): practical 19 starts
+//                   there, in the Archive press.
 import type { LevelData } from '../level';
 import { box, lobby, M, note, P, room, scrawl, strip, wall } from './kitB';
 
@@ -69,9 +69,9 @@ export const C18: LevelData = {
     { id: 'r3Light1', type: 'light', position: [0, 9, -47], props: { intensity: 9, distance: 20, color: 0xfff1d6 } },
     { id: 'r3Light2', type: 'light', position: [0, 9, -56], props: { intensity: 9, distance: 20, color: 0xfff1d6 } },
     { id: 'shaftLight', type: 'light', position: [0, -10, -52], props: { intensity: 3, distance: 8, color: 0xff7a3d } },
-    { id: 'dais', type: 'platform', position: [0, -0.15, -52], props: { waypoints: [[0, -0.15, -52], [0, -12.15, -52]], speed: 1.2, size: [4, 0.3, 4] } },
+    { id: 'dais', type: 'platform', position: [0, -0.15, -52], props: { waypoints: [[0, -0.15, -52], [0, -12.15, -52]], speed: 0.45, size: [4, 0.3, 4] } },
     { id: 'onDais', type: 'zone', position: [0, 1, -52], props: { size: [4, 2, 4] } },
-    { id: 'archive', type: 'exitZone', position: [0, -6, -52], props: { size: [4, 3, 4], delay: 3.5 } },
+    { id: 'archive', type: 'exitZone', position: [0, -10.5, -52], props: { size: [4, 3, 4], delay: 4 } },
     scrawl('banner1', [0, 7.6, -59.95], 0, 'COMMENCEMENT · CLASS OF 41', [7, 1], '#22282d'),
     scrawl('banner2', [-7.95, 4.5, -51.5], Math.PI / 2, 'MOTION, MEASURED', [5, 0.8], '#22282d'),
     scrawl('banner3', [7.95, 4.5, -51.5], -Math.PI / 2, 'PERMANENT RECORD', [5, 0.8], '#22282d'),
@@ -103,7 +103,8 @@ export const C18: LevelData = {
     { event: 'chamberStart', lines: ['c18.chamberStart.1', 'c18.chamberStart.2'] },
     { event: 'c18.pellet', lines: ['c18.pellet.1'] },
     { event: 'c18.hall', lines: ['c18.hall.1', 'c18.hall.2'] },
-    { event: 'c18.dais', lines: ['c18.dais.1', 'c18.dais.2'] },
-    { event: 'exitReached', lines: ['c18.betrayal.1', 'c18.betrayal.2', 'c18.betrayal.3'] },
+    // The ceremony speech runs while the dais sinks (about 25 s); the chamber ends at the bottom.
+    { event: 'c18.dais', lines: ['c18.dais.1', 'c18.dais.2', 'c18.betrayal.1', 'c18.betrayal.2', 'c18.betrayal.3'] },
+    { event: 'exitReached', lines: ['c18.exit.1'] },
   ],
 };

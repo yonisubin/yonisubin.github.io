@@ -187,20 +187,21 @@ export class Erasure extends BaseElement {
 
   update(dt: number): void {
     const core = this.core();
-    if (core && core.outputs.defeated) {
+    const defeated = !!core && core.outputs.defeated;
+    // A new boss stage: a fresh (shorter) count.
+    if (core && core.stage !== this.stage) {
+      this.stage = core.stage;
+      this.left = this.secondsFor(this.stage);
+      this.warned = false;
+      if (!defeated) this.ctx.sfx('erasureReset', 'The Erasure count restarts, shorter');
+    }
+    if (defeated) {
       this.setOutput('warning', false);
       if (this.lastShown !== 0) {
         this.left = 0;
         this.draw();
       }
       return;
-    }
-    // A new boss stage: a fresh (shorter) count.
-    if (core && core.stage !== this.stage) {
-      this.stage = core.stage;
-      this.left = this.secondsFor(this.stage);
-      this.warned = false;
-      this.ctx.sfx('erasureReset', 'The Erasure count restarts, shorter');
     }
     const running = this.input('active', false);
     if (running && !this.ctx.playerDead()) {
