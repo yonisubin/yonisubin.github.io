@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Twinfold — a first-person puzzle game about two linked openings, in the browser." />
+    <title>Twinfold</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #15181b;
+        font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+        color: #e8ecef;
+      }
+      #game {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+      #hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+      }
+      #crosshair {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 44px;
+        height: 44px;
+        transform: translate(-50%, -50%);
+        filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
+      }
+      #debug {
+        position: absolute;
+        left: 10px;
+        top: 10px;
+        white-space: pre;
+        font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace;
+        background: rgba(0, 0, 0, 0.55);
+        padding: 8px 10px;
+        border-radius: 6px;
+        display: none;
+      }
+      #overlay {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(12, 14, 16, 0.72);
+        cursor: pointer;
+      }
+      #overlay .card {
+        max-width: 440px;
+        padding: 28px 32px;
+        text-align: center;
+      }
+      #overlay h1 {
+        margin: 0 0 4px;
+        font-size: 44px;
+        letter-spacing: 0.12em;
+        font-weight: 300;
+      }
+      #overlay .sub {
+        opacity: 0.7;
+        margin-bottom: 22px;
+      }
+      #overlay .keys {
+        display: grid;
+        grid-template-columns: auto auto;
+        gap: 6px 18px;
+        text-align: left;
+        font-size: 14px;
+        opacity: 0.9;
+        margin: 0 auto 22px;
+        width: max-content;
+      }
+      #overlay kbd {
+        font: 12px ui-monospace, Menlo, Consolas, monospace;
+        border: 1px solid #6b7480;
+        border-radius: 4px;
+        padding: 1px 6px;
+      }
+      #overlay .go {
+        display: inline-block;
+        padding: 10px 22px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #2f8cff, #ffa31a);
+        color: #0d0f11;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <div id="hud"></div>
+    <div id="overlay">
+      <div class="card">
+        <h1>TWINFOLD</h1>
+        <div class="sub">Gray-box test room</div>
+        <div class="keys">
+          <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>move</span>
+          <span><kbd>Space</kbd></span><span>jump</span>
+          <span><kbd>Ctrl</kbd> / <kbd>C</kbd></span><span>crouch</span>
+          <span>Left click</span><span>blue opening</span>
+          <span>Right click</span><span>amber opening</span>
+          <span><kbd>R</kbd></span><span>restart the room</span>
+          <span><kbd>`</kbd> / <kbd>F3</kbd></span><span>debug overlay</span>
+          <span><kbd>Esc</kbd></span><span>pause</span>
+        </div>
+        <div class="go">Click to play</div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
