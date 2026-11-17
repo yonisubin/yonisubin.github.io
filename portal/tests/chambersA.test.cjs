@@ -361,6 +361,39 @@ const SOLUTIONS = {
     H.say(`plate ${H.el('plate').outputs.pressed} grill erased ${H.el('grill').erased}`);
     H.toExit();
   },
+  c10: (H) => {
+    const { tf, P } = H;
+    H.walkTo(0, -3);
+    H.walkTo(2, -4, { tol: 0.3 });
+    H.shoot('b', [-5.5, 1.2, -10.5]); // pylon 1
+    H.walkTo(-6, -2.8, { tol: 0.3 });
+    H.turnToward([-10, 1.1, -2.75]); // start ledge's west panel
+    H.say(`a ${tf.fire('a').ok}`);
+    H.through(-11, -2.75); // → island 1
+    H.walkTo(-3.6, -10.5, { tol: 0.2 });
+    H.grab('cube1');
+    H.turnToward([5.5, 1.2, -18.5]); // amber moves to pylon 2
+    H.say(`b ${tf.fire('b').ok}`);
+    H.turnToward([-5.5, 1.2, -10.5]); // blue on pylon 1 behind us
+    H.say(`a ${tf.fire('a').ok}`);
+    H.through(-7, -10.5); // → island 2
+    H.turnToward([-5.5, 1.2, -26]); // amber moves to pylon 3
+    H.say(`b ${tf.fire('b').ok}`);
+    H.turnToward([5.5, 1.2, -18.5]); // blue on pylon 2
+    H.say(`a ${tf.fire('a').ok}`);
+    H.through(7, -18.5); // → island 3
+    H.walkTo(-4, -25, { tol: 0.3 });
+    H.turn(0, 0);
+    tf.hold('forward', true); // run and jump the last gap
+    H.waitFor(() => P.position.z < -27.3, 2);
+    H.jump();
+    tf.simulate(0.9);
+    tf.hold('forward', false);
+    tf.simulate(0.3);
+    H.carryTo(-4, -33);
+    H.say(`plate ${H.el('plate').outputs.pressed}`);
+    H.toExit();
+  },
 };
 
 run('chambersA', async ({ page }, t) => {

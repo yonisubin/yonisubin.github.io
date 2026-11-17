@@ -64,4 +64,12 @@ export const LINES_A: Record<string, Line> = {
   'c09.near.1': { text: 'Your apertures will close if you pass through. Your device will not. Please note that the device is registered. You are pending.' },
   'c09.north.1': { text: 'You crossed the field. I have recorded this as "complied with signage", which puts you ahead of most of the alumni.' },
   'c09.exitReached.1': { text: 'Practical Nine complete. The case arrived intact, which is better than its last three owners managed. I mean that as a comparison, not a threat.' },
+  // --- 10 Steeping: toxic liquid -----------------------------------------------------------------------
+  'c10.chamberStart.1': { text: 'Practical Ten. The basin contains a solution. It is not the solution to this practical, although alumni have tested that theory thoroughly.' },
+  'c10.chamberStart.2': { text: 'Each pylon has one white face, exactly large enough for one aperture. Precision is a virtue. Here it is also a requirement.' },
+  'c10.island1.1': { text: 'Island one. The case has been waiting here since the last applicant. She was faster. I only mention it because she was.' },
+  'c10.island3.1': { text: 'Island three. The gap ahead is two metres. Your jump is a little over three. I have checked your file. I am fairly confident.' },
+  'c10.death.1': { text: 'You have been steeped. The basin will need recalibrating. I will bill it to your stipend, which I will now be creating so that I can bill it.' },
+  'c10.exitReached.1': { text: 'Practical Ten complete. You are now halfway through the curriculum, depending on how one counts. I count generously, on your behalf, for now.' },
+  'c10.exitReached.2': { text: 'Please keep the case near you. The Department has plans for it. They are not unkind plans. Mostly they are filing.' },
 };
