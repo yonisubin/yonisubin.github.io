@@ -473,6 +473,37 @@ const SOLUTIONS = {
     H.say(`bell ${H.press('bell')}`);
     H.toExit();
   },
+  adv5: (H) => {
+    const { tf, P } = H;
+    const hop = () => {
+      // Run north and jump the trench.
+      H.turn(0, 0);
+      tf.hold('forward', true);
+      H.waitFor(() => P.position.z < -14.6, 2);
+      H.jump();
+      tf.simulate(0.7);
+      tf.hold('forward', false);
+      tf.simulate(0.3);
+    };
+    H.walkTo(-5, -3);
+    H.walkTo(0, -9, { tol: 0.2 });
+    H.walkTo(0, -14, { tol: 0.3 }); // through the grill (no apertures to lose yet)
+    hop();
+    H.walkTo(0, -20, { tol: 0.3 });
+    H.shoot('b', [0, 1.2, 0]); // back through the grill: amber on the south room's panel
+    H.walkTo(-4, -20.9, { tol: 0.2 });
+    H.grab('cube1');
+    H.walkTo(4, -20, { tol: 0.3 });
+    H.turnToward([8, 1.1, -20]); // blue on the north room's east panel
+    H.say(`a ${tf.fire('a').ok}`);
+    H.through(9, -20); // the cube goes home around the grill
+    H.carryTo(4, -5);
+    H.say(`plate ${H.el('plate').outputs.pressed}`);
+    H.walkTo(0, -9, { tol: 0.2 });
+    H.walkTo(0, -14, { tol: 0.3 });
+    hop();
+    H.toExit();
+  },
 };
 
 run('chambersA', async ({ page }, t) => {

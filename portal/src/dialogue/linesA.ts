@@ -85,4 +85,7 @@ export const LINES_A: Record<string, Line> = {
   'adv4.chamberStart.1': { text: 'Advanced Practical Four. The chasm floor has been removed for maintenance. The maintenance is indefinite. So is the chasm.' },
   'adv4.far.1': { text: 'On the pier. Your trajectory was within tolerance. I tightened the tolerance while you were airborne, and you were still within it. Irritating.' },
   'adv4.exitReached.1': { text: 'Complete. No net, no lift, no incident. I will have to invent an incident for the report. I will make it a small one.' },
+  'adv5.chamberStart.1': { text: 'Advanced Practical Five. The case was filed in the wrong room. Please return it. Returns are processed through the clearing field, which processes everything.' },
+  'adv5.north.1': { text: 'You cleared the trench. The case did not have to. It is, as ever, better treated than you.' },
+  'adv5.exitReached.1': { text: 'Return accepted. Restocking fee waived, this once. I am told generosity is good for morale. I am still waiting to see whose.' },
 };
