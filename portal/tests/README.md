@@ -32,3 +32,4 @@ Playwright is not a dependency; install it once if needed:
 | `challenges.test.cjs` | locked until the story / dev unlock, medal thresholds, HUD counters, gold / silver / none, leaderboard order and storage |
 | `audio.test.cjs` | sfx names (and fallback), footsteps by surface without doubles, carry hum, volumes, music modes, tension, stingers, ducking |
 | `loader.test.cjs` | validation errors, fix-ups with warnings, registry, stable export |
+| `input.test.cjs` | simulated gamepad (stick move / look, A, RT edge), toggle crouch, menus disable gameplay keys, F5 kept from the browser |
