@@ -172,6 +172,57 @@ const SOLUTIONS = {
     out.exited = R.exited('c12'); out.deaths = R.ev('death');
     return out;
   },
+  // Timer: a pair across the pit before pressing; pellet: west wall → south wall facing the receptacle.
+  c13: () => {
+    const tf = window.twinfold, out = {};
+    R.load('c13');
+    R.walk(0, -12);
+    out.a = R.fire('a', -8, 1.5, -13.5).ok;
+    out.b = R.fire('b', -8, 1.5, -31).ok;
+    R.walk(3.1, -13);
+    R.press('ped');
+    out.ped = R.el('ped').outputs.pressed;
+    const t0 = tf.chamber.t;
+    out.tp = R.through(-9, -13.5);
+    R.path([[-1, -33], [0, -37.5]]);
+    out.elapsed = tf.chamber.t - t0;
+    out.inB = R.p();
+    out.a2 = R.fire('a', -8, 1.5, -44).ok;
+    out.b2 = R.fire('b', -4, 1.5, -36).ok;
+    out.caught = R.wait(() => R.el('catcher').outputs.caught, 15);
+    R.path([[4, -48], [4, -57.4]]);
+    tf.simulate(1);
+    out.exited = R.exited('c13'); out.deaths = R.ev('death');
+    return out;
+  },
+  // Fling: shaft bottom + high on the east wall, drop in, land past the pool behind the turret; turn it to the wall.
+  c14: () => {
+    const tf = window.twinfold, out = {};
+    R.load('c14');
+    R.walk(2, -14);
+    out.b = R.fire('b', 8, 2.5, -20);
+    R.walk(0, -10.75, {tol: 0.03}); out.rim = R.p();
+    out.a = R.fire('a', 0, -10, -13.5);
+    R.face(0, 0);
+    const n0 = R.ev('teleport').length;
+    tf.hold('forward', true); tf.simulate(0.4); tf.hold('forward', false);
+    out.fell = R.wait(() => R.ev('teleport').length > n0, 4);
+    out.tpEv = R.ev('teleport').slice(-1)[0];
+    R.wait(() => tf.player.grounded, 4); tf.simulate(0.3);
+    out.landed = R.p(); out.dead = R.dead();
+    R.walk(-8, -29.9);
+    out.grab = R.grab('tur');
+    R.turn(-Math.PI/2, -0.3);
+    R.drop(); tf.simulate(1);
+    out.tur = [R.el('tur').state, R.el('tur').position()];
+    R.path([[-6, -33], [-7.2, -34.3]]);
+    R.press('ped'); tf.simulate(1);
+    out.open = R.el('exitDoor').isOpen();
+    R.path([[-8, -38], [-8, -45.4]]);
+    tf.simulate(1);
+    out.exited = R.exited('c14'); out.deaths = R.ev('death'); out.h = tf.chamber.health;
+    return out;
+  },
 };
 
 module.exports = { installReplay, SOLUTIONS };
