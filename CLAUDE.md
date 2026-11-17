@@ -97,10 +97,14 @@ public/
 
 A separate, independent game, **Hexborne** (a turn-based hex strategy game), lives in `civilization/` and is served at `/civilization/`. It has its own `CLAUDE.md` (its rules and design spec — read it when working there), `index.html`, `src/`, `tsconfig.json` and `vite.config.ts` (`base: '/civilization/'`) and shares only the root `node_modules`; `pixi.js`, `zod` and `zustand` in `package.json` are its dependencies. Commands: `npm run dev:civ`, `npm run typecheck:civ`, `npm run build:civ`, `npm run test:civ`. Never import between `src/` and `civilization/src/`; its `localStorage` keys start with `civ:` and its saves use IndexedDB `hexborne`. The deploy workflow builds it in its own `continue-on-error` job, so it can never block the main game's deploy. Everything else in this file (milestones, architecture rules) is about the open-world game.
 
+## Third game: `portal/`
+
+Another separate, independent game, **Twinfold** (a first-person puzzle game with two linked portals, three.js + Rapier), lives in `portal/` and is served at `/portal/`. It has its own `CLAUDE.md` (its rules and design spec — read it when working there), `index.html`, `src/`, `tsconfig.json`, `vite.config.ts` (`base: '/portal/'`) and `tests/`, and shares only the root `node_modules` (it uses the `three` and Rapier packages the root game already depends on). Commands: `npm run dev:portal`, `npm run typecheck:portal`, `npm run build:portal`, `npm run test:portal`. Never import between `src/`, `civilization/src/` and `portal/src/`; its `localStorage` keys start with `twinfold:` and its saves will use IndexedDB `twinfold`. The deploy workflow builds it in its own `continue-on-error` job, so it can never block the main game's deploy.
+
 ## Deployment (GitHub Pages)
 
 - The repo is `yonisubin.github.io` (a `username.github.io` repo), so `base` in `vite.config.ts` is `'/'` and the game is served at the site root.
-- Deploy `dist/` via a GitHub Actions workflow (`.github/workflows/deploy.yml`) using the official Pages actions. The same workflow adds `civilization/dist` under `dist/civilization/` and the preview branch under `dist/preview/`.
+- Deploy `dist/` via a GitHub Actions workflow (`.github/workflows/deploy.yml`) using the official Pages actions. The same workflow adds `civilization/dist` under `dist/civilization/`, `portal/dist` under `dist/portal/` and the preview branch under `dist/preview/`.
 - Repo Settings → Pages → Source must be set to "GitHub Actions".
 - All asset paths must resolve through `import.meta.env.BASE_URL` so they work under the subpath.
 

@@ -14,6 +14,11 @@
     "typecheck:civ": "tsc --noEmit -p civilization",
     "server:civ": "node civilization/server/server.mjs",
     "test:civ": "node civilization/tests/run.mjs",
+    "dev:portal": "vite --config portal/vite.config.ts",
+    "build:portal": "tsc --noEmit -p portal && vite build --config portal/vite.config.ts",
+    "preview:portal": "vite preview --config portal/vite.config.ts",
+    "typecheck:portal": "tsc --noEmit -p portal",
+    "test:portal": "node portal/tests/run.mjs",
     "build:characters": "node scripts/build-characters.mjs",
     "build:quaternius": "node scripts/build-quaternius.mjs",
     "test": "node tests/run.mjs"

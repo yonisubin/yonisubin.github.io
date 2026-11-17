@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Twinfold — a first-person puzzle game about two linked openings, in the browser." />
+    <title>Twinfold</title>
+    <style>
+      :root {
+        --ink: #e8ecef;
+        --dim: #9aa6b1;
+        --bg: #15181b;
+        --panel: rgba(14, 17, 20, 0.86);
+        --line: #3a434c;
+        --blue: #2f8cff;
+        --amber: #ffa31a;
+        --good: #37d67a;
+        --bad: #ff5a4f;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+        font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+        color: var(--ink);
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+        color: inherit;
+      }
+      #game {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+      }
+      #menuBg {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+        z-index: 1;
+        display: none;
+      }
+
+      /* ---- HUD ---- */
+      #hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 2;
+      }
+      #crosshair {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 44px;
+        height: 44px;
+        transform: translate(-50%, -50%);
+        filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
+      }
+      #debug {
+        position: absolute;
+        left: 10px;
+        top: 10px;
+        white-space: pre;
+        font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace;
+        background: rgba(0, 0, 0, 0.55);
+        padding: 8px 10px;
+        border-radius: 6px;
+        display: none;
+      }
+      #vignette {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        background: radial-gradient(ellipse at center, rgba(180, 0, 0, 0) 45%, rgba(190, 10, 10, 0.85) 100%);
+      }
+      #prompt {
+        position: absolute;
+        left: 50%;
+        top: calc(50% + 34px);
+        transform: translateX(-50%);
+        padding: 4px 12px;
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.55);
+        font-size: 15px;
+        letter-spacing: 0.04em;
+      }
+      #subtitles {
+        position: absolute;
+        left: 50%;
+        bottom: 9vh;
+        transform: translateX(-50%);
+        max-width: min(760px, 86vw);
+        padding: 8px 16px;
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.62);
+        font-size: 18px;
+        line-height: 1.4;
+        text-align: center;
+      }
+      #subtitles .speaker {
+        color: #9fd0ff;
+        font-weight: 600;
+      }
+      #captions {
+        position: absolute;
+        left: 16px;
+        bottom: 16px;
+        font-size: 14px;
+        color: #f4e3b5;
+        text-shadow: 0 1px 2px #000;
+      }
+      #challengeHud {
+        position: absolute;
+        right: 14px;
+        top: 12px;
+        padding: 6px 12px;
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.55);
+        font: 14px ui-monospace, Menlo, Consolas, monospace;
+      }
+      #chamberCard {
+        position: absolute;
+        left: 50%;
+        top: 22%;
+        transform: translateX(-50%);
+        min-width: 280px;
+        padding: 18px 28px;
+        border-radius: 10px;
+        background: var(--panel);
+        border-top: 3px solid var(--good);
+        text-align: center;
+        font: 15px/1.7 ui-monospace, Menlo, Consolas, monospace;
+      }
+      #chamberCard h2 {
+        margin: 0 0 6px;
+        font: 300 26px system-ui, sans-serif;
+        letter-spacing: 0.08em;
+      }
+      #chamberCard .sub {
+        opacity: 0.65;
+        margin-top: 8px;
+      }
+      #toast {
+        position: absolute;
+        right: 16px;
+        bottom: 16px;
+        padding: 6px 14px;
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.7);
+        font-size: 14px;
+      }
+
+      /* ---- Menus ---- */
+      #overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 5;
+        display: none;
+        align-items: center;
+        justify-content: flex-start;
+        padding-left: 7vw;
+        background: linear-gradient(90deg, rgba(13, 16, 19, 0.88) 0%, rgba(13, 16, 19, 0.55) 45%, rgba(13, 16, 19, 0) 75%);
+      }
+      #overlay.inGame {
+        background: rgba(10, 12, 14, 0.72);
+        justify-content: center;
+        padding-left: 0;
+      }
+      #overlay .panel {
+        max-height: 92vh;
+        overflow: auto;
+        width: min(560px, 90vw);
+      }
+      .logoWrap {
+        color: var(--ink);
+        margin-bottom: 18px;
+      }
+      .logoWrap svg {
+        width: min(420px, 80vw);
+        height: auto;
+      }
+      .mainMenu {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        align-items: flex-start;
+      }
+      #overlay button {
+        background: none;
+        border: 0;
+        padding: 6px 10px;
+        font-size: 19px;
+        letter-spacing: 0.06em;
+        text-align: left;
+        cursor: pointer;
+        border-left: 3px solid transparent;
+        transition: border-color 0.12s, background 0.12s;
+      }
+      #overlay button:hover:not([disabled]),
+      #overlay button:focus-visible {
+        border-left-color: var(--amber);
+        background: rgba(255, 255, 255, 0.06);
+        outline: none;
+      }
+      #overlay button.primary {
+        border-left-color: var(--blue);
+      }
+      #overlay button[disabled] {
+        opacity: 0.35;
+        cursor: default;
+      }
+      #overlay h2 {
+        font-weight: 300;
+        letter-spacing: 0.1em;
+        margin: 0 0 12px;
+      }
+      #overlay .sub,
+      #overlay .note,
+      #overlay .foot {
+        color: var(--dim);
+        font-size: 14px;
+      }
+      #overlay .foot {
+        margin-top: 26px;
+        max-width: 380px;
+      }
+      #overlay .menuRow {
+        display: flex;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      #overlay .slot {
+        display: block;
+        width: 100%;
+        font-size: 16px;
+      }
+      #overlay .slot small {
+        display: block;
+        color: var(--dim);
+        font-size: 12px;
+      }
+      #overlay .list > button {
+        display: block;
+      }
+      .challenge {
+        border-top: 1px solid var(--line);
+        padding: 8px 0;
+      }
+      .challenge h3 {
+        margin: 4px 0;
+        font-weight: 500;
+      }
+      .challenge .mode {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 2px 10px;
+        align-items: center;
+        margin: 6px 0;
+      }
+      .challenge .mode small {
+        color: var(--dim);
+        grid-column: 1;
+      }
+      .challenge .mode button {
+        grid-column: 2;
+        grid-row: 1 / span 3;
+      }
+      .board {
+        margin: 2px 0 8px;
+        color: var(--dim);
+        font: 12px ui-monospace, Menlo, Consolas, monospace;
+      }
+      .medal {
+        font-size: 22px;
+      }
+      .medal.gold {
+        color: #ffd34d;
+      }
+      .medal.silver {
+        color: #d5dde3;
+      }
+      .medal.bronze {
+        color: #d08a4c;
+      }
+      .titleCard {
+        text-align: left;
+      }
+      .titleCard > button {
+        display: block;
+      }
+      .error {
+        color: var(--bad);
+        white-space: pre-wrap;
+        font-size: 13px;
+      }
+
+      /* options */
+      .options .tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px;
+        margin-bottom: 10px;
+      }
+      #overlay .options .tabs button {
+        font-size: 14px;
+        border-left: 0;
+        border-bottom: 2px solid transparent;
+      }
+      #overlay .options .tabs button.on {
+        border-bottom-color: var(--blue);
+      }
+      .options .row {
+        display: grid;
+        grid-template-columns: 1fr 180px 56px;
+        gap: 8px;
+        align-items: center;
+        padding: 4px 0;
+        font-size: 15px;
+      }
+      .options .row small {
+        color: var(--dim);
+      }
+      .options .row select {
+        grid-column: 2 / span 2;
+        background: #1f252b;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 3px;
+      }
+      .options .row input[type='checkbox'] {
+        justify-self: start;
+      }
+      .options .val {
+        color: var(--dim);
+        font-size: 13px;
+      }
+      .swatch span {
+        display: inline-block;
+        width: 40px;
+        height: 14px;
+        margin-right: 6px;
+        border-radius: 3px;
+      }
+      .bindings {
+        display: grid;
+        grid-template-columns: 1fr 120px 120px;
+        gap: 2px 6px;
+        align-items: center;
+        margin-top: 10px;
+        font-size: 14px;
+      }
+      #overlay .bindings button {
+        font-size: 13px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        text-align: center;
+        padding: 3px;
+      }
+      #overlay .bindings button.waiting {
+        border-color: var(--amber);
+      }
+      body.highContrast #vignette {
+        background: radial-gradient(ellipse at center, rgba(255, 0, 0, 0) 40%, rgba(255, 0, 0, 1) 100%);
+      }
+
+      /* ---- Touch controls + phone layout (html.touch; input/touch.ts, ui/device.ts) ---- */
+      #touchControls {
+        position: absolute;
+        inset: 0;
+        display: none;
+        pointer-events: auto;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #touchControls .stickBase {
+        position: absolute;
+        display: none;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.35);
+        pointer-events: none;
+      }
+      #touchControls .stickKnob {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.5);
+        transform: translate(-50%, -50%);
+      }
+      #touchControls .touchCluster {
+        position: absolute;
+        right: max(16px, env(safe-area-inset-right));
+        bottom: max(14px, env(safe-area-inset-bottom));
+        display: grid;
+        grid-template-columns: repeat(2, var(--tb));
+        grid-template-rows: repeat(3, var(--tb));
+        grid-template-areas: '. use' 'fireA fireB' 'crouch jump';
+        gap: var(--tgap);
+      }
+      #touchControls .touchBtn {
+        --c: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: var(--tb);
+        height: var(--tb);
+        box-sizing: border-box;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.45);
+        background: rgba(20, 24, 28, 0.42);
+        font: 600 11px system-ui, sans-serif;
+        letter-spacing: 0.08em;
+        color: rgba(255, 255, 255, 0.9);
+        text-shadow: 0 1px 2px #000;
+      }
+      #touchControls .touchBtn.down {
+        background: rgba(255, 255, 255, 0.28);
+      }
+      #touchControls .fireA,
+      #touchControls .fireB {
+        border: 3px solid var(--c);
+        box-shadow: inset 0 0 14px color-mix(in srgb, var(--c) 45%, transparent);
+      }
+      #touchControls .fireA { grid-area: fireA; }
+      #touchControls .fireB { grid-area: fireB; }
+      #touchControls .jump { grid-area: jump; }
+      #touchControls .crouch { grid-area: crouch; }
+      #touchControls .use { grid-area: use; opacity: 0.55; }
+      #touchControls .use.ready {
+        opacity: 1;
+        border-color: var(--good);
+        background: rgba(55, 214, 122, 0.3);
+      }
+      #touchControls .pause {
+        position: absolute;
+        left: max(12px, env(safe-area-inset-left));
+        top: max(10px, env(safe-area-inset-top));
+        width: var(--tpause);
+        height: var(--tpause);
+        border-radius: 10px;
+        font-size: 15px;
+      }
+      #rotateHint {
+        position: absolute;
+        left: 50%;
+        top: 28%;
+        transform: translateX(-50%);
+        width: min(300px, calc(100vw - 40px));
+        box-sizing: border-box;
+        padding: 12px 16px;
+        border-radius: 10px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        text-align: center;
+        font-size: 15px;
+        pointer-events: auto;
+        display: none;
+      }
+      #rotateHint .small {
+        margin-top: 4px;
+        color: var(--dim);
+        font-size: 12px;
+      }
+      /* Gameplay HUD on touch: keep text clear of the stick (left) and the button cluster (right). */
+      html.touch #subtitles {
+        bottom: auto;
+        top: max(10px, env(safe-area-inset-top));
+        max-width: calc(100vw - 2 * (var(--touchSide, 70px) + 12px));
+        font-size: 15px;
+        padding: 6px 12px;
+      }
+      html.touch #prompt {
+        top: calc(50% + 30px);
+      }
+      html.touch #chamberCard {
+        top: 16%;
+        min-width: 0;
+        width: max-content;
+        max-width: max(260px, calc(100vw - 2 * 170px));
+        padding: 12px 18px;
+        font-size: 13px;
+      }
+      html.touch #chamberCard h2 {
+        font-size: 20px;
+      }
+      html.touch #captions {
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: max(12px, env(safe-area-inset-bottom));
+        text-align: center;
+      }
+      html.touch #toast {
+        right: auto;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: auto;
+        top: max(56px, calc(env(safe-area-inset-top) + 48px));
+      }
+      html.touch #challengeHud {
+        right: max(14px, env(safe-area-inset-right));
+        top: max(12px, env(safe-area-inset-top));
+        font-size: 12px;
+      }
+      /* Menus on touch: bigger tap targets, safe areas, no hover-only cues. */
+      html.touch #overlay {
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) max(7vw, env(safe-area-inset-left));
+      }
+      html.touch #overlay:not(.inGame) {
+        background: linear-gradient(90deg, rgba(13, 16, 19, 0.92) 0%, rgba(13, 16, 19, 0.8) 60%, rgba(13, 16, 19, 0.15) 92%);
+      }
+      html.touch #overlay.inGame {
+        padding-left: env(safe-area-inset-left);
+      }
+      html.touch #overlay button {
+        min-height: 44px;
+      }
+      /* Over the bright 3D background, screens other than the main menu sit on a panel to stay readable. */
+      html.touch #overlay .panel:not([data-screen='main']) {
+        background: var(--panel);
+        border-radius: 10px;
+        padding: 10px 16px;
+        box-sizing: border-box;
+      }
+      html.touch #overlay .options .row input,
+      html.touch #overlay .options .row select {
+        min-height: 36px;
+      }
+      html.touch #overlay .options .row input[type='checkbox'] {
+        width: 26px;
+        height: 26px;
+      }
+      /* Small screens in touch mode (desktop windows keep the desktop layout). */
+      @media (max-width: 700px) {
+        html.touch #overlay {
+          padding-left: 0;
+          justify-content: center;
+          background: rgba(13, 16, 19, 0.82);
+        }
+        html.touch #overlay .panel {
+          width: calc(100vw - 32px);
+          max-height: calc(100dvh - 24px);
+        }
+        html.touch .options .row {
+          grid-template-columns: 1fr auto;
+        }
+        html.touch .options .row input[type='range'] {
+          grid-column: 1 / -1;
+          grid-row: 2;
+          width: 100%;
+        }
+        html.touch .options .row select {
+          grid-column: 1 / -1;
+        }
+        html.touch .bindings {
+          grid-template-columns: 1fr 1fr;
+        }
+        html.touch .bindings > span {
+          grid-column: 1 / -1;
+          margin-top: 6px;
+        }
+        html.touch #chamberCard {
+          min-width: 0;
+          max-width: calc(100vw - 32px);
+          box-sizing: border-box;
+        }
+      }
+      @media (max-height: 500px) {
+        html.touch #overlay .panel {
+          max-height: calc(100dvh - 16px);
+        }
+        html.touch .logoWrap {
+          margin-bottom: 6px;
+        }
+        html.touch .logoWrap svg {
+          width: min(300px, 60vw);
+        }
+        /* Short landscape phones: the main / pause menu entries in two columns so they all fit. */
+        html.touch .mainMenu {
+          display: grid;
+          grid-template-columns: auto auto;
+          column-gap: 18px;
+        }
+        html.touch #overlay .mainMenu button {
+          font-size: 17px;
+          padding: 4px 10px;
+        }
+        html.touch #overlay .foot {
+          margin-top: 8px;
+        }
+      }
+
+      /* ---- Puzzle maker ---- */
+      #editor {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: none;
+        grid-template-columns: 170px 1fr 300px;
+        grid-template-rows: auto 1fr auto;
+        background: #1b1f24;
+        font-size: 13px;
+      }
+      #editor button {
+        background: #262d34;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 4px 8px;
+        cursor: pointer;
+      }
+      #editor button:hover:not([disabled]) {
+        border-color: #6d7a87;
+      }
+      #editor button.on,
+      #editor button.primary {
+        border-color: var(--blue);
+        background: #1d3a5c;
+      }
+      #editor button[disabled] {
+        opacity: 0.4;
+      }
+      #editor input,
+      #editor select,
+      #editor textarea {
+        background: #12161a;
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        padding: 2px 4px;
+        min-width: 0;
+      }
+      .edTop {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--line);
+      }
+      .edTitle {
+        font-weight: 600;
+        margin-right: 10px;
+      }
+      .edTools {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 6px;
+        overflow: auto;
+        border-right: 1px solid var(--line);
+      }
+      .edTools button {
+        text-align: left;
+      }
+      .edTools .palette {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .edTools .palette .group {
+        color: var(--dim);
+        margin-top: 6px;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .edTools .palette i {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        margin-right: 5px;
+        border-radius: 2px;
+      }
+      .edViewport {
+        position: relative;
+        overflow: hidden;
+      }
+      .editorCanvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        cursor: crosshair;
+      }
+      .edInspector {
+        padding: 8px;
+        overflow: auto;
+        border-left: 1px solid var(--line);
+      }
+      .edInspector h3 {
+        margin: 2px 0 8px;
+      }
+      .edInspector h4 {
+        margin: 12px 0 4px;
+        color: var(--dim);
+      }
+      .edInspector .field {
+        display: grid;
+        grid-template-columns: 100px 1fr;
+        gap: 6px;
+        align-items: center;
+        margin: 3px 0;
+      }
+      .edInspector .field.col {
+        grid-template-columns: 1fr;
+      }
+      .edInspector .vec {
+        display: grid;
+        grid-template-columns: 100px 1fr 1fr 1fr;
+        gap: 4px;
+        align-items: center;
+        margin: 3px 0;
+      }
+      .edInspector .row,
+      .edInspector .hook,
+      .edInspector .wire,
+      .edInspector .draft {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin: 4px 0;
+      }
+      .edInspector .wire span {
+        flex: 1;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 12px;
+      }
+      .edInspector .hook input {
+        flex: 1;
+      }
+      .edInspector .note,
+      .edInspector .ports {
+        color: var(--dim);
+        font-size: 12px;
+      }
+      .edInspector .err {
+        color: var(--bad);
+      }
+      .edStatus {
+        grid-column: 1 / -1;
+        display: flex;
+        gap: 16px;
+        padding: 4px 10px;
+        border-top: 1px solid var(--line);
+        color: var(--dim);
+      }
+      .edStatus .bad {
+        color: var(--bad);
+      }
+      .edStatus .warn {
+        color: #f5c451;
+      }
+      .edStatus .good {
+        color: var(--good);
+      }
+      .edModal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 11;
+      }
+      .edModal .card {
+        background: #20262c;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 16px;
+        width: min(560px, 92vw);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .edModal textarea {
+        width: 100%;
+        box-sizing: border-box;
+        font: 12px ui-monospace, Menlo, Consolas, monospace;
+      }
+      .edModal .draft {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .edModal .draft span {
+        flex: 1;
+      }
+      /* ---- Ending + credits ---- */
+      #ending {
+        position: fixed;
+        inset: 0;
+        z-index: 6;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(ellipse at center, rgba(8, 10, 12, 0.55) 0%, rgba(8, 10, 12, 0.92) 70%);
+        animation: endingIn 2.5s ease-out;
+        color: #e9e6dc;
+      }
+      @keyframes endingIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      #ending .endingLine {
+        max-width: min(720px, 86vw);
+        font: 300 26px/1.5 system-ui, sans-serif;
+        text-align: center;
+        letter-spacing: 0.01em;
+      }
+      #ending .roll {
+        position: absolute;
+        inset: 0;
+      }
+      #ending .rollInner {
+        position: absolute;
+        left: 0;
+        right: 0;
+        text-align: center;
+        will-change: transform;
+      }
+      #ending .rollInner h3 {
+        margin: 48px 0 12px;
+        font: 600 22px system-ui, sans-serif;
+        letter-spacing: 0.2em;
+        color: #ffb347;
+      }
+      #ending .rollInner p {
+        margin: 6px 0;
+        font: 16px system-ui, sans-serif;
+      }
+      #ending .rollInner .role {
+        display: inline-block;
+        width: 46%;
+        text-align: right;
+        padding-right: 16px;
+        color: #9aa3ab;
+      }
+      #ending .rollInner .name {
+        display: inline-block;
+        width: 46%;
+        text-align: left;
+      }
+      #ending button {
+        position: absolute;
+        right: 20px;
+        bottom: 20px;
+        padding: 6px 14px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #e9e6dc;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 4px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <div id="hud"></div>
+    <div id="overlay"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
