@@ -372,6 +372,28 @@ const SOLUTIONS = {
     out.exited = R.exited('c19'); out.deaths = R.ev('death'); out.t = tf.chamber.t;
     return out;
   },
+  // Pair across the quarry gap (west wall patches), visit the den, then shoot over the parapet: alcove wall → patch above the turrets; walk the ledge behind them.
+  escape1: () => {
+    const tf = window.twinfold, out = {};
+    R.load('escape1');
+    R.path([[0, -9.6], [-5, -12]]);
+    out.a = R.fire('a', -10, 1.5, -14).ok;
+    out.b = R.fire('b', -10, 1.5, -30).ok;
+    out.tp = R.through(-11, -14);
+    R.wait(() => tf.player.grounded, 2);
+    out.far = R.p();
+    R.path([[-12.5, -35.5], [-6, -35.5], [0, -37], [0, -44], [-4.5, -47], [-4.5, -51.5]]);
+    out.den = R.ev('trigger').some((t) => t.name === 'escape1.den');
+    out.b2 = R.fire('b', -4, 4.75, -70).ok;
+    out.a2 = R.fire('a', -6, 1.5, -51.5).ok;
+    out.tp2 = R.through(-7, -51.5);
+    R.wait(() => tf.player.grounded, 3);
+    out.ledge = R.p();
+    R.path([[3.5, -69], [4, -71.5], [4, -75.4]]);
+    tf.simulate(1);
+    out.exited = R.exited('escape1'); out.deaths = R.ev('death'); out.h = tf.chamber.health; out.fired = ['tA','tB','tC'].map((i) => R.el(i).fired);
+    return out;
+  },
 };
 
 module.exports = { installReplay, SOLUTIONS };
