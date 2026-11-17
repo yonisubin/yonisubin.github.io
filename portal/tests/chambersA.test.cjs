@@ -170,6 +170,36 @@ function installHelpers() {
     tf.hold('forward', false);
     return H.onMover(el);
   };
+  /** Airborne: steer toward (x, z) with air control until landing or a teleport (or time out). */
+  H.airTo = (x, z, seconds = 4) => {
+    const n = P.teleports;
+    // Still on the ground: walk toward the target until the feet leave it.
+    for (let i = 0; i < 120 && P.grounded; i++) {
+      P.rig.yaw = Math.atan2(-(x - P.position.x), -(z - P.position.z));
+      tf.hold('forward', true);
+      tf.simulate(STEP);
+    }
+    for (let i = 0; i < seconds * 60; i++) {
+      if (P.grounded || P.teleports > n) break;
+      // Air control as a velocity servo: wish toward (wanted velocity − current velocity).
+      const ex = x - P.position.x, ez = z - P.position.z;
+      const k = Math.min(1, 4.5 / Math.max(1e-6, 2 * Math.hypot(ex, ez)));
+      const wx = ex * 2 * k - P.velocity.x, wz = ez * 2 * k - P.velocity.z;
+      P.rig.yaw = Math.atan2(-wx, -wz);
+      tf.hold('forward', Math.hypot(wx, wz) > 0.3);
+      tf.simulate(STEP);
+    }
+    tf.hold('forward', false);
+    return P.teleports > n;
+  };
+  /** Look at a pedestal button and press it. */
+  H.press = (id) => {
+    const p = H.el(id).entity.position;
+    H.look([p[0], p[1] + 1.15, p[2]]);
+    tf.use();
+    tf.simulate(0.2);
+    return H.el(id).outputs.pressed;
+  };
   H.exited = () => H.events('exitReached').some((e) => e.chamberId === tf.session.current().id);
   /** Walk into the exit booth and wait for exitReached. */
   H.toExit = () => {
@@ -281,6 +311,21 @@ const SOLUTIONS = {
     H.walkTo(6, -20, { tol: 0.3 }); // off the pillar's north end
     H.carryTo(0, -24);
     H.say(`plate ${H.el('plate').outputs.pressed}`);
+    H.toExit();
+  },
+  c07: (H) => {
+    H.walkTo(0, -3);
+    H.walkTo(-5.5, -9, { tol: 0.2 }); // onto the lift
+    H.waitFor(() => H.el('lift').outputs.top, 8);
+    H.walkTo(-4.5, -13, { tol: 0.3 });
+    H.walkTo(-3.4, -13, { tol: 0.1 }); // the end of the diving board
+    H.shoot('a', [0.5, -3, -13]); // blue on the pit floor
+    H.shoot('b', [0, 0, -18.6]); // amber on the white floor before the shelf
+    H.say(`dove in ${H.airTo(0.5, -13, 4)}`);
+    H.tf.simulate(0.15);
+    H.airTo(0, -23.5, 4); // rising out of amber: steer onto the shelf
+    H.walkTo(0, -23.8, { tol: 0.3 });
+    H.say(`bell ${H.press('bell')}`);
     H.toExit();
   },
 };

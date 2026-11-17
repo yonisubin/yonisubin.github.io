@@ -42,4 +42,12 @@ export const LINES_A: Record<string, Line> = {
   'c06.far.1': { text: 'Arrived. Please note that the case you need is also commuting. It has a better seat than you did.' },
   'c06.pillar.1': { text: 'Wait for it to come to you. The platform keeps to a timetable. It is the only thing here that does.' },
   'c06.exitReached.1': { text: 'Practical Six complete. You have travelled, waited and collected. I have described that in your file as "logistics".' },
+  // --- 07 Conservation: momentum, and the infinite fall -----------------------------------------------
+  'c07.chamberStart.1': { text: 'Practical Seven. Today\'s lesson: what goes into a fold comes out of it at the same speed. The Institute calls this conservation. Accounts calls it the only thing we conserve.' },
+  'c07.chamberStart.2': { text: 'Your heel-dampers are rated for any height. The rating was done by the manufacturer, from a reasonable height.' },
+  'c07.board.1': { text: 'The board is nine metres up. Falling from it takes one point two five seconds. You may spend them however you like.' },
+  'c07.loop.1': { text: 'You have opened a fold above and below the same pit. You are now falling at thirty-eight metres per second, indefinitely. It is a popular choice.' },
+  'c07.loop.2': { text: 'I have started the stopwatch. Your record will be "ongoing". To leave, put one end somewhere else. Or do not. I am in no hurry.' },
+  'c07.shelf.1': { text: 'You fell up a shelf. Physics would like it noted that it was entirely within its rights.' },
+  'c07.exitReached.1': { text: 'Practical Seven complete. Speed in, speed out. You may keep the speed. You may not keep the lift.' },
 };
