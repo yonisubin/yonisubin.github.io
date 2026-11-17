@@ -29,10 +29,12 @@ export const C18: LevelData = {
     // The grill covers x -6..8; a glass pane closes the last 2 m by the west wall.
     box([-8, 0, -17.1], [-6, 6, -16.9], 'glass'),
     ...wall('x', -9, 9, -9, -8, 0, 6, M, [{ at: 0, width: 2.4, height: 3 }]),
-    ...wall('x', -9, 9, -26, -25, 0, 6, M, [{ at: 0, width: 2.4, height: 3 }]),
-    // R2 (as practical 13's pellet room): the wall it shares with R1 is white west of the door.
+    // R1/R2 wall: white west of the door (the pellet's exit end), metal east of it.
+    box([-9, 0, -26], [-1.2, 6, -25], P),
+    box([1.2, 0, -26], [9, 6, -25], M),
+    box([-1.2, 3, -26], [1.2, 6, -25], M),
+    // R2 (as practical 13's pellet room).
     ...room(-8, 8, 0, 6, -42, -26, { walls: { w: P, e: M }, floor: M, skip: ['n', 's'] }),
-    box([-9, 0, -26.01], [-1.2, 6, -25.6], P),
     ...wall('x', -9, 9, -43, -42, 0, 6, M, [{ at: 4, width: 2.4, height: 3 }]),
     // R3: the hall (metal, tall) with a hole for the dais (x -2..2, z -54..-50) and its shaft.
     ...room(-8, 8, 0, 10, -60, -43, { walls: M, skip: ['s', 'floor'] }),

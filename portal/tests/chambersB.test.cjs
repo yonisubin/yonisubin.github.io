@@ -358,6 +358,20 @@ const SOLUTIONS = {
     out.deaths = R.ev('death'); out.p = R.p();
     return out;
   },
+  // Escape the press: one end through the hatch onto the maintenance wall, one on the south patch, walk through, ride the service lift.
+  c19: () => {
+    const tf = window.twinfold, out = {};
+    R.load('c19');
+    out.b = R.fire('b', 0, 6.5, -32).ok;
+    out.a = R.fire('a', 0, 1.5, -2).ok;
+    out.tp = R.through(0, 0);
+    out.after = R.p();
+    R.wait(() => tf.player.grounded, 3);
+    R.path([[0, -28], [3, -27], [5.5, -27]]);
+    tf.simulate(1);
+    out.exited = R.exited('c19'); out.deaths = R.ev('death'); out.t = tf.chamber.t;
+    return out;
+  },
 };
 
 module.exports = { installReplay, SOLUTIONS };
