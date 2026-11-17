@@ -30,4 +30,10 @@ export const LINES_A: Record<string, Line> = {
   'c04.lane.1': { text: 'You are standing in the pellet\'s lane. The lane is marked. I marked it myself, at some expense.' },
   'c04.death.1': { text: 'The pellet completed its errand through you. That is the wrong receptacle. I will file it as a delivery error.' },
   'c04.exitReached.1': { text: 'Errand complete. The pellet has been delivered and the launcher has gone quiet. It is proud. So, in a limited way, am I.' },
+  // --- 05 Both Ends: the full device ------------------------------------------------------------------
+  'c05.chamberStart.1': { text: 'Practical Five. Your device has been upgraded to fire both ends. The amber end is now your responsibility. So is everything it touches.' },
+  'c05.chamberStart.2': { text: 'A tip from the Endowment\'s handbook: decide where you are going before you go into a hole. Most applicants reverse those steps.' },
+  'c05.pit.1': { text: 'You are in the pit. The pit is three metres deep and has no stairs, by design. I hope you planned. I am assuming you planned.' },
+  'c05.shelf.1': { text: 'And out again. Two ends, one decision each. You may find that is the whole curriculum.' },
+  'c05.exitReached.1': { text: 'Practical Five complete. The device is yours now. It is on loan. Everything here is on loan.' },
 };

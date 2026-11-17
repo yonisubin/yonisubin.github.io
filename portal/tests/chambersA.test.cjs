@@ -224,6 +224,21 @@ const SOLUTIONS = {
     H.say(`caught ${H.el('catcher').outputs.caught}`);
     H.toExit();
   },
+  c05: (H) => {
+    H.walkTo(0, -3);
+    H.shoot('b', [4, 5.5, -24]); // amber on the panel above the shelf, seen from the floor
+    H.walkTo(-4, -6.5);
+    H.walkTo(-4, -9.5, { tol: 0.3 }); // drop into the pit
+    H.waitFor(() => H.P.grounded, 3);
+    H.walkTo(-4.5, -11.4, { tol: 0.2 });
+    H.grab('cube1');
+    H.turnToward([-1, -2, -11]); // blue on the pit's east wall
+    H.say(`fire a ${H.tf.fire('a').ok}`);
+    H.through(0, -11); // out onto the shelf
+    H.carryTo(-0.5, -20.5);
+    H.say(`plate ${H.el('plate').outputs.pressed}`);
+    H.toExit();
+  },
 };
 
 run('chambersA', async ({ page }, t) => {
