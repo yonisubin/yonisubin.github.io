@@ -8,6 +8,7 @@
 // and the exit bay north of it. Everything returns plain LevelData pieces (no three.js).
 import type { Brush, Entity, FaceKey, SurfaceTag, Vec3, Wire } from '../level';
 
+
 export const THICK = 0.5;
 /** Centre height of a wall portal standing on the floor (portal height 2.1, plus a hair). */
 export const PORTAL_Y = 1.06;
@@ -160,3 +161,31 @@ export function strip(id: string, path: Vec3[], icon: Vec3, iconYaw: number, kin
 
 /** A ceiling light. */
 export const lamp = (id: string, at: Vec3, intensity = 9, distance = 18): Entity => ({ id, type: 'light', position: at, props: { intensity, distance } });
+
+/**
+ * A floor slab [x0..x1] × [z0..z1] (top `top`, bottom `bottom`) with a full-depth white pad set into
+ * it whose top is `padTop` (it may stand proud of the slab). Apertures need the brush they sit on to
+ * reach ~2.6 m down (their tunnel), so a pad can't be a thin tile on a metal floor.
+ */
+export function padded(x0: number, x1: number, z0: number, z1: number, top: number, bottom: number, pad: { x0: number; x1: number; z0: number; z1: number }, padTop: number): Brush[] {
+  return [
+    metal([x0, bottom, z0], [x1, top, pad.z0]),
+    metal([x0, bottom, pad.z1], [x1, top, z1]),
+    metal([x0, bottom, pad.z0], [pad.x0, top, pad.z1]),
+    metal([pad.x1, bottom, pad.z0], [x1, top, pad.z1]),
+    white([pad.x0, Math.min(bottom, padTop - 3), pad.z0], [pad.x1, padTop, pad.z1], { '-y': 'metal' }),
+  ];
+}
+
+/** Toxic liquid filling [x0..x1] × [z0..z1] (surface y, depth) around a dry rectangle (as four pools). */
+export function liquidAround(id: string, x0: number, x1: number, z0: number, z1: number, surface: number, depth: number, dry: { x0: number; x1: number; z0: number; z1: number }): Entity[] {
+  const boxes: [number, number, number, number][] = [
+    [x0, x1, z0, dry.z0],
+    [x0, x1, dry.z1, z1],
+    [x0, dry.x0, dry.z0, dry.z1],
+    [dry.x1, x1, dry.z0, dry.z1],
+  ];
+  return boxes
+    .filter(([a, b, c, d]) => b - a > 1e-6 && d - c > 1e-6)
+    .map(([a, b, c, d], i) => ({ id: `${id}${i + 1}`, type: 'liquid', position: [(a + b) / 2, surface, (c + d) / 2], props: { size: [b - a, depth, d - c] } }));
+}

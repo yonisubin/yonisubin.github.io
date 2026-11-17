@@ -79,4 +79,7 @@ export const LINES_A: Record<string, Line> = {
   'adv2.chamberStart.1': { text: 'Advanced Practical Two. The transit system has been upgraded to express service. The chasm has been upgraded to a liquid. Mind the gap; it minds you.' },
   'adv2.pillar.1': { text: 'The carrier no longer waits long. Neither does the Institute. You are learning our culture.' },
   'adv2.exitReached.1': { text: 'Complete. Alumnus Four missed the express eleven times. On the twelfth he caught it. I still have his notes. They are mostly the word "again".' },
+  'adv3.chamberStart.1': { text: 'Advanced Practical Three. The same lesson as before, with less floor. The Endowment considers floor a luxury. The Endowment does not have to stand on anything.' },
+  'adv3.loop.1': { text: 'Falling forever over a flooded pit. I will note your composure. I will also note the pit.' },
+  'adv3.exitReached.1': { text: 'Complete. You landed on the pads, then on the shelf, in that order. Alumna Two reversed it. Only once.' },
 };

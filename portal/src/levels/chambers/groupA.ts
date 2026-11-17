@@ -14,8 +14,9 @@ import { C09 } from './c09';
 import { C10 } from './c10';
 import { ADV1 } from './adv1';
 import { ADV2 } from './adv2';
+import { ADV3 } from './adv3';
 
-export const CHAMBERS_A: LevelData[] = [C01, C02, C03, C04, C05, C06, C07, C08, C09, C10, ADV1, ADV2];
+export const CHAMBERS_A: LevelData[] = [C01, C02, C03, C04, C05, C06, C07, C08, C09, C10, ADV1, ADV2, ADV3];
 /**
  * Medal thresholds (a result must be at most the value). Set from the scripted solution replays in
  * tests/chambersA.test.cjs (portals / steps / seconds): gold is a clean run with a small margin,

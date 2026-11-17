@@ -439,6 +439,21 @@ const SOLUTIONS = {
     H.say(`plate ${H.el('plate').outputs.pressed}`);
     H.toExit();
   },
+  adv3: (H) => {
+    H.walkTo(0, -3);
+    H.walkTo(-5.5, -9, { tol: 0.2 }); // onto the lift
+    H.waitFor(() => H.el('lift').outputs.top, 8);
+    H.walkTo(-4.5, -13, { tol: 0.3 });
+    H.walkTo(-3.4, -13, { tol: 0.1 }); // the end of the diving board
+    H.shoot('a', [0.4, -3, -13]); // blue on the pit's only dry pad
+    H.shoot('b', [0, 0, -18.5]); // amber on the pad in the moat
+    H.say(`dove in ${H.airTo(0.2, -13, 4)}`);
+    H.tf.simulate(0.15);
+    H.airTo(0, -23.5, 4); // rising out of amber: steer onto the shelf
+    H.walkTo(0, -23.8, { tol: 0.3 });
+    H.say(`bell ${H.press('bell')}`);
+    H.toExit();
+  },
 };
 
 run('chambersA', async ({ page }, t) => {
