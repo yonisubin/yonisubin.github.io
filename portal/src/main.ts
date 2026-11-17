@@ -3,6 +3,7 @@
 // simulation lives in game/game.ts and is only reached through the GameSession interface.
 //
 // URL switches:  ?autostart  straight into the first chamber (tests)
+//                ?chamber=id straight into a registered chamber (sandbox, fixedroom, testroom)
 //                ?editor     open the puzzle maker
 //                ?unlockall  challenges / advanced / every chapter open (dev)
 //                #play=…     a shared chamber (puzzle maker share link)

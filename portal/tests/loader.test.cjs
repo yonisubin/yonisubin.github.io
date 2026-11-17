@@ -19,6 +19,10 @@ run('loader', async ({ page }, t) => {
     out.far = v({ name: 'x', spawn: { position: [0, 0, 1e9], yaw: 0 }, brushes: [{ min: [0, 0, 0], max: [1, 1, 1], tag: 'metal' }] });
     out.badWire = v({ name: 'x', spawn: { position: [0, 0, 0], yaw: 0 }, brushes: [{ min: [0, -1, 0], max: [1, 0, 1], tag: 'metal' }], entities: [{ id: 'b', type: 'floorButton', position: [0, 0, 0] }], wiring: [{ from: 'b', to: 'door.open' }] });
     out.registry = { first: s.chambers.firstChamber(), test: !!s.chambers.getChamber('testroom'), next: s.chambers.nextChamber('testroom'), campaign: s.chambers.CAMPAIGN.length };
+    out.rooms = ['sandbox', 'fixedroom'].map((id) => {
+      const l = s.chambers.getChamber(id);
+      return !!l && s.validateLevel(JSON.parse(JSON.stringify(l))).errors.length === 0;
+    });
     // export → import is stable
     const json = s.exportLevelJSON(window.twinfold.level);
     out.stable = s.exportLevelJSON(s.importLevelJSON(json)) === json;
@@ -38,4 +42,11 @@ run('loader', async ({ page }, t) => {
   t.ok('malformed wires explain the expected form', !r.badWire.level && r.badWire.errors.some((e) => e.includes('"entityId.port"')), r.badWire.errors.join(' | '));
   t.ok('registry: test room registered, New Game starts there until wave 2', r.registry.test && r.registry.first === 'testroom' && r.registry.next === null && r.registry.campaign === 0, JSON.stringify(r.registry));
   t.ok('export → import → export is stable', r.stable);
+  t.ok('the sandbox and fixed room are registered and valid', r.rooms[0] && r.rooms[1], JSON.stringify(r.rooms));
+
+  // ?chamber=<id> starts the shell straight in a registered chamber.
+  await page.goto(page.url().split('?')[0] + '?chamber=sandbox');
+  await page.waitForFunction(() => window.twinfoldShell && window.twinfoldShell.ready, null, { timeout: 120000 });
+  const direct = await page.evaluate(() => ({ state: window.twinfoldShell.app.state, id: window.twinfoldShell.session.current().id, overlay: getComputedStyle(document.getElementById('overlay')).display }));
+  t.ok('?chamber=sandbox plays the sandbox', direct.state === 'game' && direct.id === 'sandbox' && direct.overlay === 'none', JSON.stringify(direct));
 });

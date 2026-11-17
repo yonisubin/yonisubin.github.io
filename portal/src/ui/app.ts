@@ -114,7 +114,11 @@ export class App {
     requestAnimationFrame((t) => this.frame(t));
 
     const shared = sharedData(hash);
-    if (params.has('autostart')) this.startLevel(getChamber(firstChamber())!, { kind: 'campaign' }, false);
+    // ?chamber=<id> starts straight in that chamber (sandbox, fixedroom...), ?autostart in the first.
+    const direct = params.get('chamber');
+    const directLevel = direct ? getChamber(direct) : null;
+    if (directLevel) this.startLevel(directLevel, { kind: 'campaign' }, false);
+    else if (params.has('autostart')) this.startLevel(getChamber(firstChamber())!, { kind: 'campaign' }, false);
     else if (shared) await this.openShared(shared);
     else if (params.has('editor')) await this.openEditor();
     else this.toMainMenu();

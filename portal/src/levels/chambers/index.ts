@@ -3,6 +3,7 @@
 // listed in CAMPAIGN / ADVANCED). The shell (menus, saves, chapter select, challenges) reads only this.
 import type { LevelData } from '../level';
 import { TEST_ROOM } from '../testRoom';
+import { FIXED_ROOM, SANDBOX } from '../sandbox';
 
 /** Every known chamber, by id. */
 const REGISTRY = new Map<string, LevelData>();
@@ -13,6 +14,9 @@ export function registerChamber(level: LevelData): void {
 }
 
 registerChamber(TEST_ROOM);
+// The gray-box element rooms (until the chambers exist, chapter select lists every registered chamber).
+registerChamber(SANDBOX);
+registerChamber(FIXED_ROOM);
 
 /** The story campaign in order (chamber ids). Empty until wave 2 builds chambers; until then New
  *  Game plays the gray-box test room. */
