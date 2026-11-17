@@ -2,6 +2,7 @@
 // next to this one, imported here). Medal thresholds for A's challenge chambers go in CHALLENGES_A.
 import type { LevelData } from '../level';
 import type { ChallengeTable } from './types';
+import { C01 } from './c01';
 
-export const CHAMBERS_A: LevelData[] = [];
+export const CHAMBERS_A: LevelData[] = [C01];
 export const CHALLENGES_A: ChallengeTable = {};
