@@ -163,7 +163,6 @@ export class App {
     this.lastFrame = now;
     this.dialogue.update(dt);
     this.hud.update(dt);
-    this.touch.update();
     if (this.commentaryLeft >= 0) {
       this.commentaryLeft -= dt;
       if (this.commentaryLeft < 0 && !this.dialogue.speaking) this.hud.showSubtitle(null);
@@ -181,6 +180,8 @@ export class App {
       const label = { portals: 'Openings', steps: 'Steps', time: 'Time' }[this.run.mode];
       this.hud.setChallenge(`${label} challenge   ⏱ ${formatTime(c.time)}   ◐ ${c.portals}   👣 ${c.steps}`);
     }
+    // After pause / resume above, so the on-screen controls follow in the same frame.
+    this.touch.update();
     requestAnimationFrame((t) => this.frame(t));
   }
 

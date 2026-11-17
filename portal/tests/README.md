@@ -10,6 +10,8 @@ test room, which the movement / placement / travel... checks are written against
 `{ query }` (e.g. `'?autostart'` for the campaign's first chamber, `''` for the main menu, `'?editor'`,
 `'#play=…'`, `'?chamber=sandbox'`);
 it waits for `window.twinfold.ready` and `window.twinfoldShell.ready`, and allows audio without a click.
+`openGame` / `run` also take `viewport`, `hasTouch`, `isMobile`, `deviceScaleFactor` (phone contexts) and `init`
+(a script run before the page loads, e.g. to seed localStorage); the default stays a 640×400 desktop.
 
 ```bash
 npm run build:portal                  # the tests run against portal/dist
@@ -42,5 +44,6 @@ Playwright is not a dependency; install it once if needed:
 | `audio.test.cjs` | sfx names (and fallback), footsteps by surface without doubles, carry hum, volumes, music modes, tension, stingers, ducking |
 | `loader.test.cjs` | validation errors, fix-ups with warnings, registry (test room, sandbox, fixed room), stable export, `?chamber=sandbox` starts in the sandbox |
 | `input.test.cjs` | simulated gamepad (stick move / look, A, RT edge), toggle crouch (option → player, pressing C), menus disable gameplay keys, F5 kept from the browser |
+| `mobile.test.cjs` | phone contexts (`hasTouch`, `isMobile`, 844×390 / 390×844): touch detected and `?desktop` / `?touch` overrides; first-run touch defaults (depth 3, scale 0.75, 60 fps, pixel ratio 1.5) vs stored options; no pointer-lock request; ≥ 44 px menu targets; tapping through menus, New Game; joystick full (4.5 m/s) vs half deflection; look drag while the stick is held (multi-touch); BLUE / AMBER place openings; JUMP, CROUCH, USE (lit by prompts), pause → resume; portrait hint and dismissal; puzzle maker blocked on a phone but a share link plays; no horizontal overflow on menu / options / pause; desktop unchanged (pointer lock on New Game, no controls) |
 | `chambersA.test.cjs` | workstream A's chambers c01–c10 and adv1–adv6: each passes the loader with no errors or warnings, its `next` exists (c10 → c11, adv6 ends the set), its dialogue lines exist, it has the anatomy (entry booth, sign, exit door, exit booth); every chamber draws under 160 calls per view and has wear decals; the industrial theme dims the lights; a scripted solution replay per chamber (walk, jump, aim, fire, carry, ride, dive, fling through `window.twinfold`) reaches `exitReached`, earning silver or better where medals are set. `CHAMBERS=c05,c07` limits the replays, `VERBOSE=1` prints their logs |
 | `chambersB.test.cjs` | workstream B's chambers: every one loads with no loader errors, `next` chains c11 → … → c19 → escape1 → escape2 → finale, every dialogue hook names a line, chapter titles, medals; commentary nodes only with the option on; a scripted solution replay per chamber (held movement, aim, fire, use, crouched shaft drops, carrying through openings) that reaches the exit; the finale's three redirected rockets, shifting panels, disposals, `defeated`, then the ending lines, credits and story-complete |
