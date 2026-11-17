@@ -126,6 +126,15 @@ The rest of the game is built by two workstreams in parallel. They share only th
 
 Tests: each workstream adds its own `portal/tests/*.test.cjs` files (A: `props`, `elements`, `hazards`, `turrets`…; B: `menus`, `options`, `saves`, `dialogue`, `editor`…).
 
+### Wave 2 ownership (content)
+
+| Workstream | Owns (in addition to its wave-1 folders) |
+|---|---|
+| **A** | chambers `c01`–`c10` and `adv1`–`adv6` as files in `levels/chambers/` imported by `levels/chambers/groupA.ts` (+ `CHALLENGES_A`); their lines in `dialogue/linesA.ts`; the `industrial` theme and the phase-14 visual pass (lighting, decals, glossy floors, performance) in `render/`; `tests/chambersA.test.cjs` (a scripted solution replay per chamber) |
+| **B** | chambers `c11`–`c19`, `escape1`, `escape2`, `finale` as files imported by `levels/chambers/groupB.ts` (+ `CHALLENGES_B`, `CHAPTER_TITLES`); their lines in `dialogue/linesB.ts`; `elements/boss.ts` and any NEW element files it needs for the story (registered by appending to `elements/registry.ts`); ending + credits in `ui/`; `tests/chambersB.test.cjs` (solution replays) |
+
+`levels/chambers/index.ts` (campaign ids, chapters) and `dialogue/lines.ts` are integrator-owned; they already merge both groups.
+
 ## Status
 
 Phases 1–4 of the plan at the end of the spec are built, in the gray-box test room (`levels/testRoom.ts`):

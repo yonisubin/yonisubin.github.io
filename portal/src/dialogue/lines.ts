@@ -11,9 +11,12 @@ export interface Line {
   speaker?: string;
 }
 
+import { LINES_A } from './linesA';
+import { LINES_B } from './linesB';
+
 export const OVERSEER = 'The Provost';
 
-export const LINES: Record<string, Line> = {
+const BASE_LINES: Record<string, Line> = {
   // --- Chamber entry ---------------------------------------------------------------------------
   'chamberStart.helpful.1': { text: 'Good morning, Applicant. This practical has been cleaned, measured and approved. Please do the same.' },
   'chamberStart.helpful.2': { text: 'Welcome to the next practical. Everything in this room is a learning opportunity, including the floor.' },
@@ -66,6 +69,9 @@ export const LINES: Record<string, Line> = {
   'milestone.firstFling.1': { text: 'Momentum is preserved through the Fold. So is dignity, in most cases.', priority: 2 },
   'milestone.story.1': { text: 'You have finished the curriculum. There is no ceremony. I am told that is what graduation feels like.', priority: 6 },
 };
+
+/** Every line: the generic pools plus each workstream's per-chamber lines. */
+export const LINES: Record<string, Line> = { ...BASE_LINES, ...LINES_A, ...LINES_B };
 
 /** Ids in a pool, in order. */
 export function poolIds(pool: string): string[] {
