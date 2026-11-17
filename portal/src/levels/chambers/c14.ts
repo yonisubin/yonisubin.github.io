@@ -1,7 +1,7 @@
 // Practical 14 — "Momentum". Combination: a fling, then a turret.
 //
 //   You enter on a ledge (y 0) behind a glass rail, above a hall whose floor is 4 m lower (y -4)
-//   and mostly a pool of correction fluid. In the ledge floor is a narrow shaft (2 × 2.6 m, 10 m deep), with a
+//   and mostly a pool of correction fluid. In the ledge floor is a narrow shaft (2 × 4 m, 10 m deep), with a
 //   white bottom. The hall's east wall is white. Put one end at the bottom of the shaft and the
 //   other high on the east wall, then drop down the shaft: you leave the wall at ~15 m/s, sail
 //   west over the pool and land on the dry strip by the west wall.
@@ -29,12 +29,12 @@ export const C14: LevelData = {
     box([8, -11, -41], [9, 8, -8], P),
     ...wall('x', -13, 9, -41, -40, -4, 8, M, [{ at: -8, width: 2.4, height: 3 }]),
     box([-13, 8, -41], [9, 9, -8], M),
-    // The ledge (y 0) with the shaft (x -1..1, z -13.6..-11, bottom y -10).
+    // The ledge (y 0) with the shaft (x -1..1, z -15..-11, bottom y -10).
     box([-12, -11, -15], [-1, 0, -9], M, { '+y': P }),
     box([1, -11, -15], [8, 0, -9], M, { '+y': P }),
     box([-1, -11, -11], [1, 0, -9], M, { '+y': P }),
-    box([-1, -11, -15.2], [1, 0, -13.6], M),
-    box([-1, -11, -13.6], [1, -10, -11], P),
+    box([-1, -11, -15.2], [1, 0, -15], M),
+    box([-1, -11, -15], [1, -10, -11], P),
     // Glass rail along the ledge edge (too tall to jump, low enough to shoot over).
     box([-12, 0, -15.2], [8, 1.6, -15], G),
     // The hall floor (y -4): dry strip x -12..-4, the pool basin x -4..8 for z -15..-26.
@@ -62,7 +62,7 @@ export const C14: LevelData = {
   ],
   triggers: [
     { id: 'tLanded', min: [-12, -4, -28], max: [-4, -1, -15], event: 'c14.landed', once: true },
-    { id: 'tShaft', min: [-1, -9, -13.6], max: [1, -1, -11], event: 'c14.shaft', once: true },
+    { id: 'tShaft', min: [-1, -9, -15], max: [1, -1, -11], event: 'c14.shaft', once: true },
   ],
   checkpoints: [{ id: 'c14cp', min: [-12, -4, -28], max: [-4, -1, -15], spawn: { position: [-8, -4, -20], yaw: 0 } }],
   dialogue: [

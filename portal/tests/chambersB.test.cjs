@@ -82,6 +82,21 @@ function installReplay() {
     tf.simulate(o.after ?? 0.3);
     return R.ev('teleport').length > n0;
   };
+  /** Step into a drop shaft whose edge is at z = zEdge (walking -Z), crouched so the fall is nearly
+   *  straight; returns the teleport the fall ends in (or null). */
+  R.dropShaft = (zEdge) => {
+    const n0 = R.ev('teleport').length;
+    tf.aim(0, 0);
+    tf.hold('crouch', true);
+    for (let i = 0; i < 240 && tf.player.position.z > zEdge - 0.4; i++) {
+      tf.hold('forward', true);
+      tf.simulate(1 / 60);
+    }
+    tf.hold('forward', false);
+    R.wait(() => R.ev('teleport').length > n0, 4);
+    tf.hold('crouch', false);
+    return R.ev('teleport').length > n0 ? R.ev('teleport').slice(-1)[0] : null;
+  };
   R.path = (pts, o) => pts.map(([x, z]) => R.walk(x, z, o)).pop();
   /** Fire an end at a world point (from the eye). */
   R.fire = (id, x, y, z) => {
@@ -210,20 +225,17 @@ const SOLUTIONS = {
     out.exited = R.exited('c13'); out.deaths = R.ev('death');
     return out;
   },
-  // Fling: shaft bottom + high on the east wall, drop in, land past the pool behind the turret; turn it to the wall.
+  // Fling: east wall high + shaft bottom, crouch into the shaft, land behind the turret; turn it to the wall.
   c14: () => {
     const tf = window.twinfold, out = {};
     R.load('c14');
     R.walk(2, -14);
     out.b = R.fire('b', 8, 2.5, -20);
-    R.walk(0, -10.75, {tol: 0.03}); out.rim = R.p();
+    R.path([[0, -9.8], [0, -10.7]], { tol: 0.04 });
     out.a = R.fire('a', 0, -10, -13.5);
-    R.face(0, 0);
-    const n0 = R.ev('teleport').length;
-    tf.hold('forward', true); tf.simulate(0.4); tf.hold('forward', false);
-    out.fell = R.wait(() => R.ev('teleport').length > n0, 4);
-    out.tpEv = R.ev('teleport').slice(-1)[0];
-    R.wait(() => tf.player.grounded, 4); tf.simulate(0.3);
+    out.fling = R.dropShaft(-11);
+    R.wait(() => tf.player.grounded, 4);
+    tf.simulate(0.3);
     out.landed = R.p(); out.dead = R.dead();
     R.walk(-8, -29.9);
     out.grab = R.grab('tur');
@@ -264,6 +276,26 @@ const SOLUTIONS = {
     R.path([[-2.75, -42], [-2.75, -48.6]]);
     tf.simulate(1);
     out.exited = R.exited('c15'); out.deaths = R.ev('death'); out.h = tf.chamber.health;
+    return out;
+  },
+  // Timer + fling: both ends first, press, crouch into the shaft, land on the strip, run for the door.
+  c16: () => {
+    const tf = window.twinfold, out = {};
+    R.load('c16');
+    R.walk(2, -14);
+    out.b = R.fire('b', 8, 2.5, -20).ok;
+    R.walk(5, -11.2);
+    R.press('ped');
+    const t0 = tf.chamber.t;
+    R.path([[0, -9.8], [0, -10.7]], { tol: 0.04 });
+    out.a = R.fire('a', 0, -10, -14).ok;
+    out.fling = R.dropShaft(-11);
+    R.wait(() => tf.player.grounded, 4);
+    out.landed = R.p();
+    R.path([[-11, -27], [-11, -34.4]]);
+    out.elapsed = tf.chamber.t - t0;
+    tf.simulate(1);
+    out.exited = R.exited('c16'); out.deaths = R.ev('death');
     return out;
   },
 };

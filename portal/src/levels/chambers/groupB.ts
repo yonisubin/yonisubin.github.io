@@ -7,8 +7,9 @@ import { C12 } from './c12';
 import { C13 } from './c13';
 import { C14 } from './c14';
 import { C15 } from './c15';
+import { C16 } from './c16';
 
-export const CHAMBERS_B: LevelData[] = [C11, C12, C13, C14, C15];
+export const CHAMBERS_B: LevelData[] = [C11, C12, C13, C14, C15, C16];
 export const CHALLENGES_B: ChallengeTable = {};
 /** Titles of the six chapters (see CHAPTER_IDS in index.ts). Original names. */
 export const CHAPTER_TITLES: string[] = ['Orientation Week', 'Lectures in Falling', 'Office Hours', 'Midterms', 'Commencement', 'Expulsion'];
