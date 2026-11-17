@@ -76,4 +76,7 @@ export const LINES_A: Record<string, Line> = {
   'adv1.chamberStart.1': { text: 'Advanced Practical One. It is Practical Five, with the helpful parts removed and a solution added to the pit. Not that kind of solution.' },
   'adv1.island.1': { text: 'Gently done. Alumna Nine ran. We named the island after her. Informally. On a small plaque. Underneath.' },
   'adv1.exitReached.1': { text: 'Complete. The pit has been returned to its original condition, which is flooded. Thank you for not adding to it.' },
+  'adv2.chamberStart.1': { text: 'Advanced Practical Two. The transit system has been upgraded to express service. The chasm has been upgraded to a liquid. Mind the gap; it minds you.' },
+  'adv2.pillar.1': { text: 'The carrier no longer waits long. Neither does the Institute. You are learning our culture.' },
+  'adv2.exitReached.1': { text: 'Complete. Alumnus Four missed the express eleven times. On the twelfth he caught it. I still have his notes. They are mostly the word "again".' },
 };

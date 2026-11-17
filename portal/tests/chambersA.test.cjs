@@ -417,6 +417,28 @@ const SOLUTIONS = {
     H.say(`plate ${H.el('plate').outputs.pressed}`);
     H.toExit();
   },
+  adv2: (H) => {
+    const S = H.el('shuttle'), C = H.el('carrier');
+    const sz = () => S.current().z;
+    H.walkTo(0, -5.4);
+    // Let the shuttle go and come back, then step on as it arrives.
+    H.waitFor(() => sz() < -15, 20);
+    H.waitFor(() => sz() > -7.6, 20);
+    H.say(`boarded ${H.board(S)}`);
+    H.waitFor(() => sz() < -15.2, 10);
+    H.walkTo(0, -20, { tol: 0.3 }); // walk off at the far side
+    H.shoot('a', [-8, 1.15, -24]); // far side: the one-aperture west panel
+    H.shoot('b', [8, 5, -13.5]); // panel above the pillar
+    H.through(-9, -24);
+    H.walkTo(4.6, -12.5, { tol: 0.2 });
+    H.waitFor(() => C.current().x > 2.7, 20); // the carrier stops by the pillar
+    H.grab('cube1');
+    H.walkTo(6, -16.5, { tol: 0.3 });
+    H.walkTo(6, -20, { tol: 0.3 }); // off the pillar's north end
+    H.carryTo(0, -24);
+    H.say(`plate ${H.el('plate').outputs.pressed}`);
+    H.toExit();
+  },
 };
 
 run('chambersA', async ({ page }, t) => {
