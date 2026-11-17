@@ -5,7 +5,8 @@ const { chromium } = require('playwright');
 const URL = process.env.PORTAL_URL || 'http://localhost:4175/portal/';
 
 async function openGame(options = {}) {
-  const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  // Audio may start without a click (the shell's music / voice checks need a running AudioContext).
+  const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
   try {
     const context = await browser.newContext({ viewport: options.viewport ?? { width: 640, height: 400 } });
     const page = await context.newPage();
@@ -14,8 +15,11 @@ async function openGame(options = {}) {
     page.on('console', (m) => {
       if (m.type() === 'error') errors.push(m.text());
     });
-    await page.goto(URL);
+    // By default the game starts straight in the first chamber (?autostart skips the main menu).
+    // Pass { query: '' } (or another query / hash) to test the shell from the menu.
+    await page.goto(URL + (options.query ?? '?autostart'));
     await page.waitForFunction(() => window.twinfold && window.twinfold.ready, null, { timeout: 120000 });
+    if (options.shell !== false) await page.waitForFunction(() => window.twinfoldShell && window.twinfoldShell.ready, null, { timeout: 60000 });
     return { browser, page, errors };
   } catch (e) {
     await browser.close();
@@ -46,7 +50,7 @@ class Checks {
   }
 }
 
-async function run(name, body, options) {
+async function run(name, body, options = {}) {
   const checks = new Checks(name);
   let game;
   try {

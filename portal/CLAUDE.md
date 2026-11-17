@@ -69,6 +69,28 @@ portal/src/
   game/session.ts     # the GameSession implementation (load / restart / respawn / snapshot / restore / settings)
   game/game.ts        # renderer + fixed-step loop, startGame() → { session, events, ... }, window.twinfold
   main.ts             # app shell: starts the game, overlay / menus, pointer lock
+  --- shell (workstream B) ---
+  main.ts             # starts the game, builds the App; URL switches ?autostart ?editor ?unlockall #play=…;
+                      # window.twinfoldShell for tests
+  core/shellConfig.ts # every tunable number of the shell (dialogue timing, music, HUD, editor grid...)
+  input/input.ts      # also: rebindable bindings (twinfold:bindings), pause / quicksave / quickload actions,
+                      # gamepad (standard mapping, no aim assist), toggle crouch, enabled flag for menus
+  levels/loader.ts    # validate + normalise LevelData v2 (errors vs fixed-up warnings), JSON import / export
+  levels/chambers/    # registry: chambers by id, CAMPAIGN / ADVANCED / CHAPTERS, CHALLENGES medal table
+  ui/app.ts           # the shell state machine (menu / game / paused / elevator / editor / testplay) and wiring
+  ui/devSession.ts    # DEV ADAPTER: a GameSession over window.twinfold until the real one exists
+  ui/menu.ts          # main menu, pause menu and every screen (#overlay); ui/optionsMenu.ts the options tabs
+  ui/options.ts       # options model, twinfold:options, palettes, → SessionSettings
+  ui/shellHud.ts      # prompt, damage vignette, subtitles, captions, challenge timer, chamber card, toasts
+  ui/background.ts    # animated 3D menu background; ui/logo.ts the wordmark (SVG); ui/dom.ts helpers
+  dialogue/           # manager.ts (queue, priorities, interrupts, ducking, hooks), voice.ts (Web Audio
+                      # speech babble), lines.ts (line ids), character.md (the Provost and the world)
+  save/               # db.ts (IndexedDB `twinfold`), saves.ts (slots, autosave, quicksave, progress),
+                      # leaderboard.ts (medals, local boards)
+  audio/sound.ts      # synthesised sfx catalogue (+ fallback), footsteps by surface, buses, ducking, hum
+  audio/music.ts      # adaptive music (menu / chamber + tension / elevator, stingers); director.ts: events → audio
+  editor/             # puzzle maker: editor.ts (UI, tools, inspector), doc.ts (level + undo), view.ts
+                      # (three.js preview, picking), catalog.ts (entity palette, ports), drafts.ts, share.ts
   core/events.ts      # event bus (contract)
   core/session.ts     # GameSession interface (contract)
   elements/element.ts # Element interface (contract)
@@ -120,7 +142,17 @@ Phases 5–7 (workstream A), exercised in `levels/sandbox.ts`:
 6. Elements implement `Element` (`elements/`), wired by `logic/wiring.ts` (AND of several wires; `gate` for or/not/timer); triggers and checkpoints; entry/exit elevators (`exitReached` → 3 s ride → `elevatorDone`); fixed portals and `level.device`; moving surfaces close portals and refuse shots. `GameSession` is `game/session.ts`; `startGame()` returns `{ input, sound, canvas, session, events }`. Counters (portals, footsteps, time), autosave at chamber start and checkpoints, snapshot/restore round-trips exactly (chamber-wide state rides in `entities['#chamber']`; runtime boss parts are recreated by their core). Settings: fov, sensitivity (rad/px if < 0.05, else a multiplier), invertY, renderScale, recursionDepth, portalColors, reduceRoll, reduceFlashing, highContrastHazards (liquid), assist (slow motion when flung, wider nudge), toggleCrouch.
 7. Pellets (bounce, portals, kill, expire/respawn) and catchers; grills; toxic liquid; bottomless pits (below the lowest brush − 8 m); crushers; turrets (idle / active / searching / tipped / dissolved / destroyed, 60° cone, laser sight, 4–10 damage bullets, carried-from-behind = no fire, original barks as `sfx` captions); rocket turret (homing-ish, through portals); health with regeneration; death → last autosave in 1.2 s; `bossCore` / `disposal` stubs emitting `boss` events.
 
-Not built yet: the level editor and chambers (8+), dialogue and the AI overseer, menus, saves, challenges (workstream B), shooting portals through portals, portals that ride moving surfaces, the P2-style elements. Restart key: R.
+Not built yet: the chambers (8+), escape levels and boss fight, shooting portals through portals, portals that ride moving surfaces, the P2-style elements. Restart key: R.
+
+**Shell (workstream B)**, built against the `GameSession` contract (`ui/devSession.ts` is only a fallback; the real session comes from `startGame()`):
+
+- Main menu over an animated 3D background (New Game, Continue, Load Game, Chapter Select, Challenges, Advanced Chambers, Extras → puzzle maker / commentary toggle / credits, Options, Quit → title card); pause menu on Esc (Resume, Save, Load, Options, Restart chamber, Quit to menu); HUD from events (use prompt, damage vignette, subtitles, captions, challenge timer, chamber-complete card); original logo.
+- Options in `twinfold:options` (video, audio, controls with key rebinding and gamepad, gameplay, accessibility with 5 opening palettes), pushed via `session.applySettings`.
+- Saves in IndexedDB `twinfold`: 6 slots + autosave (on `autosave`) + quicksave/quickload (F5/F9), campaign progress (finishing the story unlocks challenges and advanced chambers).
+- Dialogue manager + synthesised overseer voice; the AI overseer **the Provost** of the Hollowmere Kinematics Institute (`dialogue/character.md`), generic lines in `dialogue/lines.ts`.
+- Challenges (least openings / steps / time, medals from `levels/chambers` `CHALLENGES`, local leaderboards).
+- Audio: named sfx for `sfx` events, footsteps by surface, carry hum, adaptive music, elevator music, room tone, buses with ducking.
+- Puzzle maker (`?editor` or Extras): 0.5 m grid brushes, face tags, every entity type, wiring, triggers, checkpoints, dialogue hooks, spawn, level info, undo/redo, drafts, JSON import/export, share links (`#play=…`), test-play with Esc back.
 
 ---
 
