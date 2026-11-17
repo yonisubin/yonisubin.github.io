@@ -39,12 +39,27 @@ function installReplay() {
   R.walk = (x, z, o = {}) => {
     const tol = o.tol ?? 0.15, pitch = o.pitch ?? 0, max = o.max ?? 20;
     let d = Infinity;
+    // Carrying something: turn toward the target first, then steer gently (a sudden turn would
+    // swing the hold point too far and drop it).
+    const holding = !!tf.chamber.heldId();
+    if (holding) {
+      const p = tf.player.position;
+      const want = Math.atan2(-(x - p.x), -(z - p.z));
+      const dy = Math.abs(Math.atan2(Math.sin(want - tf.player.rig.yaw), Math.cos(want - tf.player.rig.yaw)));
+      if (dy > 0.1 || Math.abs(pitch - tf.player.rig.pitch) > 0.1) R.turn(want, pitch, Math.max(0.1, dy * 0.25));
+    }
     for (let i = 0; i < max * 60; i++) {
       const p = tf.player.position;
       const dx = x - p.x, dz = z - p.z;
       d = Math.hypot(dx, dz);
       if (d < tol || tf.chamber.dead) break;
-      tf.aim(Math.atan2(-dx, -dz), pitch);
+      let yaw = Math.atan2(-dx, -dz);
+      if (holding) {
+        const y0 = tf.player.rig.yaw;
+        const dy = Math.atan2(Math.sin(yaw - y0), Math.cos(yaw - y0));
+        yaw = y0 + Math.max(-0.05, Math.min(0.05, dy));
+      }
+      tf.aim(yaw, pitch);
       tf.hold('forward', true);
       if (o.jump) tf.hold('jump', true);
       tf.simulate(1 / 60);
@@ -221,6 +236,34 @@ const SOLUTIONS = {
     R.path([[-8, -38], [-8, -45.4]]);
     tf.simulate(1);
     out.exited = R.exited('c14'); out.deaths = R.ev('death'); out.h = tf.chamber.health;
+    return out;
+  },
+  // Pellet floor → west wall into the receptacle; carry the cube through near wall → pillar; plate from the side.
+  c15: () => {
+    const tf = window.twinfold, out = {};
+    R.load('c15');
+    R.walk(2, -14.5);
+    out.a = R.fire('a', -5, 0, -12).ok;
+    out.b = R.fire('b', -8, 1.5, -12).ok;
+    out.caught = R.wait(() => R.el('catcher').outputs.caught, 15);
+    tf.simulate(1.5);
+    out.shutter = R.el('shutter').isOpen();
+    R.walk(4, -11.3);
+    out.grab = R.grab('cube1');
+    R.walk(2, -16, { pitch: -0.2 });
+    out.a2 = R.fire('a', -8, 1.5, -14).ok;
+    out.b2 = R.fire('b', -3, 1.3, -35.5).ok;
+    R.walk(-5, -14, { pitch: -0.2 });
+    out.tp = R.through(-9, -14, { pitch: -0.2 });
+    out.far = [R.p(), tf.chamber.heldId()];
+    R.path([[-5, -34], [-5, -40.6], [-1.3, -40.6]], { pitch: -0.2 });
+    R.turn(-Math.PI / 2, -0.2, 0.3);
+    R.drop(); tf.simulate(1.5);
+    out.plate = R.el('plate').outputs.pressed;
+    out.fired = R.el('tur').fired;
+    R.path([[-2.75, -42], [-2.75, -48.6]]);
+    tf.simulate(1);
+    out.exited = R.exited('c15'); out.deaths = R.ev('death'); out.h = tf.chamber.health;
     return out;
   },
 };
