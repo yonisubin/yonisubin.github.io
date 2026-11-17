@@ -139,6 +139,15 @@ export class Player {
     return true;
   };
 
+  /** Remember what the feet stand on (riding movers, footstep surfaces, lifts). */
+  private setGround(c: RAPIER.Collider): void {
+    const info = this.physics.infoOf(c);
+    this.groundHandle = c.handle;
+    this.groundMover = info?.kind === 'solid' ? info.mover ?? null : null;
+    this.groundSurface =
+      info?.kind === 'brush' ? ({ portalable: 'panel', metal: 'metal', glass: 'glass' } as const)[faceTag(info.brush, '+y')] : info?.kind === 'solid' ? 'metal' : 'other';
+  }
+
   /** Restore the view and crouch state exactly (saves). */
   setView(yaw: number, pitch: number): void {
     this.rig.reset(yaw);
@@ -255,12 +264,7 @@ export class Player {
         if (!h || !h.collider) continue;
         const info = this.physics.infoOf(h.collider);
         // A contact under the bottom hemisphere is the ground: remember what it is.
-        if (h.witness1.y < feet - P.radius * 0.5) {
-          this.groundHandle = h.collider.handle;
-          this.groundMover = info?.kind === 'solid' ? info.mover ?? null : null;
-          this.groundSurface =
-            info?.kind === 'brush' ? ({ portalable: 'panel', metal: 'metal', glass: 'glass' } as const)[faceTag(info.brush, '+y')] : info?.kind === 'solid' ? 'metal' : 'other';
-        }
+        if (h.witness1.y < feet - P.radius * 0.5) this.setGround(h.collider);
         const kind = !info ? '?' : info.kind === 'brush' ? `brush${info.index}` : info.kind === 'tunnel' ? `tunnel-${info.portal}` : info.kind;
         this.lastHits.push({ kind, normal: [h.normal1.x, h.normal1.y, h.normal1.z] });
       }
@@ -273,6 +277,13 @@ export class Player {
       }
     }
     this.position.add(moved);
+    // Standing still, the KCC may report no ground contact (the skin gap absorbs the tiny gravity
+    // step), so also probe straight down from the capsule centre.
+    if (this.grounded && !this.noclip) {
+      const reach = this.halfSeg + P.radius + 0.12;
+      const hit = this.physics.world.castRay(new RAPIER.Ray(this.position, { x: 0, y: -1, z: 0 }), reach, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, this.collider, undefined, this.filter);
+      if (hit) this.setGround(hit.collider);
+    }
     this.lastDesired.copy(desired);
     this.lastMoved.copy(moved);
 
