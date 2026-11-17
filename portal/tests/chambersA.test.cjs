@@ -32,6 +32,28 @@ function installHelpers() {
     P.rig.yaw = Math.atan2(-dx, -dz);
     P.rig.pitch = Math.atan2(dy, Math.hypot(dx, dz));
   };
+  /** Turn the view toward a yaw (and pitch) at a human rate: a held prop can't keep up with a snap. */
+  const TURN = 0.09;
+  const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+  H.steer = (yaw, pitch) => {
+    const d = wrap(yaw - P.rig.yaw);
+    P.rig.yaw += Math.max(-TURN, Math.min(TURN, d));
+    if (pitch !== undefined) P.rig.pitch += Math.max(-TURN, Math.min(TURN, pitch - P.rig.pitch));
+    return Math.abs(d);
+  };
+  H.turn = (yaw, pitch) => {
+    for (let i = 0; i < 120; i++) {
+      const d = H.steer(yaw, pitch);
+      if (d < 1e-3 && (pitch === undefined || Math.abs(pitch - P.rig.pitch) < 1e-3)) break;
+      tf.simulate(STEP);
+    }
+  };
+  /** Turn smoothly to look at a point (use while carrying). */
+  H.turnToward = (t) => {
+    const e = P.eye();
+    const dx = t[0] - e.x, dy = t[1] - e.y, dz = t[2] - e.z;
+    H.turn(Math.atan2(-dx, -dz), Math.atan2(dy, Math.hypot(dx, dz)));
+  };
   H.release = () => ['forward', 'back', 'left', 'right', 'jump', 'crouch'].forEach((a) => tf.hold(a, false));
   /** Walk (steering every step) until the feet are within tol of (x, z). opts.until(): stop early. */
   H.walkTo = (x, z, opts = {}) => {
@@ -41,9 +63,8 @@ function installHelpers() {
       const dx = x - P.position.x, dz = z - P.position.z;
       if (Math.hypot(dx, dz) < tol) break;
       if (opts.until && opts.until()) break;
-      P.rig.yaw = Math.atan2(-dx, -dz);
-      if (opts.pitch !== undefined) P.rig.pitch = opts.pitch;
-      tf.hold('forward', true);
+      const err = H.steer(Math.atan2(-dx, -dz), opts.pitch);
+      tf.hold('forward', err < 0.5);
       if (opts.jumpAt && Math.hypot(dx, dz) < opts.jumpAt && P.grounded) {
         tf.hold('jump', true);
         tf.simulate(STEP);
@@ -107,9 +128,8 @@ function installHelpers() {
       const d = Math.hypot(c.x - x, c.z - z);
       if (d < (opts.tol ?? 0.3)) break;
       const dx = x - P.position.x, dz = z - P.position.z;
-      P.rig.yaw = Math.atan2(-dx, -dz);
-      P.rig.pitch = opts.pitch ?? 0;
-      tf.hold('forward', d > 0.6 || Math.hypot(dx, dz) > 1.6);
+      const err = H.steer(Math.atan2(-dx, -dz), opts.pitch ?? 0);
+      tf.hold('forward', err < 0.5 && (d > 0.6 || Math.hypot(dx, dz) > 1.6));
       tf.simulate(STEP);
     }
     tf.hold('forward', false);
@@ -160,6 +180,29 @@ const SOLUTIONS = {
     H.walkTo(-1, -10, { tol: 0.3 });
     H.carryTo(2, -10);
     H.say(`plate ${H.el('plate').outputs.pressed}`);
+    H.toExit();
+  },
+  c02: (H) => {
+    const F = H.el('flip');
+    // The amber end has just arrived in cell k.
+    const fresh = (k) => () => F.index === k && F.timer < 0.1;
+    H.walkTo(0, -6.5);
+    H.waitFor(fresh(0), 15);
+    H.through(0, -12); // → west cell
+    H.walkTo(-10.75, -14.3, { tol: 0.2 });
+    H.grab('cube1');
+    H.through(-10.75, -11); // → hub, carrying the cube
+    H.walkTo(0, -6.5);
+    H.waitFor(fresh(1), 15);
+    H.through(0, -12); // → middle cell
+    H.carryTo(0, -16.6);
+    H.say(`plate ${H.el('plate').outputs.pressed}`);
+    H.walkTo(0, -14.2);
+    H.waitFor(() => F.index === 1, 15);
+    H.through(0, -11); // → hub
+    H.walkTo(0, -6.5);
+    H.waitFor(fresh(2), 15);
+    H.through(0, -12); // → east cell
     H.toExit();
   },
 };
