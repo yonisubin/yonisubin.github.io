@@ -117,6 +117,8 @@ function installReplay() {
     return tf.chamber.heldId() === id;
   };
   R.drop = () => {
+    // Let the carried prop catch up with the hold point first.
+    if (tf.chamber.heldId()) tf.simulate(0.5);
     if (tf.chamber.heldId()) tf.use();
     tf.simulate(0.6);
   };
@@ -326,6 +328,34 @@ const SOLUTIONS = {
     out.elapsed = tf.chamber.t - t0;
     tf.simulate(1);
     out.exited = R.exited('c17'); out.deaths = R.ev('death'); out.h = tf.chamber.health;
+    return out;
+  },
+  // Cube through a pair around the grill; pellet into the receptacle; stand on the dais and ride it down into the exit zone.
+  c18: () => {
+    const tf = window.twinfold, out = {};
+    R.load('c18');
+    R.path([[0, -9.6], [3, -11]]);
+    out.a = R.fire('a', -8, 1.5, -13).ok;
+    out.b = R.fire('b', -8, 1.5, -21).ok;
+    R.walk(4, -10.8);
+    out.grab = R.grab('cube1');
+    R.walk(-5, -13, { pitch: -0.2 });
+    out.tp = R.through(-9, -13, { pitch: -0.2 });
+    out.after = tf.chamber.heldId();
+    R.walk(-4, -20.8, { pitch: -0.2 });
+    R.turn(0, -0.2, 0.8);
+    R.drop(); tf.simulate(1);
+    out.plate = R.el('plate1').outputs.pressed;
+    R.path([[0, -24], [0, -28]]);
+    out.a2 = R.fire('a', -8, 1.5, -34).ok;
+    out.b2 = R.fire('b', -4, 1.5, -26).ok;
+    out.caught = R.wait(() => R.el('catcher').outputs.caught, 15);
+    R.path([[4, -40], [4, -44.5]]);
+    R.walk(0, -50.8, { max: 4 });
+    out.onDais = R.el('onDais').outputs.entered;
+    out.exit = R.wait(() => R.exited('c18'), 12);
+    out.done = R.wait(() => R.ev('elevatorDone').some((e) => e.chamberId === 'c18'), 6);
+    out.deaths = R.ev('death'); out.p = R.p();
     return out;
   },
 };

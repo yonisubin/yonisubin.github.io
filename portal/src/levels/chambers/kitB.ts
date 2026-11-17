@@ -89,20 +89,20 @@ function shift(h: Opening[] | undefined, d: number): Opening[] | undefined {
 export const DOORWAY = (at: number): Opening => ({ at, width: 2.4, height: 3 });
 
 /**
- * Entry anatomy: a lobby (interior x -3..3, z zBack-8..zBack) with the entry booth at its back, the
- * info sign on the east wall, and an open doorway (width 2.4) in its north wall at x = 0. Returns
+ * Entry anatomy: a lobby (interior x0-3..x0+3, z zBack-8..zBack) with the entry booth at its back, the
+ * info sign on the east wall, and an open doorway (width 2.4) in its north wall at x0. Returns
  * brushes, entities and the spawn.
  */
-export function lobby(zBack: number, y = 0, theme?: Theme): { brushes: Brush[]; entities: Entity[]; spawn: { position: Vec3; yaw: number } } {
+export function lobby(zBack: number, y = 0, theme?: Theme, x0 = 0): { brushes: Brush[]; entities: Entity[]; spawn: { position: Vec3; yaw: number } } {
   const z0 = zBack - 8;
   return {
-    brushes: room(-3, 3, y, y + 4, z0, zBack, { walls: M, floor: M, holes: { n: [{ at: 0, width: 2.4, height: 3 }] }, theme }),
+    brushes: room(x0 - 3, x0 + 3, y, y + 4, z0, zBack, { walls: M, floor: M, holes: { n: [{ at: x0, width: 2.4, height: 3 }] }, theme }),
     entities: [
-      { id: 'entry', type: 'entryElevator', position: [0, y, zBack - 1.6], yaw: Math.PI },
-      { id: 'sign', type: 'sign', position: [2.97, y + 1.9, zBack - 4.5], yaw: -Math.PI / 2 },
-      { id: 'lobbyLight', type: 'light', position: [0, y + 3.5, zBack - 4], props: { intensity: 6, distance: 12 } },
+      { id: 'entry', type: 'entryElevator', position: [x0, y, zBack - 1.6], yaw: Math.PI },
+      { id: 'sign', type: 'sign', position: [x0 + 2.97, y + 1.9, zBack - 4.5], yaw: -Math.PI / 2 },
+      { id: 'lobbyLight', type: 'light', position: [x0, y + 3.5, zBack - 4], props: { intensity: 6, distance: 12 } },
     ],
-    spawn: { position: [0, y, zBack - 1.6], yaw: 0 },
+    spawn: { position: [x0, y, zBack - 1.6], yaw: 0 },
   };
 }
 
