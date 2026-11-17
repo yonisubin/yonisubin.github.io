@@ -298,6 +298,36 @@ const SOLUTIONS = {
     out.exited = R.exited('c16'); out.deaths = R.ev('death');
     return out;
   },
+  // Pellet: east wall → floor under the ceiling receptacle (panel slides out); press; shaft → panel; lift the turret; run.
+  c17: () => {
+    const tf = window.twinfold, out = {};
+    R.load('c17');
+    R.path([[0, -9.6], [2, -10.2]]);
+    out.a = R.fire('a', 8, 1.5, -12).ok;
+    out.b = R.fire('b', -6, 0, -12).ok;
+    out.caught = R.wait(() => R.el('catcher').outputs.caught, 15);
+    tf.simulate(1);
+    out.panel = R.el('panel').outputs.moved;
+    R.walk(2, -14);
+    out.b2 = R.fire('b', 7.55, 2.5, -20).ok;
+    R.walk(5, -9.4);
+    R.press('ped');
+    const t0 = tf.chamber.t;
+    R.path([[0, -9.8], [0, -10.7]], { tol: 0.04 });
+    out.a2 = R.fire('a', 0, -10, -14).ok;
+    out.fling = R.dropShaft(-11);
+    R.wait(() => tf.player.grounded, 4);
+    out.landed = R.p();
+    R.walk(-11, -23.9);
+    out.grab = R.grab('tur');
+    R.turn(-Math.PI / 2, -0.3, 0.6);
+    R.drop();
+    R.path([[-8.5, -26], [-11, -27.5], [-11, -34.4]]);
+    out.elapsed = tf.chamber.t - t0;
+    tf.simulate(1);
+    out.exited = R.exited('c17'); out.deaths = R.ev('death'); out.h = tf.chamber.health;
+    return out;
+  },
 };
 
 module.exports = { installReplay, SOLUTIONS };
