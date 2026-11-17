@@ -40,7 +40,11 @@ portal/src/
   render/portalRenderer.ts# recursive stencil rendering, oblique near plane, flat colour at the depth limit
   ui/hud.ts           # crosshair with two half-rings, debug overlay (` or F3)
   audio/sound.ts      # synthesised portal open / fizzle / pass / footstep / land
-  main.ts             # wiring, fixed-step loop, exposes window.twinfold for tests
+  game/game.ts        # simulation wiring, fixed-step loop, exposes window.twinfold for tests
+  main.ts             # app shell: starts the game, overlay / menus, pointer lock
+  core/events.ts      # event bus (contract)
+  core/session.ts     # GameSession interface (contract)
+  elements/element.ts # Element interface (contract)
 portal/tests/         # Playwright checks through window.twinfold (see tests/README.md)
 ```
 
@@ -54,6 +58,25 @@ portal/tests/         # Playwright checks through window.twinfold (see tests/REA
 - **Rendering.** Portals are drawn by `PortalRenderer` with the stencil buffer. Don't give the scene a `Color` background (three then force-clears colour, depth and stencil on every `render()` call), and reset write masks before any manual clear (`gl.clear` obeys them). Every scene material gets its stencil state set by the renderer each frame.
 - **Storage.** localStorage keys start with `twinfold:`; saves will use IndexedDB database `twinfold` (the other games share the origin).
 - **Assets** go in `portal/public/` and are referenced through `import.meta.env.BASE_URL`. Textures and sounds are generated in code for now.
+
+## Contract and file ownership (two parallel workstreams)
+
+The rest of the game is built by two workstreams in parallel. They share only the **contract** files; each owns its folders and never edits the other's.
+
+| Contract (change only by agreement, report instead of editing) | |
+|---|---|
+| `levels/level.ts` | level format v2: brushes, entities (`EntityType`), wiring, triggers, checkpoints, dialogue hooks, device, info, next |
+| `core/events.ts` | `EventBus` + `GameEvents`: the only link between simulation and shell |
+| `core/session.ts` | `GameSession` (load / restart / respawn / snapshot / restore / counters / pause / settings) — simulation implements, shell calls |
+| `elements/element.ts` | `Element` interface every test element implements |
+
+| Workstream | Owns |
+|---|---|
+| **A — simulation** (phases 5, 6, 7; later chambers 1–10 + advanced) | `game/` (incl. `game.ts`, the `GameSession` implementation, `window.twinfold`), `physics/`, `player/`, `portals/`, `elements/` (except `element.ts`), `logic/`, `render/`, `core/config.ts`, `levels/testRoom.ts` |
+| **B — shell** (editor/puzzle maker, dialogue, menus, options, saves, challenges, music; later chambers 11–19, escape, boss) | `main.ts`, `index.html`, `ui/`, `dialogue/`, `save/`, `audio/`, `editor/`, `input/`, `levels/loader.ts`, `core/shellConfig.ts` (the shell's tunable numbers) |
+| Shared, merged by the integrator | `portal/CLAUDE.md` status, `portal/tests/README.md`, `levels/chambers/` (wave 2) |
+
+Tests: each workstream adds its own `portal/tests/*.test.cjs` files (A: `props`, `elements`, `hazards`, `turrets`…; B: `menus`, `options`, `saves`, `dialogue`, `editor`…).
 
 ## Status
 

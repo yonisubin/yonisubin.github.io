@@ -23,6 +23,8 @@
 import type { LevelData } from './level';
 
 export const TEST_ROOM: LevelData = {
+  version: 2,
+  id: 'testroom',
   name: 'Gray-box test room',
   spawn: { position: [-3, 0, 12], yaw: 0 },
   brushes: [
