@@ -198,6 +198,8 @@ export class DialogueManager {
         if (what === 'portals' || what === 'object') this.say('fizzled', { priority: 1 });
       }),
       events.on('trigger', ({ name }) => play(name, null)),
+      // Boss beats: level hooks named "boss.<event>.<stage>" (e.g. boss.hit.0, boss.componentDisposed.1).
+      events.on('boss', ({ stage, event }) => play(`boss.${event}.${stage}`, null, 4)),
       events.on('portalPlaced', ({ ok }) => {
         if (ok) this.say('milestone.firstPortal', { once: true });
       }),

@@ -5,6 +5,8 @@
 //             props.stages (default 3). Outputs: exposed (a part is waiting), defeated.
 //   disposal  a box (props.size) that destroys boss parts dropped into it: `componentDisposed`; after
 //             the last stage the core emits `defeated`. props.core: the bossCore id (default: first).
+// The core also outputs stage1 / stage2 / stage3 (on once that many parts are disposed), which the
+// finale wires to its shifting panels and doors; when defeated its shell goes dark and it sags.
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { CONFIG } from '../core/config';
@@ -33,6 +35,23 @@ export class BossCore extends BaseElement {
     this.colliders.push(c);
     this.outputs.exposed = false;
     this.outputs.defeated = false;
+    for (let i = 1; i <= 3; i++) this.outputs[`stage${i}`] = false;
+  }
+
+  private stageOutputs(): void {
+    for (let i = 1; i <= 3; i++) this.setOutput(`stage${i}`, this.stage >= i);
+  }
+
+  private sag = 0;
+
+  update(dt: number): void {
+    // Defeated: the shell darkens and the core sags a little on its mount.
+    if (!this.outputs.defeated || this.sag >= 1) return;
+    this.sag = Math.min(1, this.sag + dt / 2);
+    const m = this.shell.material as THREE.MeshLambertMaterial;
+    m.color.setHex(0xdfe2e5).lerp(new THREE.Color(0x3a3d42), this.sag);
+    this.shell.position.copy(this.origin()).add(new THREE.Vector3(0, -0.6 * this.sag, 0));
+    this.shell.rotation.z = 0.35 * this.sag;
   }
 
   private radius(): number {
@@ -69,6 +88,7 @@ export class BossCore extends BaseElement {
     this.setOutput('exposed', false);
     this.ctx.events.emit('boss', { stage: this.stage, event: 'componentDisposed' });
     this.stage++;
+    this.stageOutputs();
     if (this.stage >= this.stages()) {
       this.setOutput('defeated', true);
       this.ctx.events.emit('boss', { stage: this.stage, event: 'defeated' });
@@ -85,6 +105,7 @@ export class BossCore extends BaseElement {
     this.stage = s.stage;
     this.hits = s.hits;
     this.pending = s.pending;
+    this.stageOutputs();
     // A detached part is its own (runtime) entity: recreate it; its saved state is applied next.
     if (s.pending && !this.ctx.elements.has(s.pending)) {
       const o = this.origin();

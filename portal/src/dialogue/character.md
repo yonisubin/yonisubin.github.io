@@ -109,3 +109,19 @@ addresses the player as "you there" or by a joke nickname; it uses "Applicant" a
 Each pool can have tone variants `<pool>.helpful`, `<pool>.passive`, `<pool>.hostile`; the manager
 uses the variant for the current term and falls back to the plain pool. Chamber-specific lines (wave
 2): `c<NN>.<event>.<n>`, referenced from the level's `dialogue` hooks.
+
+## Wave 2 lore (workstream B, chambers 11–finale)
+
+- **Graduation = archiving.** Practical 12's plinth unit held the transcript of Applicant 40; the
+  Records Chute "files" it. Practical 18 ends on the Commencement dais, which sinks into **the
+  Archive**: a compactor press where graduates are "kept pressed flat, for reference".
+- **The Stacks / the Registry**: behind-the-scenes levels over the flooded quarry, which is full of
+  **correction fluid** (the faculty "corrected themselves out of the building").
+- **The Bursar** speaks from c19 on: nervous, counts costs (a ceremony is 11,400 credits), quietly
+  approves the lifts that get Ida to the Senate, and opens the quarry road at the end.
+- **Marrow's dens** (escape 1 and 2): practical notes in red ("IF IT SAYS CEREMONY — RUN",
+  "GRADUATION = THE ARCHIVE", "it can be hit with its own homework").
+- **The Senate**: the Provost's core. Its hazard is **the Erasure**: correction fluid flooding the
+  chamber on a countdown that shortens each stage. Disposed components: the Endowment
+  correspondence module, the cafeteria scheduler, the grading module. In the ending it admits it
+  never marked itself, releases Ida's transcript and stays to keep the records.

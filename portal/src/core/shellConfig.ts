@@ -45,6 +45,8 @@ export const SHELL = {
     /** Calm theme tempo (beats per minute) and elevator music tempo. */
     bpm: 84,
     elevatorBpm: 112,
+    /** End-credits waltz tempo (beats per minute). */
+    creditsBpm: 96,
     /** Notes are scheduled this far ahead of the audio clock (s); the scheduler wakes every tick. */
     lookahead: 0.35,
     tick: 0.1,
@@ -88,6 +90,21 @@ export const SHELL = {
     renderScaleMax: 1.5,
     recursionMin: 1,
     recursionMax: 12,
+  },
+
+  ending: {
+    /** After the core is defeated: wait this long before the overlay, then before the first line. */
+    startDelay: 2.5,
+    firstLineDelay: 1.2,
+    /** Pause between the Provost's last lines, and after the last one before the credits. */
+    lineGap: 0.6,
+    afterLines: 1.5,
+    /** Credits scroll speed (px/s) and the least time they stay up. */
+    creditsSpeed: 48,
+    minCreditsSeconds: 20,
+    /** Developer commentary subtitles stay this long (s per character, at least minSeconds). */
+    commentaryPerChar: 0.06,
+    commentaryMin: 4,
   },
 
   gamepad: {

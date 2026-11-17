@@ -71,9 +71,12 @@ run(
       tf.hold('forward', true);
       tf.simulate(2);
       tf.hold('forward', false);
-      return window.twinfoldShell.session.counters().steps;
+      tf.simulate(0.5);
+      // Read the counter and finish in the same task, so no real frame can add a step in between.
+      const s = window.twinfoldShell, c = s.session.counters();
+      s.session.events.emit('exitReached', { chamberId: 'testroom', ...c });
+      return c.steps;
     });
-    await exit();
     await page.waitForSelector('#overlay [data-screen=result]');
     const title = await page.evaluate(() => document.querySelector('#overlay [data-screen=result] h2').textContent);
     t.ok('least steps records the step counter', steps > 0 && title === `Least steps: ${steps}`, `${title} (${steps})`);

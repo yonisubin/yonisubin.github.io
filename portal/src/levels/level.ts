@@ -63,7 +63,12 @@ export type EntityType =
   // flavour
   | 'light'
   | 'decal' // props: text?: string, image?: string (procedural), size
-  | 'commentaryNode'; // props: text
+  | 'commentaryNode' // props: text
+  // story elements (wave 2, workstream B: elements/story.ts)
+  | 'zone' // invisible box watching the player; props: size. Outputs: inside, entered
+  | 'chute' // files (dissolves) one prop; props: size, accepts?: id, acceptsType?. Output: filed
+  | 'exitZone' // exit without a booth; props: size, delay. Input: armed
+  | 'erasure'; // finale countdown hazard; props: seconds[], core, moat, boardSize. Input: active
 
 export interface Entity {
   id: string;

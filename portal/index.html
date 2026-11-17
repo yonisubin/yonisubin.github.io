@@ -565,6 +565,73 @@
       .edModal .draft span {
         flex: 1;
       }
+      /* ---- Ending + credits ---- */
+      #ending {
+        position: fixed;
+        inset: 0;
+        z-index: 6;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(ellipse at center, rgba(8, 10, 12, 0.55) 0%, rgba(8, 10, 12, 0.92) 70%);
+        animation: endingIn 2.5s ease-out;
+        color: #e9e6dc;
+      }
+      @keyframes endingIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      #ending .endingLine {
+        max-width: min(720px, 86vw);
+        font: 300 26px/1.5 system-ui, sans-serif;
+        text-align: center;
+        letter-spacing: 0.01em;
+      }
+      #ending .roll {
+        position: absolute;
+        inset: 0;
+      }
+      #ending .rollInner {
+        position: absolute;
+        left: 0;
+        right: 0;
+        text-align: center;
+        will-change: transform;
+      }
+      #ending .rollInner h3 {
+        margin: 48px 0 12px;
+        font: 600 22px system-ui, sans-serif;
+        letter-spacing: 0.2em;
+        color: #ffb347;
+      }
+      #ending .rollInner p {
+        margin: 6px 0;
+        font: 16px system-ui, sans-serif;
+      }
+      #ending .rollInner .role {
+        display: inline-block;
+        width: 46%;
+        text-align: right;
+        padding-right: 16px;
+        color: #9aa3ab;
+      }
+      #ending .rollInner .name {
+        display: inline-block;
+        width: 46%;
+        text-align: left;
+      }
+      #ending button {
+        position: absolute;
+        right: 20px;
+        bottom: 20px;
+        padding: 6px 14px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #e9e6dc;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 4px;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>

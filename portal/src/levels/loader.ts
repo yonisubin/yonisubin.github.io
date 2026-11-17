@@ -12,6 +12,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'entryElevator', 'exitElevator', 'fixedPortal',
   'pelletLauncher', 'pelletCatcher', 'grill', 'liquid', 'crusher', 'turret', 'rocketTurret', 'disposal', 'bossCore',
   'light', 'decal', 'commentaryNode',
+  'zone', 'chute', 'exitZone', 'erasure',
 ];
 
 const TAGS: readonly SurfaceTag[] = ['portalable', 'metal', 'glass'];

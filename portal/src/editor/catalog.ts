@@ -45,6 +45,10 @@ export const CATALOG: Record<EntityType, EntityInfo> = {
   light: I('Light', 'Flavour', 0xfff3b0, [0.3, 0.3, 0.3], [], ['on'], { color: 0xffffff, intensity: 1 }),
   decal: I('Decal / writing', 'Flavour', 0x2d3436, [1, 1, 0.05], [], [], { text: '', size: 1 }),
   commentaryNode: I('Commentary node', 'Flavour', 0xfdcb6e, [0.4, 0.4, 0.4], [], [], { text: '' }),
+  zone: I('Player zone', 'Logic', 0x74b9ff, [2, 3, 2], ['inside', 'entered'], [], { size: [2, 3, 2] }),
+  chute: I('Records chute', 'Chamber', 0xe17055, [1.4, 1.6, 1.4], ['filed'], [], { size: [1.4, 1.6, 1.4], acceptsType: 'companionCube' }),
+  exitZone: I('Exit zone', 'Chamber', 0x37d67a, [3, 3, 3], [], ['armed'], { size: [3, 3, 3], delay: 3 }),
+  erasure: I('Erasure countdown', 'Hazards', 0xf5f0e1, [4, 1.5, 0.1], ['warning'], ['active'], { seconds: [120, 100, 80] }),
 };
 
 export const PALETTE_GROUPS: EntityInfo['group'][] = ['Props', 'Inputs', 'Receivers', 'Logic', 'Hazards', 'Chamber', 'Flavour'];
