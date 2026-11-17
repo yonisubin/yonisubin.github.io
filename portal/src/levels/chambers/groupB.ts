@@ -3,8 +3,9 @@
 import type { LevelData } from '../level';
 import type { ChallengeTable } from './types';
 import { C11 } from './c11';
+import { C12 } from './c12';
 
-export const CHAMBERS_B: LevelData[] = [C11];
+export const CHAMBERS_B: LevelData[] = [C11, C12];
 export const CHALLENGES_B: ChallengeTable = {};
 /** Titles of the six chapters (see CHAPTER_IDS in index.ts). Original names. */
 export const CHAPTER_TITLES: string[] = ['Orientation Week', 'Lectures in Falling', 'Office Hours', 'Midterms', 'Commencement', 'Expulsion'];

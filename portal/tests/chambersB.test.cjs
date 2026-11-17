@@ -54,9 +54,28 @@ function installReplay() {
     if (o.settle !== false) tf.simulate(0.2);
     return d;
   };
+  /** Walk toward x, z until the player passes through an opening (then stop). */
+  R.through = (x, z, o = {}) => {
+    const n0 = R.ev('teleport').length;
+    for (let i = 0; i < (o.max ?? 6) * 60 && R.ev('teleport').length === n0; i++) {
+      const p = tf.player.position;
+      tf.aim(Math.atan2(-(x - p.x), -(z - p.z)), o.pitch ?? 0);
+      tf.hold('forward', true);
+      tf.simulate(1 / 60);
+    }
+    tf.hold('forward', false);
+    tf.simulate(o.after ?? 0.3);
+    return R.ev('teleport').length > n0;
+  };
   R.path = (pts, o) => pts.map(([x, z]) => R.walk(x, z, o)).pop();
   /** Fire an end at a world point (from the eye). */
   R.fire = (id, x, y, z) => {
+    if (tf.chamber.heldId()) {
+      // Carrying: turn smoothly so the prop comes along.
+      const e = tf.player.eye();
+      const dx = x - e.x, dy = y - e.y, dz = z - e.z;
+      R.turn(Math.atan2(-dx, -dz), Math.atan2(dy, Math.hypot(dx, dz)), 0.6);
+    }
     R.look(x, y, z);
     return tf.fire(id);
   };
@@ -112,6 +131,45 @@ const SOLUTIONS = {
     out.bunkerFired = R.el('tur2').fired;
     R.path([[-2.75, -42], [-2.75, -48.6]]);
     tf.simulate(1);
+    return out;
+  },
+  // The plinth unit: lift it off the cradle, carry it through a pair across the pit, leave it on
+  // the plate, open a pair back into room 3 from room 4, fetch it, file it in the chute.
+  c12: () => {
+    const tf = window.twinfold, out = {};
+    R.load('c12');
+    R.walk(0, -13.4);
+    out.grab = R.grab('plinth');
+    R.turn(0, -0.2, 0.3);
+    tf.simulate(1);
+    R.path([[0, -21], [-4, -23.5]], {pitch: -0.2});
+    out.a = R.fire('a', -6, 1.5, -23.5).ok;
+    out.b = R.fire('b', -6, 1.5, -36).ok;
+    R.turn(Math.PI/2, -0.2, 0.4);
+    out.tp1 = R.through(-7, -23.5, {pitch: -0.2});
+    out.afterPortal = { p: R.p(), held: tf.chamber.heldId() };
+    R.path([[-2, -36], [0, -40], [2.5, -46.2]], {pitch: -0.3});
+    R.drop(); tf.simulate(1);
+    out.leave = R.el('leave').outputs.pressed; out.d3 = R.el('d3').isOpen();
+    out.a2 = R.fire('a', -6, 1.5, -46).ok;
+    R.path([[0, -49], [0, -52], [-3, -54]]);
+    out.b2 = R.fire('b', -6, 1.5, -55);
+    out.tp2 = R.through(-7, -55);
+    out.inR3 = R.p();
+    R.walk(1.3, -47.5);
+    out.grab2 = R.grab('plinth');
+    R.turn(Math.PI/2, -0.2, 0.6);
+    R.walk(-4, -46, {pitch:-0.2});
+    out.tp3 = R.through(-7, -46, {pitch:-0.2});
+    out.inR4 = { p: R.p(), held: tf.chamber.heldId() };
+    R.walk(0, -57.4, {pitch: -0.2});
+    R.turn(0, -0.1, 0.3);
+    tf.simulate(1);
+    out.filed = R.el('chute').outputs.filed;
+    R.drop();
+    R.path([[0, -63], [0, -67.4]]);
+    tf.simulate(1);
+    out.exited = R.exited('c12'); out.deaths = R.ev('death');
     return out;
   },
 };

@@ -4,7 +4,7 @@
 //             Outputs: inside (while the player is in it), entered (latched on first entry).
 //   chute     the Records Chute / incinerator: props.size box; a prop whose id is props.accepts (or
 //             whose type is props.acceptsType; default any companionCube) that enters it is
-//             dissolved ("filed"). Output: filed (latched).
+//             dissolved ("filed"); props.event then fires as a `trigger`. Output: filed (latched).
 //   exitZone  an exit without a booth (the c18 graduation dais drops into it): when the player is
 //             inside props.size and input `armed` (default on) is on, the chamber ends like an exit
 //             elevator — `exitReached`, then `elevatorDone` after props.delay seconds.
@@ -81,6 +81,9 @@ export class Chute extends BaseElement {
       el.dissolve();
       this.ctx.sfx('chuteFiled', 'The chute swallows it with a polite chime');
       this.setOutput('filed', true);
+      // A scripting hook (dialogue) under the chute's own event name.
+      const ev = this.prop<string | null>('event', null);
+      if (ev) this.ctx.events.emit('trigger', { name: ev });
     }
   }
 }
