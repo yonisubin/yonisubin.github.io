@@ -145,9 +145,11 @@ run('elements', async ({ page }, t) => {
     const done0 = ev('elevatorDone').length;
     tf.simulate(1.5);
     out.doneEarly = ev('elevatorDone').length - done0;
+    // The timer is frozen during the ride. (Checked before elevatorDone: the shell then loads the
+    // next chamber, whose counters start from zero.)
+    out.timeFrozen = S.counters().time === out.exitReached[0]?.time;
     tf.simulate(2);
     out.elevatorDone = ev('elevatorDone');
-    out.timeFrozen = S.counters().time === out.exitReached[0]?.time;
 
     // --- Fixed portals and a one-colour device. ------------------------------------------------
     S.loadChamber(tf.levels.fixedroom);

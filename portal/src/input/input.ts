@@ -108,11 +108,6 @@ export class Input {
   private codeMap = new Map<string, Action[]>();
   /** When false (menus, pause), gameplay keys are ignored and held actions are released. */
   private enabledFlag = true;
-  /** Crouch toggles on press instead of being held (options). */
-  toggleCrouch = false;
-  /** Scales mouse deltas (used by the dev session for the sensitivity option) and flips Y. */
-  lookScale = 1;
-  invertY = false;
   /** Gamepad look sensitivity multiplier (options). Aim assist: none, by design. */
   gamepadSensitivity = 1;
   gamepadConnected = false;
@@ -176,13 +171,9 @@ export class Input {
 
   private down(a: Action, repeat: boolean): void {
     if (isHeldAction(a)) {
+      // Held actions are plain "key is down" states. Toggle crouch, mouse sensitivity and invert Y
+      // are applied by the player (GameSession settings), so they work the same on a gamepad.
       if (!this.enabledFlag) return;
-      if (a === 'crouch' && this.toggleCrouch) {
-        if (repeat) return;
-        if (this.held.has('crouch')) this.held.delete('crouch');
-        else this.held.add('crouch');
-        return;
-      }
       this.held.add(a);
       return;
     }
@@ -193,7 +184,7 @@ export class Input {
   }
 
   private up(a: Action): void {
-    if (isHeldAction(a) && !(a === 'crouch' && this.toggleCrouch)) this.held.delete(a);
+    if (isHeldAction(a)) this.held.delete(a);
   }
 
   private rebuildMap(): void {
@@ -292,8 +283,7 @@ export class Input {
 
   takeMouseDelta(): { dx: number; dy: number } {
     this.pollGamepad();
-    const s = this.lookScale;
-    const d = { dx: this.dx * s, dy: this.dy * s * (this.invertY ? -1 : 1) };
+    const d = { dx: this.dx, dy: this.dy };
     this.dx = 0;
     this.dy = 0;
     return d;

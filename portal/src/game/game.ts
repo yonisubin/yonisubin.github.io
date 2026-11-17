@@ -45,6 +45,10 @@ export async function startGame(canvas: HTMLCanvasElement, hudRoot: HTMLElement)
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, stencil: true });
   let renderScale = 1;
+  /** Frames per second at most (options → frame cap); 0 = every display frame. */
+  let frameCap = 0;
+  /** Frames actually simulated + drawn (tests check the cap with it). */
+  let framesDrawn = 0;
   const applyPixelRatio = () => renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * renderScale);
   applyPixelRatio();
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -96,6 +100,9 @@ export async function startGame(canvas: HTMLCanvasElement, hudRoot: HTMLElement)
       setRecursionDepth(n) {
         portalRenderer.recursionDepth = n;
       },
+      setFrameCap(fps) {
+        frameCap = fps;
+      },
       setPortalColors(c) {
         visuals.a.setColor(c.a);
         visuals.b.setColor(c.b);
@@ -107,8 +114,8 @@ export async function startGame(canvas: HTMLCanvasElement, hudRoot: HTMLElement)
       sound,
     },
   });
+  // Footsteps (by surface) are played by the shell's audio director from `footstep` events.
   const events = session.events;
-  events.on('footstep', () => sound.footstep());
 
   // Event log for tests (bounded).
   const log: [GameEventName, unknown][] = [];
@@ -141,6 +148,14 @@ export async function startGame(canvas: HTMLCanvasElement, hudRoot: HTMLElement)
   }
 
   function frame(now: number): void {
+    // Frame cap: skip display frames that come sooner than 1/cap after the last drawn one (with
+    // a little slack for vsync jitter). Skipped time isn't lost: dt below spans it, and the fixed
+    // 60 Hz physics catches up through the accumulator.
+    if (frameCap > 0 && now - last < 1000 / frameCap - 2) {
+      requestAnimationFrame(frame);
+      return;
+    }
+    framesDrawn++;
     const dt = Math.min(0.25, (now - last) / 1000);
     last = now;
     fps = fps * 0.9 + (dt > 0 ? 1 / dt : 0) * 0.1;
@@ -209,6 +224,14 @@ export async function startGame(canvas: HTMLCanvasElement, hudRoot: HTMLElement)
     renderer: portalRenderer,
     camera,
     scene,
+    /** The WebGL renderer (pixel ratio = render scale). */
+    gl: renderer,
+    get frameCap() {
+      return frameCap;
+    },
+    get framesDrawn() {
+      return framesDrawn;
+    },
     /** Run fixed physics steps right now, independent of frame rate. */
     simulate(seconds: number): void {
       const n = Math.round(seconds / STEP_DT);

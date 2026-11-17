@@ -63,13 +63,13 @@ run(
     await page.waitForFunction(() => window.twinfoldShell.app.state === 'paused');
     const paused = await page.evaluate(() => {
       const s = window.twinfoldShell;
-      return { screen: s.app.menu.screen, sessionPaused: s.session.paused, inputOn: s.app.input.enabled, ids: [...document.querySelectorAll('#overlay .mainMenu button')].map((b) => b.dataset.id) };
+      return { screen: s.app.menu.screen, sessionPaused: s.session.isPaused(), inputOn: s.app.input.enabled, ids: [...document.querySelectorAll('#overlay .mainMenu button')].map((b) => b.dataset.id) };
     });
     t.ok('Esc in play opens the pause menu', paused.screen === 'pause');
     t.ok('pausing pauses the session and input', paused.sessionPaused === true && paused.inputOn === false);
     t.ok('pause menu entries', ['resume', 'save', 'load', 'options', 'restart', 'quitToMenu'].every((i) => paused.ids.includes(i)), paused.ids.join(','));
     await page.click('#overlay [data-id=resume]');
-    t.ok('Resume returns to play', (await state(page)) === 'game' && (await page.evaluate(() => !window.twinfoldShell.session.paused)));
+    t.ok('Resume returns to play', (await state(page)) === 'game' && (await page.evaluate(() => !window.twinfoldShell.session.isPaused())));
     // Restart chamber from the pause menu puts you back at the spawn.
     await page.evaluate(() => window.twinfold.place([5, 0, -5]));
     await page.evaluate(() => window.twinfoldShell.app.pause());
@@ -102,7 +102,10 @@ run(
       s.session.events.emit('exitReached', { chamberId: 'testroom', ...s.session.counters() });
     });
     const card = await page.evaluate(() => ({ text: document.getElementById('chamberCard').textContent, display: getComputedStyle(document.getElementById('chamberCard')).display, state: window.twinfoldShell.app.state }));
-    t.ok('exit shows the chamber-complete card', card.display === 'block' && card.text.includes('Practical complete') && card.state === 'elevator', card.text);
+    t.ok('exit shows the chamber-complete card', card.display === 'block' && card.text.includes('Practical complete') && card.state === 'elevator', JSON.stringify(card));
+    // The test room has no exit elevator: send the end of the ride as its exit booth would.
+    await page.waitForTimeout(300);
+    await page.evaluate(() => window.twinfoldShell.session.events.emit('elevatorDone', { chamberId: 'testroom' }));
     await page.waitForFunction(() => window.twinfoldShell.app.menu.screen === 'end', null, { timeout: 10000 });
     const end = await page.evaluate(() => ({ story: window.twinfoldShell.app.saves.progress.storyFinished, log: window.twinfoldShell.app.log.slice(-3) }));
     t.ok('the last chamber ends the story', end.story === true, end.log.join(' | '));

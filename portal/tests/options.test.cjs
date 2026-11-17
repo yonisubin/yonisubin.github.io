@@ -27,13 +27,24 @@ run(
     await setOpt(page, 'fov', 104);
     await setOpt(page, 'recursionDepth', 4);
     await setOpt(page, 'brightness', 1.2);
-    let r = await page.evaluate(() => {
-      const s = window.twinfoldShell, tf = window.twinfold;
-      return { fov: tf.camera.fov, settingsFov: s.session.settings.fov, depth: tf.renderer.recursionDepth, filter: document.getElementById('game').style.filter };
+    const ratio0 = await page.evaluate(() => window.twinfold.gl.getPixelRatio());
+    await setOpt(page, 'renderScale', 0.5);
+    await setOpt(page, 'frameCap', 30);
+    let r = await page.evaluate(async () => {
+      const tf = window.twinfold;
+      const f0 = tf.framesDrawn, t0 = performance.now();
+      await new Promise((res) => setTimeout(res, 1000));
+      const fps = ((tf.framesDrawn - f0) * 1000) / (performance.now() - t0);
+      return { fov: tf.camera.fov, depth: tf.renderer.recursionDepth, filter: document.getElementById('game').style.filter, ratio: tf.gl.getPixelRatio(), canvasW: document.getElementById('game').width, innerW: window.innerWidth, cap: tf.frameCap, fps };
     });
-    t.ok('FOV reaches the camera through applySettings', r.fov === 104 && r.settingsFov === 104, JSON.stringify(r));
+    t.ok('FOV reaches the camera through applySettings', r.fov === 104, JSON.stringify(r));
     t.ok('recursion depth applies', r.depth === 4);
     t.ok('brightness is a CSS filter on the game canvas', r.filter.includes('brightness(1.2)'), r.filter);
+    t.ok('render scale sets the drawing buffer size', Math.abs(r.ratio - ratio0 * 0.5) < 1e-6 && Math.abs(r.canvasW - r.innerW * r.ratio) <= 1, JSON.stringify({ ratio0, ratio: r.ratio, canvasW: r.canvasW }));
+    t.ok('frame cap limits the frames drawn', r.cap === 30 && r.fps <= 33, `${r.fps.toFixed(1)} fps`);
+    await setOpt(page, 'renderScale', 1);
+    await setOpt(page, 'frameCap', 0);
+    t.ok('… and both go back', await page.evaluate((r0) => window.twinfold.gl.getPixelRatio() === r0 && window.twinfold.frameCap === 0, ratio0));
 
     // Audio
     await page.click('#overlay [data-id=tab-audio]');
@@ -55,9 +66,10 @@ run(
     await setOpt(page, 'gamepadSensitivity', 1.5);
     r = await page.evaluate(() => {
       const a = window.twinfoldShell.app;
-      return { scale: a.input.lookScale, inv: a.input.invertY, toggle: a.input.toggleCrouch, pad: a.input.gamepadSensitivity, sens: a.session.settings.mouseSensitivity };
+      const rig = window.twinfold.player.rig;
+      return { scale: rig.sensitivity / window.twinfold.config.camera.mouseSensitivity, inv: rig.invertY, toggle: window.twinfold.player.toggleCrouch, pad: a.input.gamepadSensitivity };
     });
-    t.ok('mouse sensitivity and invert Y apply', Math.abs(r.scale - 2) < 1e-9 && r.inv === true, JSON.stringify(r));
+    t.ok('mouse sensitivity and invert Y reach the camera rig', Math.abs(r.scale - 2) < 1e-9 && r.inv === true, JSON.stringify(r));
     t.ok('toggle crouch and gamepad sensitivity apply', r.toggle === true && r.pad === 1.5);
     // Rebind jump to K.
     await page.click('#overlay [data-id=bind-jump-0]');
@@ -77,7 +89,7 @@ run(
     r = await page.evaluate(() => {
       const s = window.twinfoldShell;
       const paths = [...document.querySelectorAll('#crosshair path')];
-      return { stroke: paths[0].getAttribute('stroke'), vis: paths[0].style.visibility, colors: s.session.settings.portalColors, roll: s.session.settings.reduceRoll, assist: s.session.settings.assist, hc: document.body.classList.contains('highContrast') };
+      return { stroke: paths[0].getAttribute('stroke'), vis: paths[0].style.visibility, colors: s.session.settings.portalColors, roll: window.twinfold.player.rig.reduceRoll, assist: s.session.settings.assist, hc: document.body.classList.contains('highContrast') && s.session.settings.highContrastHazards };
     });
     t.ok('colour-blind palette recolours the crosshair', r.stroke === '#00c7b4', r.stroke);
     t.ok('… and goes to the session', r.colors.a === 0x00c7b4 && r.colors.b === 0xff2d6f);

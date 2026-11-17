@@ -131,6 +131,7 @@ export function toSessionSettings(o: Options): SessionSettings {
     highContrastHazards: o.highContrastHazards,
     assist: o.assist,
     toggleCrouch: o.toggleCrouch,
+    frameCap: o.frameCap,
   };
 }
 

@@ -7,7 +7,6 @@
 //                ?unlockall  challenges / advanced / every chapter open (dev)
 //                #play=…     a shared chamber (puzzle maker share link)
 import { startGame } from './game/game';
-import { sessionOf } from './ui/devSession';
 import { App } from './ui/app';
 import { Sound } from './audio/sound';
 import { validateLevel, exportLevelJSON, importLevelJSON } from './levels/loader';
@@ -21,7 +20,7 @@ import * as chambers from './levels/chambers';
 async function main(): Promise<void> {
   const canvas = document.getElementById('game') as HTMLCanvasElement;
   const handle = await startGame(canvas, document.getElementById('hud')!);
-  const session = sessionOf(handle);
+  const session = handle.session;
   const app = new App(handle, session);
   // Shell hooks for tests and debugging (the simulation's own are on window.twinfold).
   const shell = {

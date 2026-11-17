@@ -38,6 +38,8 @@ export interface SessionSettings {
   /** Accessibility assist: slow motion during flings and wider placement tolerance. */
   assist: boolean;
   toggleCrouch: boolean;
+  /** Most frames drawn per second; 0 = no cap (the display's rate). Physics stays at 60 Hz. */
+  frameCap: number;
 }
 
 export interface GameSession {

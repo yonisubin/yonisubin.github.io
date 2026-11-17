@@ -23,8 +23,8 @@ run('input', async ({ page }, t) => {
     pad.buttons[7].pressed = false;
     input.pollGamepad();
     out.released = !input.isHeld('forward') && !input.isHeld('jump');
-    // Toggle crouch: one press on, one press off.
-    input.toggleCrouch = true;
+    // Toggle crouch (the option goes to the player through the session): one press on, one off.
+    window.twinfoldShell.app.setOption('toggleCrouch', true);
     return out;
   });
   t.ok('left stick moves', r.forward);
@@ -33,12 +33,20 @@ run('input', async ({ page }, t) => {
   t.ok('RT fires the amber opening once per press', r.fireB === true && r.fireBAgain === false);
   t.ok('releasing the pad releases the actions', r.released);
 
-  await page.keyboard.press('KeyC');
-  const on = await page.evaluate(() => window.twinfold.input.isHeld('crouch'));
-  await page.keyboard.press('KeyC');
-  const off = await page.evaluate(() => window.twinfold.input.isHeld('crouch'));
-  t.ok('toggle crouch: press on, press off', on === true && off === false);
-  await page.evaluate(() => (window.twinfold.input.toggleCrouch = false));
+  // Each key press is seen by the fixed step (simulate while the key is down, then after release).
+  const tap = async () => {
+    await page.keyboard.down('KeyC');
+    await page.evaluate(() => window.twinfold.simulate(0.1));
+    await page.keyboard.up('KeyC');
+    return page.evaluate(() => {
+      window.twinfold.simulate(0.3);
+      return window.twinfold.player.crouched;
+    });
+  };
+  const on = await tap();
+  const off = await tap();
+  t.ok('toggle crouch: press on, press off', on === true && off === false, JSON.stringify([on, off]));
+  await page.evaluate(() => window.twinfoldShell.app.setOption('toggleCrouch', false));
 
   // In the pause menu gameplay keys do nothing.
   await page.evaluate(() => window.twinfoldShell.app.pause());

@@ -20,6 +20,8 @@ export interface SessionView {
   setFov(deg: number): void;
   setRenderScale(scale: number): void;
   setRecursionDepth(n: number): void;
+  /** Frames drawn per second at most (0 = no cap, follow the display). */
+  setFrameCap(fps: number): void;
   setPortalColors(c: { a: number; b: number }): void;
   /** A shot failed: show the fizzle burst. */
   fizzle(point: THREE.Vector3, normal: THREE.Vector3, id: PortalId): void;
@@ -119,7 +121,11 @@ export class Session implements GameSession {
 
   setPaused(paused: boolean): void {
     this.paused = paused;
-    this.deps.input.clearPressed();
+    const { input } = this.deps;
+    input.clearPressed();
+    // Contract: while paused the pointer is free and gameplay keys do nothing (menus).
+    input.enabled = !paused;
+    if (paused) input.exitLock();
   }
 
   isPaused(): boolean {
@@ -146,6 +152,7 @@ export class Session implements GameSession {
       portals.nudgeMax = s.assist ? CONFIG.assist.nudgeMax : CONFIG.portal.nudgeMax;
     }
     if (s.toggleCrouch !== undefined) player.toggleCrouch = s.toggleCrouch;
+    if (s.frameCap !== undefined) view.setFrameCap(Math.max(0, s.frameCap));
   }
 
   // --- Internals ----------------------------------------------------------------------------------

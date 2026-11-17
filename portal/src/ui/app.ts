@@ -167,12 +167,10 @@ export class App {
   /** Push every option to where it acts: the simulation, audio, dialogue, HUD, input, CSS. */
   applyOptions(): void {
     const o = this.options;
-    // frameCap isn't part of SessionSettings yet; sent along for the simulation to pick up.
-    this.session.applySettings({ ...toSessionSettings(o), frameCap: o.frameCap } as Partial<ReturnType<typeof toSessionSettings>>);
+    this.session.applySettings(toSessionSettings(o));
     this.sound.setVolumes({ master: o.master, music: o.music, effects: o.effects, voice: o.voice });
     this.dialogue.setSubtitles(o.subtitles);
     this.dialogue.captions = o.captions;
-    this.input.toggleCrouch = o.toggleCrouch;
     this.input.gamepadSensitivity = o.gamepadSensitivity;
     const pal = PALETTES[o.palette];
     this.hud.setCrosshair(pal.a, pal.b, o.crosshairIndicator);

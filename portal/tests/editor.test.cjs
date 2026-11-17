@@ -136,12 +136,12 @@ run(
     await page.waitForFunction(() => window.twinfoldShell.app.state === 'testplay');
     const tp = await page.evaluate(() => {
       const s = window.twinfoldShell;
-      return { current: s.session.current().name, wires: s.session.current().wiring.length, editor: getComputedStyle(document.getElementById('editor')).display, log: s.app.log.slice(-2), paused: s.session.paused };
+      return { current: s.session.current().name, wires: s.session.current().wiring.length, editor: getComputedStyle(document.getElementById('editor')).display, log: s.app.log.slice(-2), paused: s.session.isPaused() };
     });
     t.ok('Test play hands the chamber to the session', tp.current === 'Button and door' && tp.wires === 1 && tp.editor === 'none' && !tp.paused && tp.log.some((l) => l.startsWith('chamberStart buttondoor')), JSON.stringify(tp));
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => window.twinfoldShell.app.state === 'editor');
-    t.ok('Esc returns to the puzzle maker', await page.evaluate(() => getComputedStyle(document.getElementById('editor')).display === 'grid' && window.twinfoldShell.session.paused && window.twinfoldShell.app.editor.level.name === 'Button and door'));
+    t.ok('Esc returns to the puzzle maker', await page.evaluate(() => getComputedStyle(document.getElementById('editor')).display === 'grid' && window.twinfoldShell.session.isPaused() && window.twinfoldShell.app.editor.level.name === 'Button and door'));
 
     // Share link round trip.
     const share = await page.evaluate(async () => {
