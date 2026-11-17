@@ -308,6 +308,7 @@ export class Menu {
 
   private extrasScreen(): HTMLElement {
     const on = this.app.options.commentary;
+    const small = h('p', { class: 'note', 'data-id': 'editorBlocked', hidden: true }, 'The puzzle maker needs a larger screen: open it on a tablet in landscape or on a computer. Shared chambers still play here.');
     return h(
       'div',
       { class: 'list', 'data-screen': 'extras' },
@@ -315,13 +316,17 @@ export class Menu {
       h(
         'nav',
         { class: 'mainMenu' },
-        button('Puzzle maker', 'puzzleMaker', () => this.app.openEditor(), { class: 'primary' }),
+        button('Puzzle maker', 'puzzleMaker', () => {
+          if (this.app.editorBlocked) small.hidden = false;
+          else void this.app.openEditor();
+        }, { class: 'primary' }),
         button(`Developer commentary: ${on ? 'on' : 'off'}`, 'commentary', () => {
           this.app.setOption('commentary', !this.app.options.commentary);
           void this.render();
         }),
         button('Credits', 'credits', () => this.push('credits')),
       ),
+      small,
       h('div', { class: 'menuRow' }, this.backButton()),
     );
   }
@@ -360,7 +365,7 @@ export class Menu {
       h('h2', {}, err ? 'This link does not open a chamber' : name),
       err ? h('pre', { class: 'error' }, err) : h('p', {}, 'A chamber someone made in the puzzle maker.'),
       err ? null : button('Play', 'playShared', () => this.app.playShared(), { class: 'primary' }),
-      err ? null : button('Open in the puzzle maker', 'editShared', () => this.app.editShared()),
+      err || this.app.editorBlocked ? null : button('Open in the puzzle maker', 'editShared', () => this.app.editShared()),
       button('Main menu', 'toMain', () => this.app.toMainMenu()),
     );
   }

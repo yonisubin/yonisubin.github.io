@@ -19,6 +19,8 @@ export interface OptionsHost {
   setOption<K extends keyof Options>(key: K, value: Options[K]): void;
   resetOptions(): void;
   input: Input;
+  /** Touch mode is on (on-screen controls): shows the touch look slider. */
+  readonly touchMode: boolean;
 }
 
 let lastTab: Tab = 'video';
@@ -46,7 +48,7 @@ export function renderOptions(host: OptionsHost, onBack: () => void): HTMLElemen
     inp.addEventListener('change', () => host.setOption(key, inp.checked as never));
     return h('label', { class: 'row' }, h('span', {}, label, note ? h('small', {}, ` ${note}`) : null), inp);
   };
-  const select = (key: keyof Options, label: string, choices: [string, string][]) => {
+  const select = (key: keyof Options, label: string, choices: [string, string][], after?: () => void) => {
     const sel = h('select', { 'data-opt': key });
     for (const [v, l] of choices) sel.append(h('option', { value: v }, l));
     sel.value = String(host.options[key]);
@@ -54,6 +56,7 @@ export function renderOptions(host: OptionsHost, onBack: () => void): HTMLElemen
       const raw = sel.value;
       const cur = host.options[key];
       host.setOption(key, (typeof cur === 'number' ? Number(raw) : raw) as never);
+      after?.();
     });
     return h('label', { class: 'row' }, h('span', {}, label), sel);
   };
@@ -89,14 +92,28 @@ export function renderOptions(host: OptionsHost, onBack: () => void): HTMLElemen
         toggle('captions', 'Closed captions (sound effects)'),
       );
     } else if (tab === 'controls') {
-      body.append(
+      const T = SHELL.touch;
+      const rows: (HTMLElement | null)[] = [
+        select(
+          'touchControls',
+          'Touch controls',
+          [
+            ['auto', 'Auto (touch screens)'],
+            ['on', 'On'],
+            ['off', 'Off'],
+          ],
+          () => build('controls'),
+        ),
+        host.touchMode ? slider('touchLookSensitivity', 'Touch look sensitivity', T.lookSensitivityMin, T.lookSensitivityMax, 0.05, (v) => `${v.toFixed(2)}×`) : null,
         slider('mouseSensitivity', 'Mouse sensitivity', 0.2, 3, 0.05, (v) => `${v.toFixed(2)}×`),
         toggle('invertY', 'Invert look up/down'),
         toggle('toggleCrouch', 'Crouch toggles (instead of hold)'),
         slider('gamepadSensitivity', 'Gamepad look sensitivity', 0.2, 3, 0.05, (v) => `${v.toFixed(2)}×`),
         h('p', { class: 'note' }, `Gamepad: left stick moves, right stick looks, A jump, B crouch, X use, LT/LB blue, RT/RB amber, Start pause. No aim assist.${host.input.gamepadConnected ? ' (gamepad connected)' : ''}`),
+        host.touchMode ? h('p', { class: 'note' }, 'Key bindings below apply to a keyboard.') : null,
         renderBindings(host),
-      );
+      ];
+      body.append(...rows.filter((r): r is HTMLElement => r !== null));
     } else if (tab === 'gameplay') {
       body.append(
         toggle('crosshairIndicator', 'Crosshair shows placed openings'),

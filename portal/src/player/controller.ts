@@ -222,8 +222,14 @@ export class Player {
     this.eyeOffset = THREE.MathUtils.clamp(this.eyeOffset, -lim, lim);
 
     // --- Velocity -----------------------------------------------------------------------------
-    const f = (input.isHeld('forward') ? 1 : 0) - (input.isHeld('back') ? 1 : 0);
-    const s = (input.isHeld('right') ? 1 : 0) - (input.isHeld('left') ? 1 : 0);
+    let f = (input.isHeld('forward') ? 1 : 0) - (input.isHeld('back') ? 1 : 0);
+    let s = (input.isHeld('right') ? 1 : 0) - (input.isHeld('left') ? 1 : 0);
+    // Touch joystick: an analog wish (partial deflection → slower walk), used while it's deflected.
+    const stick = input.stick();
+    if (Math.hypot(stick.x, stick.y) > P.stickDeadZone) {
+      f = stick.y;
+      s = stick.x;
+    }
     const yaw = this.rig.yaw;
     const wish = new THREE.Vector3(-Math.sin(yaw) * f + Math.cos(yaw) * s, 0, -Math.cos(yaw) * f - Math.sin(yaw) * s);
     if (wish.lengthSq() > 1) wish.normalize();

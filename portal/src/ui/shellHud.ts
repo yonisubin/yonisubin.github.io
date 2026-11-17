@@ -29,6 +29,8 @@ export class ShellHud {
   private toastUntil = 0;
   hintsEnabled = true;
   reduceFlashing = false;
+  /** Touch mode: use prompts name the on-screen USE button instead of the E key. */
+  touchMode = false;
 
   constructor(private readonly root: HTMLElement) {
     this.vignette = el('div', 'vignette', root);
@@ -65,7 +67,7 @@ export class ShellHud {
   setPrompt(text: string | null): void {
     const show = !!text && this.hintsEnabled;
     this.prompt.style.display = show ? 'block' : 'none';
-    this.prompt.textContent = show ? text : '';
+    this.prompt.textContent = show ? (this.touchMode ? text.replace(/^E\s+/, 'USE  ') : text) : '';
   }
 
   /** Red vignette whose strength follows the damage taken, fading out. */

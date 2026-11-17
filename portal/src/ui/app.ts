@@ -18,7 +18,10 @@ import type { Editor } from '../editor/editor';
 import { Menu } from './menu';
 import { ShellHud } from './shellHud';
 import { MenuBackground } from './background';
-import { DEFAULT_OPTIONS, PALETTES, cssFilter, loadOptions, saveOptions, toSessionSettings, type Options } from './options';
+import { PALETTES, cssFilter, defaultOptionsFor, loadOptions, saveOptions, toSessionSettings, type Options } from './options';
+import { applyTouchClass, editorTooSmall, touchModeFor } from './device';
+import { TouchControls } from '../input/touch';
+import { CONFIG } from '../core/config';
 import { formatTime } from './dom';
 import { Ending } from './ending';
 import { SHELL } from '../core/shellConfig';
@@ -42,6 +45,10 @@ export class App {
   readonly hud: ShellHud;
   readonly menu: Menu;
   readonly background: MenuBackground;
+  /** On-screen controls (shown only in touch mode during play). */
+  readonly touch: TouchControls;
+  /** Touch mode: on-screen controls, no pointer lock, the phone layout (ui/device.ts). */
+  touchMode = false;
   options: Options = loadOptions();
   editor: Editor | null = null;
   /** Dev / test switch: challenges, advanced chambers and every chapter open without the story. */
@@ -69,6 +76,7 @@ export class App {
     this.music = new Music(this.sound);
     this.dialogue = new DialogueManager(this.sound);
     this.hud = new ShellHud(document.getElementById('hud')!);
+    this.touch = new TouchControls(this.input, handle.events, document.getElementById('hud')!);
     // During the ending the overlay shows the Provost's lines itself.
     this.dialogue.onSubtitle = (s) => {
       if (this.state !== 'ending') this.hud.showSubtitle(s);
@@ -144,7 +152,7 @@ export class App {
     // ?autostart (the tests' default) opens the gray-box test room; New Game starts the campaign.
     else if (params.has('autostart')) this.startLevel(getChamber('testroom') ?? getChamber(firstChamber())!, { kind: 'campaign' }, false);
     else if (shared) await this.openShared(shared);
-    else if (params.has('editor')) await this.openEditor();
+    else if (params.has('editor') && !this.editorBlocked) await this.openEditor();
     else this.toMainMenu();
   }
 
@@ -155,6 +163,7 @@ export class App {
     this.lastFrame = now;
     this.dialogue.update(dt);
     this.hud.update(dt);
+    this.touch.update();
     if (this.commentaryLeft >= 0) {
       this.commentaryLeft -= dt;
       if (this.commentaryLeft < 0 && !this.dialogue.speaking) this.hud.showSubtitle(null);
@@ -197,7 +206,7 @@ export class App {
   }
 
   resetOptions(): void {
-    this.options = { ...DEFAULT_OPTIONS };
+    this.options = defaultOptionsFor(touchModeFor('auto'));
     saveOptions(this.options);
     this.applyOptions();
   }
@@ -210,13 +219,33 @@ export class App {
     this.dialogue.setSubtitles(o.subtitles);
     this.dialogue.captions = o.captions;
     this.input.gamepadSensitivity = o.gamepadSensitivity;
+    this.input.touchLookSensitivity = o.touchLookSensitivity;
     const pal = PALETTES[o.palette];
+    this.applyTouchMode(touchModeFor(o.touchControls));
+    this.touch.setColors(pal.a, pal.b);
     this.hud.setCrosshair(pal.a, pal.b, o.crosshairIndicator);
     this.hud.hintsEnabled = o.hints;
     this.hud.reduceFlashing = o.reduceFlashing;
     this.background.setColors(pal.a, pal.b);
     this.handle.canvas.style.filter = cssFilter(o);
     document.body.classList.toggle('highContrast', o.highContrastHazards);
+  }
+
+  /** Touch mode on/off: the `touch` layout class, no pointer lock, on-screen controls, a lower pixel
+   *  ratio cap. Desktop (off) is exactly the mouse + keyboard game. */
+  private applyTouchMode(on: boolean): void {
+    this.touchMode = on;
+    applyTouchClass(on);
+    this.input.touchMode = on;
+    if (on) this.input.exitLock();
+    this.hud.touchMode = on;
+    this.touch.setActive(on);
+    this.handle.setMaxPixelRatio(on ? CONFIG.camera.touchMaxPixelRatio : CONFIG.camera.maxPixelRatio);
+  }
+
+  /** The puzzle maker needs a tablet or a computer; phones get a friendly message instead. */
+  get editorBlocked(): boolean {
+    return editorTooSmall(this.touchMode);
   }
 
   // --- Starting and stopping play --------------------------------------------------------------

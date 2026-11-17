@@ -3,6 +3,7 @@
 import type { SessionSettings } from '../core/session';
 import { SHELL } from '../core/shellConfig';
 import { CONFIG } from '../core/config';
+import { TOUCH_PREFS, touchModeFor, type TouchPref } from './device';
 
 export type PaletteId = 'standard' | 'deuteranopia' | 'protanopia' | 'tritanopia' | 'monochrome';
 
@@ -36,6 +37,8 @@ export interface Options {
   invertY: boolean;
   toggleCrouch: boolean;
   gamepadSensitivity: number;
+  touchControls: TouchPref;
+  touchLookSensitivity: number;
   // Gameplay
   crosshairIndicator: boolean;
   hints: boolean;
@@ -66,6 +69,8 @@ export const DEFAULT_OPTIONS: Options = {
   invertY: false,
   toggleCrouch: false,
   gamepadSensitivity: 1,
+  touchControls: 'auto',
+  touchLookSensitivity: 1,
   crosshairIndicator: true,
   hints: true,
   assist: false,
@@ -97,12 +102,27 @@ export function sanitizeOptions(raw: unknown): Options {
   o.gamma = clamp(o.gamma, 0.5, 1.5);
   if (![0, 30, 60, 120].includes(o.frameCap)) o.frameCap = 0;
   if (!(o.palette in PALETTES)) o.palette = 'standard';
+  if (!TOUCH_PREFS.includes(o.touchControls)) o.touchControls = 'auto';
+  o.touchLookSensitivity = clamp(o.touchLookSensitivity, SHELL.touch.lookSensitivityMin, SHELL.touch.lookSensitivityMax);
   return o;
 }
 
+/** The defaults for this device: touch devices start lighter (shallower recursion, lower render
+ *  scale, 60 fps cap). Only used when nothing is stored yet, or on "Reset to defaults". */
+export function defaultOptionsFor(touch: boolean): Options {
+  return touch ? { ...DEFAULT_OPTIONS, ...SHELL.touch.defaults } : { ...DEFAULT_OPTIONS };
+}
+
 export function loadOptions(): Options {
+  let raw: string | null = null;
   try {
-    return sanitizeOptions(JSON.parse(localStorage.getItem(SHELL.storage.options) ?? 'null'));
+    raw = localStorage.getItem(SHELL.storage.options);
+  } catch {
+    /* storage blocked: defaults */
+  }
+  if (raw === null) return defaultOptionsFor(touchModeFor('auto'));
+  try {
+    return sanitizeOptions(JSON.parse(raw));
   } catch {
     return { ...DEFAULT_OPTIONS };
   }

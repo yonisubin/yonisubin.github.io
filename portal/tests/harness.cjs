@@ -8,7 +8,11 @@ async function openGame(options = {}) {
   // Audio may start without a click (the shell's music / voice checks need a running AudioContext).
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
   try {
-    const context = await browser.newContext({ viewport: options.viewport ?? { width: 640, height: 400 } });
+    // Phone checks pass { hasTouch, isMobile, deviceScaleFactor } (tests/mobile.test.cjs); the default is a desktop.
+    const ctx = { viewport: options.viewport ?? { width: 640, height: 400 } };
+    for (const k of ['hasTouch', 'isMobile', 'deviceScaleFactor']) if (options[k] !== undefined) ctx[k] = options[k];
+    const context = await browser.newContext(ctx);
+    if (options.init) await context.addInitScript(options.init);
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));

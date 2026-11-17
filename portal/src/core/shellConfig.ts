@@ -107,6 +107,27 @@ export const SHELL = {
     commentaryMin: 4,
   },
 
+  touch: {
+    /** Floating joystick: how far the knob travels (px) and the dead zone (fraction of that). */
+    stickRadius: 56,
+    stickDeadZone: 0.12,
+    knobSize: 52,
+    /** On-screen buttons (px) and the gap between them; the pause button is smaller. */
+    buttonSize: 64,
+    buttonGap: 12,
+    pauseSize: 46,
+    /** Touch look: "pixels" of look per pixel dragged at 1× (camera sensitivity applies on top). */
+    lookScale: 1.6,
+    lookSensitivityMin: 0.2,
+    lookSensitivityMax: 3,
+    /** Haptic tick when firing (ms; 0 = off). */
+    fireVibrateMs: 12,
+    /** The puzzle maker needs at least this viewport width on a touch device (tablets keep it). */
+    editorMinWidth: 900,
+    /** First-run options on a touch device (stored options always win). */
+    defaults: { recursionDepth: 3, renderScale: 0.75, frameCap: 60 },
+  },
+
   gamepad: {
     /** Stick dead zone, and how many "pixels" of mouse motion full stick deflection gives per frame. */
     deadZone: 0.18,

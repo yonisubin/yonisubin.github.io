@@ -4,6 +4,9 @@
 // debug, pause, quicksave...) are edge-triggered: consumed once by whoever handles them (the
 // simulation consumes fire/use/restart/debug, the shell consumes pause/quicksave/quickload).
 //
+// Touch (input/touch.ts) feeds the same actions: setStick() for analog movement, addLook() for
+// look deltas, press() / setHeld() for its buttons. In touch mode there is no pointer lock.
+//
 // Bindings are rebindable (options menu) and stored in localStorage `twinfold:bindings`. Each action
 // has up to two codes: KeyboardEvent.code values, or 'Mouse0' / 'Mouse1' / 'Mouse2' for buttons.
 import { SHELL } from '../core/shellConfig';
@@ -112,6 +115,13 @@ export class Input {
   gamepadSensitivity = 1;
   gamepadConnected = false;
   private padPrev: boolean[] = [];
+  /** Touch mode (ui/device.ts): no pointer lock; the on-screen controls feed actions instead. */
+  touchMode = false;
+  /** Touch look sensitivity multiplier (options), applied to addLook() deltas. */
+  touchLookSensitivity = 1;
+  /** Analog move from the touch joystick: x = strafe right, y = forward, each in [-1, 1]. */
+  private stickX = 0;
+  private stickY = 0;
   /** Set while the options menu waits for a key to bind. */
   private capture: ((code: string) => void) | null = null;
 
@@ -208,6 +218,7 @@ export class Input {
       this.held.clear();
       this.padHeld.clear();
       this.dx = this.dy = 0;
+      this.stickX = this.stickY = 0;
     }
   }
 
@@ -250,6 +261,8 @@ export class Input {
   // --- Pointer lock ---------------------------------------------------------------------------
 
   requestLock(): void {
+    // Touch devices play without pointer lock (look comes from dragging on the screen).
+    if (this.touchMode) return;
     // Some browsers return a promise that rejects if the request is too soon after an exit.
     try {
       const r = this.element.requestPointerLock() as unknown as Promise<void> | undefined;
@@ -297,6 +310,26 @@ export class Input {
 
   press(a: PressAction): void {
     this.pressed.add(a);
+  }
+
+  /** Analog movement (touch joystick): x = strafe right, y = forward, clamped to the unit disc.
+   *  The player uses it instead of the move keys while it's outside its dead zone. */
+  setStick(x: number, y: number): void {
+    const m = Math.hypot(x, y);
+    const k = m > 1 ? 1 / m : 1;
+    this.stickX = this.enabledFlag ? x * k : 0;
+    this.stickY = this.enabledFlag ? y * k : 0;
+  }
+
+  stick(): { x: number; y: number } {
+    return { x: this.stickX, y: this.stickY };
+  }
+
+  /** Look deltas in mouse pixels (touch drag), scaled by the touch look sensitivity. Ignored in menus. */
+  addLook(dx: number, dy: number): void {
+    if (!this.enabledFlag) return;
+    this.dx += dx * this.touchLookSensitivity;
+    this.dy += dy * this.touchLookSensitivity;
   }
 
   // --- Gamepad (standard mapping) ---------------------------------------------------------------

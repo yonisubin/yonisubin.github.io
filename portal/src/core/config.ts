@@ -33,6 +33,8 @@ export const CONFIG = {
     airAccel: 9,
     /** Air control can push you up to this horizontal speed, never beyond. */
     airMaxSpeed: 4.5,
+    /** Analog stick (touch joystick): deflection below this is ignored and the keys decide. */
+    stickDeadZone: 0.05,
     /** How fast the eye glides between standing and crouched heights (m/s). */
     crouchEyeSpeed: 4,
     /** Below this, falling out of the world restarts you at the spawn. */
@@ -55,6 +57,9 @@ export const CONFIG = {
     reducedRollFactor: 0.25,
     /** Pitch limit, just short of straight up/down. */
     maxPitch: (89 * Math.PI) / 180,
+    /** Device pixels per CSS pixel at most (before render scale); touch devices get a lower cap. */
+    maxPixelRatio: 2,
+    touchMaxPixelRatio: 1.5,
   },
 
   portal: {

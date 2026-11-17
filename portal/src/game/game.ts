@@ -30,6 +30,8 @@ export interface GameHandle {
   session: GameSession;
   /** Everything the simulation reports (contract: core/events.ts). Same bus as session.events. */
   events: EventBus;
+  /** Cap on device pixels per CSS pixel before render scale (touch devices use a lower one). */
+  setMaxPixelRatio(cap: number): void;
 }
 
 /** Built-in gray-box levels (the shell's chamber list adds its own). */
@@ -45,11 +47,12 @@ export async function startGame(canvas: HTMLCanvasElement, hudRoot: HTMLElement)
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, stencil: true });
   let renderScale = 1;
+  let maxPixelRatio: number = CONFIG.camera.maxPixelRatio;
   /** Frames per second at most (options → frame cap); 0 = every display frame. */
   let frameCap = 0;
   /** Frames actually simulated + drawn (tests check the cap with it). */
   let framesDrawn = 0;
-  const applyPixelRatio = () => renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * renderScale);
+  const applyPixelRatio = () => renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio) * renderScale);
   applyPixelRatio();
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(0x15181b);
@@ -281,5 +284,11 @@ export async function startGame(canvas: HTMLCanvasElement, hudRoot: HTMLElement)
     ready: true,
   };
   (window as unknown as { twinfold: typeof api }).twinfold = api;
-  return { input, sound, canvas, session, events };
+  const setMaxPixelRatio = (cap: number) => {
+    if (cap === maxPixelRatio) return;
+    maxPixelRatio = cap;
+    applyPixelRatio();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  };
+  return { input, sound, canvas, session, events, setMaxPixelRatio };
 }
