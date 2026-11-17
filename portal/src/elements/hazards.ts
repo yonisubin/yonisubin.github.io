@@ -44,6 +44,8 @@ export class Grill extends BaseElement {
   private readonly frame: THREE.Quaternion;
   private playerSide = 0;
   private t = 0;
+  /** The player's position in the field's frame last step (crossing test). */
+  private prevLocal: THREE.Vector3 | null = null;
   /** Times the player's portals were erased here (tests). */
   erased = 0;
 
@@ -95,8 +97,16 @@ export class Grill extends BaseElement {
     const pl = this.ctx.player;
     const l = this.local(pl.position);
     const side = Math.sign(l.z) || this.playerSide;
-    if (on && side !== this.playerSide && this.inRect(l, CONFIG.player.radius)) this.playerPassed();
+    // Walking through the field: the side changed AND the path from last step crossed the plane
+    // inside the rectangle. (Changing sides by going through a portal elsewhere doesn't count.)
+    if (on && side !== this.playerSide && this.prevLocal) {
+      const a = this.prevLocal;
+      const t = Math.abs(a.z) / Math.max(1e-9, Math.abs(a.z) + Math.abs(l.z));
+      const at = a.clone().lerp(l, t);
+      if (a.distanceTo(l) < CONFIG.hazards.grillMaxStep && this.inRect(at, CONFIG.player.radius)) this.playerPassed();
+    }
     this.playerSide = side;
+    this.prevLocal = l;
     if (!on) return;
     // Any prop whose centre is inside the field is dissolved (carried ones too).
     const half = CONFIG.hazards.grillThickness / 2;
@@ -129,6 +139,7 @@ export class Grill extends BaseElement {
     const s = state as { side: number; t: number };
     this.playerSide = s.side;
     this.t = s.t;
+    this.prevLocal = null;
   }
 }
 

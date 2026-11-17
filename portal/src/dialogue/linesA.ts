@@ -58,4 +58,10 @@ export const LINES_A: Record<string, Line> = {
   'c08.chasm.1': { text: 'You have reached the chasm floor by the traditional route. The lift is to your left. I have entered this as a field trip.' },
   'c08.far.1': { text: 'Flight complete. Distance: excellent. Landing: present. I am awarding you an A for trajectory and declining to grade the rest.' },
   'c08.exitReached.1': { text: 'Practical Eight complete. That concludes Orientation. The next term is called Midterms. It is called that because it is in the middle, and because it is terrible.' },
+  // --- 09 Clearance: the grill (Midterms begin) --------------------------------------------------------
+  'c09.chamberStart.1': { text: 'Welcome to Midterms, Applicant. The grading curve has been adjusted. You will not be able to see it. That is part of the adjustment.' },
+  'c09.chamberStart.2': { text: 'The shimmering doorway is a clearing field. It removes unregistered equipment, which is everything. Alumna Twelve walked a case through it once. We do not talk about the case.' },
+  'c09.near.1': { text: 'Your apertures will close if you pass through. Your device will not. Please note that the device is registered. You are pending.' },
+  'c09.north.1': { text: 'You crossed the field. I have recorded this as "complied with signage", which puts you ahead of most of the alumni.' },
+  'c09.exitReached.1': { text: 'Practical Nine complete. The case arrived intact, which is better than its last three owners managed. I mean that as a comparison, not a threat.' },
 };

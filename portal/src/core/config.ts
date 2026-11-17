@@ -188,6 +188,8 @@ export const CONFIG = {
     pelletRespawn: 1.5,
     catcherRadius: 0.55,
     grillThickness: 0.1,
+    /** A side change bigger than this in one step was a teleport, not a walk through the grill. */
+    grillMaxStep: 1.5,
     crusherPeriod: 3,
     crusherSize: [2, 3, 0.6] as [number, number, number],
     /** A turret hitting something faster than this breaks. */

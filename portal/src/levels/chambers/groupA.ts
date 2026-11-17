@@ -10,6 +10,7 @@ import { C05 } from './c05';
 import { C06 } from './c06';
 import { C07 } from './c07';
 import { C08 } from './c08';
+import { C09 } from './c09';
 
-export const CHAMBERS_A: LevelData[] = [C01, C02, C03, C04, C05, C06, C07, C08];
+export const CHAMBERS_A: LevelData[] = [C01, C02, C03, C04, C05, C06, C07, C08, C09];
 export const CHALLENGES_A: ChallengeTable = {};

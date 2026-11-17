@@ -347,6 +347,20 @@ const SOLUTIONS = {
     H.say(`bell ${H.press('bell')}`);
     H.toExit();
   },
+  c09: (H) => {
+    H.walkTo(0, -3);
+    H.walkTo(0, -7, { tol: 0.2 });
+    H.shoot('b', [0, 1.2, -26]); // through the grill: amber on the north room's far panel
+    H.walkTo(4.5, -4, { tol: 0.3 });
+    H.grab('cube1');
+    H.walkTo(-5, -6.5, { tol: 0.3 });
+    H.turnToward([-8, 1.0, -6.5]); // blue on the south room's west panel
+    H.say(`fire a ${H.tf.fire('a').ok}`);
+    H.through(-9, -6.5); // around the grill, cube and all
+    H.carryTo(-4, -20);
+    H.say(`plate ${H.el('plate').outputs.pressed} grill erased ${H.el('grill').erased}`);
+    H.toExit();
+  },
 };
 
 run('chambersA', async ({ page }, t) => {
