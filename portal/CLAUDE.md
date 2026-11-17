@@ -67,18 +67,17 @@ portal/src/
                       # prompt / footstep / idle / out-of-bounds events, Use, chamber state for saves
   game/context.ts     # ChamberContext: what elements see of the chamber
   game/session.ts     # the GameSession implementation (load / restart / respawn / snapshot / restore / settings)
-  game/game.ts        # renderer + fixed-step loop, startGame() → { session, events, ... }, window.twinfold
-  main.ts             # app shell: starts the game, overlay / menus, pointer lock
+  game/game.ts        # renderer + fixed-step loop (frame cap), startGame() → { session, events, ... }, window.twinfold
   --- shell (workstream B) ---
-  main.ts             # starts the game, builds the App; URL switches ?autostart ?editor ?unlockall #play=…;
-                      # window.twinfoldShell for tests
+  main.ts             # starts the game, builds the App on handle.session; URL switches ?autostart
+                      # ?chamber=<id> ?editor ?unlockall #play=…; window.twinfoldShell for tests
   core/shellConfig.ts # every tunable number of the shell (dialogue timing, music, HUD, editor grid...)
   input/input.ts      # also: rebindable bindings (twinfold:bindings), pause / quicksave / quickload actions,
-                      # gamepad (standard mapping, no aim assist), toggle crouch, enabled flag for menus
+                      # gamepad (standard mapping, no aim assist), enabled flag (off while paused)
   levels/loader.ts    # validate + normalise LevelData v2 (errors vs fixed-up warnings), JSON import / export
-  levels/chambers/    # registry: chambers by id, CAMPAIGN / ADVANCED / CHAPTERS, CHALLENGES medal table
+  levels/chambers/    # registry: chambers by id (test room, sandbox, fixed room so far), CAMPAIGN / ADVANCED /
+                      # CHAPTERS, CHALLENGES medal table
   ui/app.ts           # the shell state machine (menu / game / paused / elevator / editor / testplay) and wiring
-  ui/devSession.ts    # DEV ADAPTER: a GameSession over window.twinfold until the real one exists
   ui/menu.ts          # main menu, pause menu and every screen (#overlay); ui/optionsMenu.ts the options tabs
   ui/options.ts       # options model, twinfold:options, palettes, → SessionSettings
   ui/shellHud.ts      # prompt, damage vignette, subtitles, captions, challenge timer, chamber card, toasts
@@ -139,12 +138,12 @@ Phases 1–4 of the plan at the end of the spec are built, in the gray-box test 
 Phases 5–7 (workstream A), exercised in `levels/sandbox.ts`:
 
 5. Props (cube, companion cube, sphere, debris) as Rapier dynamic bodies with CCD; they pass portals with M applied to position, orientation, linear and angular velocity (centre crossing inside the opening), walls masked through a contact hook (Rapier only runs hooks when `step` gets an event queue), a kinematic clone on the far side while straddling, a floor-exit boost and the 38 m/s cap. Carrying with Use: velocity servo to a hold point, yaw locked to the view, drops when forced > 1.5 m away, can't be stood on while held, follows the camera through portals (`holdM`). The player pushes props and stands on them.
-6. Elements implement `Element` (`elements/`), wired by `logic/wiring.ts` (AND of several wires; `gate` for or/not/timer); triggers and checkpoints; entry/exit elevators (`exitReached` → 3 s ride → `elevatorDone`); fixed portals and `level.device`; moving surfaces close portals and refuse shots. `GameSession` is `game/session.ts`; `startGame()` returns `{ input, sound, canvas, session, events }`. Counters (portals, footsteps, time), autosave at chamber start and checkpoints, snapshot/restore round-trips exactly (chamber-wide state rides in `entities['#chamber']`; runtime boss parts are recreated by their core). Settings: fov, sensitivity (rad/px if < 0.05, else a multiplier), invertY, renderScale, recursionDepth, portalColors, reduceRoll, reduceFlashing, highContrastHazards (liquid), assist (slow motion when flung, wider nudge), toggleCrouch.
+6. Elements implement `Element` (`elements/`), wired by `logic/wiring.ts` (AND of several wires; `gate` for or/not/timer); triggers and checkpoints; entry/exit elevators (`exitReached` → 3 s ride → `elevatorDone`); fixed portals and `level.device`; moving surfaces close portals and refuse shots. `GameSession` is `game/session.ts`; `startGame()` returns `{ input, sound, canvas, session, events }`. Counters (portals, footsteps, time), autosave at chamber start and checkpoints, snapshot/restore round-trips exactly (chamber-wide state rides in `entities['#chamber']`; runtime boss parts are recreated by their core). Settings: fov, sensitivity (rad/px if < 0.05, else a multiplier), invertY, renderScale, recursionDepth, portalColors, reduceRoll, reduceFlashing, highContrastHazards (liquid), assist (slow motion when flung, wider nudge), toggleCrouch (the player owns the toggle; Input only reports keys held), frameCap (0 = uncapped; game.ts skips display frames, physics stays 60 Hz). `setPaused(true)` also disables gameplay input and frees the pointer.
 7. Pellets (bounce, portals, kill, expire/respawn) and catchers; grills; toxic liquid; bottomless pits (below the lowest brush − 8 m); crushers; turrets (idle / active / searching / tipped / dissolved / destroyed, 60° cone, laser sight, 4–10 damage bullets, carried-from-behind = no fire, original barks as `sfx` captions); rocket turret (homing-ish, through portals); health with regeneration; death → last autosave in 1.2 s; `bossCore` / `disposal` stubs emitting `boss` events.
 
 Not built yet: the chambers (8+), escape levels and boss fight, shooting portals through portals, portals that ride moving surfaces, the P2-style elements. Restart key: R.
 
-**Shell (workstream B)**, built against the `GameSession` contract (`ui/devSession.ts` is only a fallback; the real session comes from `startGame()`):
+**Shell (workstream B)**, on the real `GameSession` from `startGame()` (integrated; the shell reaches the simulation only through it and the event bus):
 
 - Main menu over an animated 3D background (New Game, Continue, Load Game, Chapter Select, Challenges, Advanced Chambers, Extras → puzzle maker / commentary toggle / credits, Options, Quit → title card); pause menu on Esc (Resume, Save, Load, Options, Restart chamber, Quit to menu); HUD from events (use prompt, damage vignette, subtitles, captions, challenge timer, chamber-complete card); original logo.
 - Options in `twinfold:options` (video, audio, controls with key rebinding and gamepad, gameplay, accessibility with 5 opening palettes), pushed via `session.applySettings`.
