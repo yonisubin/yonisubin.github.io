@@ -72,4 +72,8 @@ export const LINES_A: Record<string, Line> = {
   'c10.death.1': { text: 'You have been steeped. The basin will need recalibrating. I will bill it to your stipend, which I will now be creating so that I can bill it.' },
   'c10.exitReached.1': { text: 'Practical Ten complete. You are now halfway through the curriculum, depending on how one counts. I count generously, on your behalf, for now.' },
   'c10.exitReached.2': { text: 'Please keep the case near you. The Department has plans for it. They are not unkind plans. Mostly they are filing.' },
+  // --- Advanced chambers (unlocked after the story; Midterms tone) ------------------------------------
+  'adv1.chamberStart.1': { text: 'Advanced Practical One. It is Practical Five, with the helpful parts removed and a solution added to the pit. Not that kind of solution.' },
+  'adv1.island.1': { text: 'Gently done. Alumna Nine ran. We named the island after her. Informally. On a small plaque. Underneath.' },
+  'adv1.exitReached.1': { text: 'Complete. The pit has been returned to its original condition, which is flooded. Thank you for not adding to it.' },
 };

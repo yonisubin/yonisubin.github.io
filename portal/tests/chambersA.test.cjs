@@ -394,6 +394,29 @@ const SOLUTIONS = {
     H.say(`plate ${H.el('plate').outputs.pressed}`);
     H.toExit();
   },
+  adv1: (H) => {
+    const { tf, P } = H;
+    H.walkTo(0, -3);
+    H.shoot('b', [5.3, 5.2, -24]); // the narrow shelf panel
+    H.walkTo(1, -6.5);
+    H.walkTo(0.2, -11.6, { tol: 0.2 });
+    H.turn(Math.PI / 2, 0);
+    // Creep off the east lip so the fall lands on the island, not in the liquid.
+    tf.hold('crouch', true);
+    tf.hold('forward', true);
+    H.waitFor(() => !P.grounded, 3);
+    tf.hold('forward', false);
+    tf.hold('crouch', false);
+    H.waitFor(() => P.grounded, 3);
+    tf.simulate(0.3);
+    H.grab('cube1');
+    H.turnToward([-1, -1.2, -11.6]); // blue high on the pit's east wall
+    H.say(`a ${tf.fire('a').ok}`);
+    H.through(0, -11.6);
+    H.carryTo(-0.5, -20.5);
+    H.say(`plate ${H.el('plate').outputs.pressed}`);
+    H.toExit();
+  },
 };
 
 run('chambersA', async ({ page }, t) => {
