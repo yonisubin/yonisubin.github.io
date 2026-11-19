@@ -1,0 +1,47 @@
+[
+ {
+  "Id": 490,
+  "Name": "אין נתונים",
+  "IsActive": false,
+  "LastUpdatedDate": "2019-12-31T14:45:32.73+02:00",
+  "CategoryID": 1,
+  "CategoryName": "אין נתונים",
+  "GovID": 0
+ },
+ {
+  "Id": 535,
+  "Name": "משרד ראש הממשלה החלופי",
+  "IsActive": false,
+  "LastUpdatedDate": "2023-11-30T15:20:24.573+02:00",
+  "CategoryID": 51,
+  "CategoryName": "ראש הממשלה החלופי",
+  "GovID": 35
+ },
+ {
+  "Id": 536,
+  "Name": "משרד ראש הממשלה החלופי",
+  "IsActive": false,
+  "LastUpdatedDate": "2023-11-30T15:20:24.573+02:00",
+  "CategoryID": 51,
+  "CategoryName": "ראש הממשלה החלופי",
+  "GovID": 36
+ },
+ {
+  "Id": 537,
+  "Name": "משרד ראש הממשלה",
+  "IsActive": false,
+  "LastUpdatedDate": "2023-11-30T15:20:24.573+02:00",
+  "CategoryID": 50,
+  "CategoryName": "ראש הממשלה",
+  "GovID": 0
+ },
+ {
+  "Id": 538,
+  "Name": "משרד ראש הממשלה",
+  "IsActive": false,
+  "LastUpdatedDate": "2023-11-30T15:20:24.573+02:00",
+  "CategoryID": 50,
+  "CategoryName": "ראש הממשלה",
+  "GovID": 1
+ }
+]

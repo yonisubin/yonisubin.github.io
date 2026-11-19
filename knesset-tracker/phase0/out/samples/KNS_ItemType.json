@@ -1,0 +1,27 @@
+[
+ {
+  "Id": 1,
+  "Desc": "שאילתה",
+  "TableName": "KNS_Query"
+ },
+ {
+  "Id": 2,
+  "Desc": "הצעת חוק",
+  "TableName": "KNS_Bill"
+ },
+ {
+  "Id": 4,
+  "Desc": "הצעה לסדר היום",
+  "TableName": "KNS_Agenda"
+ },
+ {
+  "Id": 5,
+  "Desc": "ישיבת מליאה",
+  "TableName": "KNS_PlenumSession"
+ },
+ {
+  "Id": 12,
+  "Desc": "ישיבת ועדה",
+  "TableName": "KNS_CommitteSession"
+ }
+]

@@ -1,0 +1,146 @@
+[
+ {
+  "Id": 1095,
+  "Name": "התאחדות הספרדים שומרי תורה תנועתו של מרן הרב עובדיה יוסף זצ\"ל",
+  "KnessetNum": 25,
+  "StartDate": "2022-11-15T00:00:00+02:00",
+  "FinishDate": null,
+  "IsCurrent": true,
+  "LastUpdatedDate": "2024-10-07T12:24:33.057+03:00"
+ },
+ {
+  "Id": 1096,
+  "Name": "הליכוד ",
+  "KnessetNum": 25,
+  "StartDate": "2022-11-15T00:00:00+02:00",
+  "FinishDate": null,
+  "IsCurrent": true,
+  "LastUpdatedDate": "2024-10-07T12:14:59.083+03:00"
+ },
+ {
+  "Id": 1097,
+  "Name": "הציונות הדתית",
+  "KnessetNum": 25,
+  "StartDate": "2022-11-15T00:00:00+02:00",
+  "FinishDate": "2022-11-20T00:00:00+02:00",
+  "IsCurrent": false,
+  "LastUpdatedDate": "2022-11-27T13:50:32.94+02:00"
+ },
+ {
+  "Id": 1098,
+  "Name": "המחנה הממלכתי",
+  "KnessetNum": 25,
+  "StartDate": "2022-11-15T00:00:00+02:00",
+  "FinishDate": "2025-07-08T00:00:00+03:00",
+  "IsCurrent": false,
+  "LastUpdatedDate": "2026-03-23T17:00:47.967+02:00"
+ },
+ {
+  "Id": 1099,
+  "Name": "רע\"ם",
+  "KnessetNum": 25,
+  "StartDate": "2022-11-15T00:00:00+02:00",
+  "FinishDate": null,
+  "IsCurrent": true,
+  "LastUpdatedDate": "2024-05-29T11:22:50.67+03:00"
+ },
+ {
+  "Id": 1100,
+  "Name": "העבודה",
+  "KnessetNum": 25,
+  "StartDate": "2022-11-15T00:00:00+02:00",
+  "FinishDate": null,
+  "IsCurrent": true,
+  "LastUpdatedDate": "2024-10-07T12:24:59.677+03:00"
+ },
+ {
+  "Id": 1101,
+  "Name": "יהדות התורה",
+  "KnessetNum": 25,
+  "StartDate": "2022-11-15T00:00:00+02:00",
+  "FinishDate": null,
+  "IsCurrent": true,
+  "LastUpdatedDate": "2024-10-07T12:22:42.103+03:00"
+ },
+ {
+  "Id": 1102,
+  "Name": "יש עתיד",
+  "KnessetNum": 25,
+  "StartDate": "2022-11-15T00:00:00+02:00",
+  "FinishDate": null,
+  "IsCurrent": true,
+  "LastUpdatedDate": "2024-10-07T12:21:45.69+03:00"
+ },
+ {
+  "Id": 1103,
+  "Name": "חד\"ש-תע\"ל",
+  "KnessetNum": 25,
+  "StartDate": "2022-11-15T00:00:00+02:00",
+  "FinishDate": null,
+  "IsCurrent": true,
+  "LastUpdatedDate": "2024-10-07T12:24:46.807+03:00"
+ },
+ {
+  "Id": 1104,
+  "Name": "ישראל ביתנו",
+  "KnessetNum": 25,
+  "StartDate": "2022-11-15T00:00:00+02:00",
+  "FinishDate": null,
+  "IsCurrent": true,
+  "LastUpdatedDate": "2024-10-07T12:24:20.58+03:00"
+ },
+ {
+  "Id": 1105,
+  "Name": "הציונות הדתית בראשות בצלאל סמוטריץ'",
+  "KnessetNum": 25,
+  "StartDate": "2022-11-20T00:00:00+02:00",
+  "FinishDate": null,
+  "IsCurrent": true,
+  "LastUpdatedDate": "2024-10-07T12:23:04.57+03:00"
+ },
+ {
+  "Id": 1106,
+  "Name": "עוצמה יהודית בראשות איתמר בן גביר",
+  "KnessetNum": 25,
+  "StartDate": "2022-11-15T00:00:00+02:00",
+  "FinishDate": null,
+  "IsCurrent": true,
+  "LastUpdatedDate": "2025-03-19T19:55:01.57+02:00"
+ },
+ {
+  "Id": 1107,
+  "Name": "נעם - בראשות אבי מעוז",
+  "KnessetNum": 25,
+  "StartDate": "2022-11-20T00:00:00+02:00",
+  "FinishDate": null,
+  "IsCurrent": true,
+  "LastUpdatedDate": "2024-05-29T11:21:58.697+03:00"
+ },
+ {
+  "Id": 1108,
+  "Name": "הימין הממלכתי ",
+  "KnessetNum": 25,
+  "StartDate": "2024-03-13T00:00:00+02:00",
+  "FinishDate": null,
+  "IsCurrent": true,
+  "LastUpdatedDate": "2025-03-10T15:45:50.757+02:00"
+ },
+ {
+  "Id": 1109,
+  "Name": "חה\"כ עידן רול",
+  "KnessetNum": 25,
+  "StartDate": "2025-01-14T00:00:00+02:00",
+  "FinishDate": "2025-08-13T00:00:00+03:00",
+  "IsCurrent": false,
+  "LastUpdatedDate": "2026-03-23T16:20:59.293+02:00"
+ },
+ {
+  "Id": 1110,
+  "Name": "כחול לבן - המחנה הממלכתי",
+  "KnessetNum": 25,
+  "StartDate": "2025-07-08T00:00:00+03:00",
+  "FinishDate": null,
+  "IsCurrent": true,
+  "LastUpdatedDate": "2026-03-23T17:01:43.96+02:00"
+ }
+]

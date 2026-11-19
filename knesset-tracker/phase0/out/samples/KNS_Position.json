@@ -1,0 +1,37 @@
+[
+ {
+  "Id": 29,
+  "Description": "יושבת–ראש הקואליציה",
+  "GenderID": 250,
+  "GenderDesc": "נקבה",
+  "LastUpdatedDate": "2015-03-20T12:03:00+02:00"
+ },
+ {
+  "Id": 30,
+  "Description": "יושב–ראש הקואליציה",
+  "GenderID": 251,
+  "GenderDesc": "זכר",
+  "LastUpdatedDate": "2015-03-20T12:03:00+02:00"
+ },
+ {
+  "Id": 31,
+  "Description": "משנה לראש הממשלה",
+  "GenderID": 252,
+  "GenderDesc": "אחר",
+  "LastUpdatedDate": "2015-03-20T12:03:00+02:00"
+ },
+ {
+  "Id": 39,
+  "Description": "שר",
+  "GenderID": 251,
+  "GenderDesc": "זכר",
+  "LastUpdatedDate": "2015-03-20T12:03:00+02:00"
+ },
+ {
+  "Id": 40,
+  "Description": "סגן שר",
+  "GenderID": 251,
+  "GenderDesc": "זכר",
+  "LastUpdatedDate": "2015-03-20T12:03:00+02:00"
+ }
+]

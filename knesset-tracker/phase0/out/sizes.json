@@ -1,0 +1,354 @@
+[
+ {
+  "entity": "KNS_Agenda",
+  "count": 22072,
+  "sampled": 1000,
+  "bytes_per_row": 901,
+  "est_total_mb": 19.9,
+  "est_k25_mb": 0.7
+ },
+ {
+  "entity": "KNS_Bill",
+  "count": 60137,
+  "sampled": 1000,
+  "bytes_per_row": 1008,
+  "est_total_mb": 60.6,
+  "est_k25_mb": 7.5
+ },
+ {
+  "entity": "KNS_BillHistoryInitiator",
+  "count": 10808,
+  "sampled": 1000,
+  "bytes_per_row": 442,
+  "est_total_mb": 4.8,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_BillInitiator",
+  "count": 169348,
+  "sampled": 1000,
+  "bytes_per_row": 319,
+  "est_total_mb": 54.1,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_BillName",
+  "count": 28116,
+  "sampled": 1000,
+  "bytes_per_row": 483,
+  "est_total_mb": 13.6,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_BillSplit",
+  "count": 887,
+  "sampled": 887,
+  "bytes_per_row": 397,
+  "est_total_mb": 0.4,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_BillUnion",
+  "count": 1621,
+  "sampled": 1000,
+  "bytes_per_row": 279,
+  "est_total_mb": 0.5,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_BroadcastCommitteSession",
+  "count": 109289,
+  "sampled": 1000,
+  "bytes_per_row": 205,
+  "est_total_mb": 22.4,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_CmtSessionItem",
+  "count": 80790,
+  "sampled": 1000,
+  "bytes_per_row": 483,
+  "est_total_mb": 39.0,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_CmtSiteCode",
+  "count": 720,
+  "sampled": 720,
+  "bytes_per_row": 239,
+  "est_total_mb": 0.2,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_Committee",
+  "count": 2901,
+  "sampled": 1000,
+  "bytes_per_row": 721,
+  "est_total_mb": 2.1,
+  "est_k25_mb": 0.1
+ },
+ {
+  "entity": "KNS_CommitteeSession",
+  "count": 109277,
+  "sampled": 1000,
+  "bytes_per_row": 770,
+  "est_total_mb": 84.1,
+  "est_k25_mb": 8.4
+ },
+ {
+  "entity": "KNS_DocumentAgenda",
+  "count": 27475,
+  "sampled": 1000,
+  "bytes_per_row": 475,
+  "est_total_mb": 13.1,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_DocumentBill",
+  "count": 111663,
+  "sampled": 1000,
+  "bytes_per_row": 459,
+  "est_total_mb": 51.2,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_DocumentCommitteeSession",
+  "count": 201807,
+  "sampled": 1000,
+  "bytes_per_row": 582,
+  "est_total_mb": 117.4,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_DocumentPlenumSession",
+  "count": 21924,
+  "sampled": 1000,
+  "bytes_per_row": 459,
+  "est_total_mb": 10.1,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_DocumentSecondaryLaw",
+  "count": 7627,
+  "sampled": 1000,
+  "bytes_per_row": 483,
+  "est_total_mb": 3.7,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_Faction",
+  "count": 545,
+  "sampled": 545,
+  "bytes_per_row": 451,
+  "est_total_mb": 0.2,
+  "est_k25_mb": 0.0
+ },
+ {
+  "entity": "KNS_GovMinistry",
+  "count": 922,
+  "sampled": 922,
+  "bytes_per_row": 373,
+  "est_total_mb": 0.3,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_IsraelLaw",
+  "count": 2024,
+  "sampled": 1000,
+  "bytes_per_row": 713,
+  "est_total_mb": 1.4,
+  "est_k25_mb": 0.1
+ },
+ {
+  "entity": "KNS_IsraelLawBinding",
+  "count": 375,
+  "sampled": 375,
+  "bytes_per_row": 415,
+  "est_total_mb": 0.2,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_IsraelLawClassificiation",
+  "count": 2919,
+  "sampled": 1000,
+  "bytes_per_row": 328,
+  "est_total_mb": 1.0,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_IsraelLawLawCorrections",
+  "count": 706,
+  "sampled": 706,
+  "bytes_per_row": 336,
+  "est_total_mb": 0.2,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_IsraelLawMinistry",
+  "count": 1734,
+  "sampled": 1000,
+  "bytes_per_row": 336,
+  "est_total_mb": 0.6,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_IsraelLawName",
+  "count": 2180,
+  "sampled": 1000,
+  "bytes_per_row": 393,
+  "est_total_mb": 0.9,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_ItemType",
+  "count": 8,
+  "sampled": 8,
+  "bytes_per_row": 8192,
+  "est_total_mb": 0.1,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_JointCommittee",
+  "count": 1176,
+  "sampled": 1000,
+  "bytes_per_row": 287,
+  "est_total_mb": 0.3,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_KnessetDates",
+  "count": 166,
+  "sampled": 166,
+  "bytes_per_row": 691,
+  "est_total_mb": 0.1,
+  "est_k25_mb": 0.0
+ },
+ {
+  "entity": "KNS_LawBinding",
+  "count": 15326,
+  "sampled": 1000,
+  "bytes_per_row": 647,
+  "est_total_mb": 9.9,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_LawCorrections",
+  "count": 610,
+  "sampled": 610,
+  "bytes_per_row": 819,
+  "est_total_mb": 0.5,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_MkSiteCode",
+  "count": 1116,
+  "sampled": 1000,
+  "bytes_per_row": 213,
+  "est_total_mb": 0.2,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_Person",
+  "count": 1236,
+  "sampled": 1000,
+  "bytes_per_row": 360,
+  "est_total_mb": 0.4,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_PersonToPosition",
+  "count": 23688,
+  "sampled": 1000,
+  "bytes_per_row": 639,
+  "est_total_mb": 15.1,
+  "est_k25_mb": 1.4
+ },
+ {
+  "entity": "KNS_PlenumSession",
+  "count": 8795,
+  "sampled": 1000,
+  "bytes_per_row": 459,
+  "est_total_mb": 4.0,
+  "est_k25_mb": 0.2
+ },
+ {
+  "entity": "KNS_PlenumVote",
+  "count": 36168,
+  "sampled": 1000,
+  "bytes_per_row": 868,
+  "est_total_mb": 31.4,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_PlenumVoteResult",
+  "count": 1953709,
+  "sampled": 1000,
+  "bytes_per_row": 475,
+  "est_total_mb": 928.3,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_PlmSessionItem",
+  "count": 168801,
+  "sampled": 1000,
+  "bytes_per_row": 549,
+  "est_total_mb": 92.6,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_Position",
+  "count": 29,
+  "sampled": 29,
+  "bytes_per_row": 2260,
+  "est_total_mb": 0.1,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_Query",
+  "count": 42824,
+  "sampled": 1000,
+  "bytes_per_row": 647,
+  "est_total_mb": 27.7,
+  "est_k25_mb": 1.0
+ },
+ {
+  "entity": "KNS_SecLawAuthorizingLaw",
+  "count": 68352,
+  "sampled": 1000,
+  "bytes_per_row": 295,
+  "est_total_mb": 20.2,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_SecLawRegulator",
+  "count": 5298,
+  "sampled": 1000,
+  "bytes_per_row": 401,
+  "est_total_mb": 2.1,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_SecToSecBinding",
+  "count": 23763,
+  "sampled": 1000,
+  "bytes_per_row": 647,
+  "est_total_mb": 15.4,
+  "est_k25_mb": null
+ },
+ {
+  "entity": "KNS_SecondaryLaw",
+  "count": 60338,
+  "sampled": 1000,
+  "bytes_per_row": 1425,
+  "est_total_mb": 86.0,
+  "est_k25_mb": 4.1
+ },
+ {
+  "entity": "KNS_Status",
+  "count": 82,
+  "sampled": 82,
+  "bytes_per_row": 999,
+  "est_total_mb": 0.1,
+  "est_k25_mb": null
+ }
+]

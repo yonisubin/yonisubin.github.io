@@ -1,0 +1,52 @@
+[
+ {
+  "Id": 48,
+  "LastName": "מלר-הורוביץ",
+  "FirstName": "ירדנה",
+  "GenderID": 250,
+  "GenderDesc": "נקבה",
+  "Email": null,
+  "IsCurrent": false,
+  "LastUpdatedDate": "2024-07-28T21:41:35.37+03:00"
+ },
+ {
+  "Id": 122,
+  "LastName": "פורדס",
+  "FirstName": "גיורא",
+  "GenderID": 251,
+  "GenderDesc": "זכר",
+  "Email": null,
+  "IsCurrent": false,
+  "LastUpdatedDate": "2020-03-23T23:33:55.387+02:00"
+ },
+ {
+  "Id": 128,
+  "LastName": "לב",
+  "FirstName": "דוד",
+  "GenderID": 251,
+  "GenderDesc": "זכר",
+  "Email": null,
+  "IsCurrent": false,
+  "LastUpdatedDate": "2020-03-23T23:40:56.46+02:00"
+ },
+ {
+  "Id": 134,
+  "LastName": "ימין",
+  "FirstName": "אלינור",
+  "GenderID": 250,
+  "GenderDesc": "נקבה",
+  "Email": "אלינור ימין",
+  "IsCurrent": true,
+  "LastUpdatedDate": "2020-11-19T13:43:11.277+02:00"
+ },
+ {
+  "Id": 136,
+  "LastName": "קפלן",
+  "FirstName": "רות",
+  "GenderID": 250,
+  "GenderDesc": "נקבה",
+  "Email": null,
+  "IsCurrent": false,
+  "LastUpdatedDate": "2020-03-23T23:40:27.3+02:00"
+ }
+]

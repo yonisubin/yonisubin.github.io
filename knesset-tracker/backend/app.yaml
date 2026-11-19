@@ -1,0 +1,50 @@
+# Wasmer Edge app config (Hobby plan). The package section must match how your existing
+# FastAPI app on Wasmer is packaged (see wasmer.toml); the jobs are the part this project adds.
+#
+# Header values in Wasmer jobs are literal strings, so the token is NOT committed:
+# the CI deploy step replaces __INTERNAL_TOKEN__ with the INTERNAL_TOKEN GitHub secret.
+kind: wasmer.io/App.v0
+name: knesset-tracker
+package: .
+jobs:
+  # Incremental sync, then alert fan-out and instant emails/pushes, every 30 min.
+  # Neon wakes 48x a day; alerts ride along on the same wake-up.
+  - name: sync-every-30-minutes
+    trigger: '*/30 * * * *'
+    action:
+      fetch:
+        path: /internal/sync
+        method: POST
+        timeout: 5m
+        headers:
+          - name: X-Internal-Token
+            value: __INTERNAL_TOKEN__
+        expect:
+          status_codes: [200]
+  # Email digests: daily ones every morning, weekly ones on Sundays. 04:41 UTC is
+  # 06:41/07:41 in Israel. Shares a database wake-up with nothing else, once a day.
+  - name: digest-daily
+    trigger: '41 4 * * *'
+    action:
+      fetch:
+        path: /internal/digest
+        method: POST
+        timeout: 5m
+        headers:
+          - name: X-Internal-Token
+            value: __INTERNAL_TOKEN__
+        expect:
+          status_codes: [200]
+  # Nightly full re-read of small entities: deletions and silent changes. 03:17 UTC.
+  - name: reconcile-nightly
+    trigger: '17 3 * * *'
+    action:
+      fetch:
+        path: /internal/reconcile
+        method: POST
+        timeout: 5m
+        headers:
+          - name: X-Internal-Token
+            value: __INTERNAL_TOKEN__
+        expect:
+          status_codes: [200]

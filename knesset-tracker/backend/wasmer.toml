@@ -1,0 +1,20 @@
+# Starting point only: align with the wasmer.toml of your working FastAPI deploy.
+# Set as app secrets in the Wasmer dashboard:
+#   DATABASE_URL (postgresql+pg8000://...neon.tech/...?ssl_context=true), INTERNAL_TOKEN,
+#   SYNC_TIME_BUDGET_SECONDS=240 (~80% of the 5 min job timeout), SECRET_KEY (random, 32+
+#   bytes), PUBLIC_BASE_URL (https://your-app...), EMAIL_BACKEND=resend, RESEND_API_KEY,
+#   EMAIL_FROM ("Knesset Tracker <alerts@your-domain>"), VAPID_PRIVATE_KEY,
+#   VAPID_PUBLIC_KEY (python -m scripts.vapid_keys), VAPID_SUBJECT (mailto:you@...).
+[dependencies]
+"wasmer/python-ext" = "^3.12.9"
+
+[fs]
+"/app" = "."
+
+[[command]]
+name = "app"
+module = "wasmer/python-ext:python"
+runner = "https://webc.org/runner/wasi"
+
+[command.annotations.wasi]
+main-args = ["-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80", "--app-dir", "/app"]

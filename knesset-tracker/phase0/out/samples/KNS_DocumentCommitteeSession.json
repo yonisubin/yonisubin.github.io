@@ -1,0 +1,57 @@
+[
+ {
+  "Id": 71308,
+  "CommitteeSessionID": 66045,
+  "GroupTypeID": 23,
+  "GroupTypeDesc": "פרוטוקול ועדה",
+  "DocumentName": "פרוטוקול ועדת הכנסת,מספר 86,מתאריך 04/01/2004",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il//16/Committees/16_ptv_71308.doc",
+  "LastUpdatedDate": "2010-06-02T20:32:33.95+03:00"
+ },
+ {
+  "Id": 71309,
+  "CommitteeSessionID": 66046,
+  "GroupTypeID": 23,
+  "GroupTypeDesc": "פרוטוקול ועדה",
+  "DocumentName": "פרוטוקול ועדת הכנסת,מספר 87,מתאריך 04/01/2004",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il//16/Committees/16_ptv_71309.doc",
+  "LastUpdatedDate": "2010-06-02T20:32:34.117+03:00"
+ },
+ {
+  "Id": 71310,
+  "CommitteeSessionID": 66050,
+  "GroupTypeID": 23,
+  "GroupTypeDesc": "פרוטוקול ועדה",
+  "DocumentName": "פרוטוקול ועדת הכנסת,מספר 89,מתאריך 12/01/2004",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il//16/Committees/16_ptv_71310.doc",
+  "LastUpdatedDate": "2010-06-02T20:32:34.263+03:00"
+ },
+ {
+  "Id": 71402,
+  "CommitteeSessionID": 86485,
+  "GroupTypeID": 23,
+  "GroupTypeDesc": "פרוטוקול ועדה",
+  "DocumentName": "פרוטוקול ועדת הכלכלה,מספר 334,מתאריך 27/12/2004",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il//16/Committees/16_ptv_71402.doc",
+  "LastUpdatedDate": "2010-06-02T20:33:18.853+03:00"
+ },
+ {
+  "Id": 71461,
+  "CommitteeSessionID": 97429,
+  "GroupTypeID": 23,
+  "GroupTypeDesc": "פרוטוקול ועדה",
+  "DocumentName": "פרוטוקול ועדת הכלכלה,מספר 392,מתאריך 23/03/2005",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il//16/Committees/16_ptv_71461.doc",
+  "LastUpdatedDate": "2010-06-02T20:33:50.87+03:00"
+ }
+]

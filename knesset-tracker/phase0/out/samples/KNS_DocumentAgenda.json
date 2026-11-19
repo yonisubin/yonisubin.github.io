@@ -1,0 +1,52 @@
+[
+ {
+  "Id": 35235,
+  "AgendaID": 131070,
+  "GroupTypeID": 16,
+  "GroupTypeDesc": "נוסח הצעה לסדר היום",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il/\\17\\agendasuggestion\\17_as_35235.doc",
+  "LastUpdatedDate": "2010-06-02T15:40:37.323+03:00"
+ },
+ {
+  "Id": 35243,
+  "AgendaID": 131581,
+  "GroupTypeID": 22,
+  "GroupTypeDesc": "קטע מדברי הכנסת",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il/\\17\\agendasuggestion\\17_as_ptk_35243.doc",
+  "LastUpdatedDate": "2010-06-02T15:40:38.63+03:00"
+ },
+ {
+  "Id": 35244,
+  "AgendaID": 131581,
+  "GroupTypeID": 16,
+  "GroupTypeDesc": "נוסח הצעה לסדר היום",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il/\\17\\agendasuggestion\\17_as_35244.doc",
+  "LastUpdatedDate": "2010-06-02T15:40:38.767+03:00"
+ },
+ {
+  "Id": 35246,
+  "AgendaID": 131647,
+  "GroupTypeID": 22,
+  "GroupTypeDesc": "קטע מדברי הכנסת",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il/\\17\\agendasuggestion\\17_as_ptk_35246.doc",
+  "LastUpdatedDate": "2010-06-02T15:40:39.1+03:00"
+ },
+ {
+  "Id": 35247,
+  "AgendaID": 131647,
+  "GroupTypeID": 16,
+  "GroupTypeDesc": "נוסח הצעה לסדר היום",
+  "ApplicationID": 1,
+  "ApplicationDesc": "DOC",
+  "FilePath": "https://fs.knesset.gov.il/\\17\\agendasuggestion\\17_as_35247.doc",
+  "LastUpdatedDate": "2010-06-02T15:40:39.247+03:00"
+ }
+]

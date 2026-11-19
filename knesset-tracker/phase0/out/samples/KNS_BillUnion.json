@@ -1,0 +1,32 @@
+[
+ {
+  "Id": 1,
+  "MainBillID": 31252,
+  "UnionBillID": 37664,
+  "LastUpdatedDate": "2015-03-20T12:03:33+02:00"
+ },
+ {
+  "Id": 2,
+  "MainBillID": 37668,
+  "UnionBillID": 18516,
+  "LastUpdatedDate": "2015-03-20T12:03:33+02:00"
+ },
+ {
+  "Id": 5,
+  "MainBillID": 37658,
+  "UnionBillID": 17670,
+  "LastUpdatedDate": "2015-03-20T12:03:33+02:00"
+ },
+ {
+  "Id": 6,
+  "MainBillID": 37658,
+  "UnionBillID": 19438,
+  "LastUpdatedDate": "2015-03-20T12:03:33+02:00"
+ },
+ {
+  "Id": 7,
+  "MainBillID": 31717,
+  "UnionBillID": 31716,
+  "LastUpdatedDate": "2015-03-20T12:03:33+02:00"
+ }
+]

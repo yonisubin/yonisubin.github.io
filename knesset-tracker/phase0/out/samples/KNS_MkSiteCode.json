@@ -1,0 +1,27 @@
+[
+ {
+  "Id": 1,
+  "KnsID": 405,
+  "SiteId": 12
+ },
+ {
+  "Id": 2,
+  "KnsID": 412,
+  "SiteId": 46
+ },
+ {
+  "Id": 3,
+  "KnsID": 417,
+  "SiteId": 51
+ },
+ {
+  "Id": 4,
+  "KnsID": 421,
+  "SiteId": 209
+ },
+ {
+  "Id": 5,
+  "KnsID": 427,
+  "SiteId": 214
+ }
+]

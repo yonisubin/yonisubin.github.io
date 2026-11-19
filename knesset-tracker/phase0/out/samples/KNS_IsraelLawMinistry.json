@@ -1,0 +1,37 @@
+[
+ {
+  "Id": 2135419,
+  "IsraelLawID": 2000001,
+  "LastUpdatedDate": "2014-09-10T14:27:17.383+03:00",
+  "MinistryCategoryID": 16,
+  "MinistryCategoryDesc": "האוצר"
+ },
+ {
+  "Id": 2135420,
+  "IsraelLawID": 2000002,
+  "LastUpdatedDate": "2014-09-10T14:27:17.383+03:00",
+  "MinistryCategoryID": 46,
+  "MinistryCategoryDesc": "התקשורת"
+ },
+ {
+  "Id": 2135421,
+  "IsraelLawID": 2000005,
+  "LastUpdatedDate": "2014-09-10T14:27:17.383+03:00",
+  "MinistryCategoryID": 43,
+  "MinistryCategoryDesc": "התחבורה והבטיחות בדרכים"
+ },
+ {
+  "Id": 2135422,
+  "IsraelLawID": 2000006,
+  "LastUpdatedDate": "2014-09-10T14:27:17.383+03:00",
+  "MinistryCategoryID": 6,
+  "MinistryCategoryDesc": "הגנת הסביבה"
+ },
+ {
+  "Id": 2135423,
+  "IsraelLawID": 2000007,
+  "LastUpdatedDate": "2014-09-10T14:27:17.383+03:00",
+  "MinistryCategoryID": 35,
+  "MinistryCategoryDesc": "המשפטים"
+ }
+]

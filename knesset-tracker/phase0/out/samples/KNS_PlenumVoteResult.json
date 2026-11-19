@@ -1,0 +1,67 @@
+[
+ {
+  "Id": 1,
+  "MkId": 466,
+  "VoteID": 2212,
+  "VoteDate": "2004-06-21T19:27:56+03:00",
+  "ResultCode": 7,
+  "ResultDesc": "בעד",
+  "LastUpdatedDate": "2021-07-22T09:47:04.36+03:00",
+  "LastName": "הירשזון",
+  "FirstName": "אברהם",
+  "SessionID": 28043,
+  "ItemID": 28128
+ },
+ {
+  "Id": 2,
+  "MkId": 466,
+  "VoteID": 2213,
+  "VoteDate": "2004-06-21T19:32:53+03:00",
+  "ResultCode": 7,
+  "ResultDesc": "בעד",
+  "LastUpdatedDate": "2021-07-22T09:47:04.36+03:00",
+  "LastName": "הירשזון",
+  "FirstName": "אברהם",
+  "SessionID": 28043,
+  "ItemID": 28129
+ },
+ {
+  "Id": 3,
+  "MkId": 466,
+  "VoteID": 2214,
+  "VoteDate": "2004-06-21T19:33:32+03:00",
+  "ResultCode": 7,
+  "ResultDesc": "בעד",
+  "LastUpdatedDate": "2021-07-22T09:47:04.36+03:00",
+  "LastName": "הירשזון",
+  "FirstName": "אברהם",
+  "SessionID": 28043,
+  "ItemID": 28129
+ },
+ {
+  "Id": 4,
+  "MkId": 466,
+  "VoteID": 2215,
+  "VoteDate": "2004-06-21T19:38:23+03:00",
+  "ResultCode": 7,
+  "ResultDesc": "בעד",
+  "LastUpdatedDate": "2021-07-22T09:47:04.36+03:00",
+  "LastName": "הירשזון",
+  "FirstName": "אברהם",
+  "SessionID": 28043,
+  "ItemID": 28130
+ },
+ {
+  "Id": 5,
+  "MkId": 466,
+  "VoteID": 2216,
+  "VoteDate": "2004-06-21T19:39:21+03:00",
+  "ResultCode": 7,
+  "ResultDesc": "בעד",
+  "LastUpdatedDate": "2021-07-22T09:47:04.36+03:00",
+  "LastName": "הירשזון",
+  "FirstName": "אברהם",
+  "SessionID": 28043,
+  "ItemID": 28130
+ }
+]

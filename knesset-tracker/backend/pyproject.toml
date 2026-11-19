@@ -1,0 +1,51 @@
+[project]
+name = "knesset-tracker"
+version = "0.1.0"
+description = "Bilingual tracker for the Knesset's open data: mirror, change events, alerts."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "sqlalchemy>=2.0.30",
+  "psycopg[binary]>=3.2",  # local dev, CI and the backfill
+  "pg8000>=1.31",           # pure Python: use postgresql+pg8000:// on Wasmer (WASIX)
+  "alembic>=1.13",
+  "httpx>=0.27",
+  "ecdsa>=0.19",            # pure Python ES256 for Web Push (VAPID); no native crypto
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
+sentry = ["sentry-sdk>=2.14"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+# B008: FastAPI's Depends() in defaults is the framework's idiom.
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"alembic/versions/*" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "tests", "scripts"]
+known-third-party = ["alembic"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]

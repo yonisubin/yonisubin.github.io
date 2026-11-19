@@ -1,0 +1,52 @@
+[
+ {
+  "Id": 28006,
+  "ItemID": 74814,
+  "CommitteeSessionID": 64516,
+  "Ordinal": null,
+  "StatusID": null,
+  "Name": "שינויים בתקציב לשנת 2003",
+  "ItemTypeID": 11,
+  "LastUpdatedDate": "2012-09-20T22:23:49+03:00"
+ },
+ {
+  "Id": 28007,
+  "ItemID": 74814,
+  "CommitteeSessionID": 65668,
+  "Ordinal": null,
+  "StatusID": null,
+  "Name": "שינויים בתקציב לשנת 2003",
+  "ItemTypeID": 11,
+  "LastUpdatedDate": "2012-09-20T22:23:49+03:00"
+ },
+ {
+  "Id": 28009,
+  "ItemID": 74814,
+  "CommitteeSessionID": 65986,
+  "Ordinal": null,
+  "StatusID": null,
+  "Name": "שינויים בתקציב לשנת 2003",
+  "ItemTypeID": 11,
+  "LastUpdatedDate": "2012-09-20T22:23:49+03:00"
+ },
+ {
+  "Id": 28010,
+  "ItemID": 74814,
+  "CommitteeSessionID": 65987,
+  "Ordinal": null,
+  "StatusID": null,
+  "Name": "שינויים בתקציב לשנת 2003",
+  "ItemTypeID": 11,
+  "LastUpdatedDate": "2012-09-20T22:23:49+03:00"
+ },
+ {
+  "Id": 28011,
+  "ItemID": 74814,
+  "CommitteeSessionID": 65988,
+  "Ordinal": null,
+  "StatusID": null,
+  "Name": "שינויים בתקציב לשנת 2003",
+  "ItemTypeID": 11,
+  "LastUpdatedDate": "2012-09-20T22:23:49+03:00"
+ }
+]

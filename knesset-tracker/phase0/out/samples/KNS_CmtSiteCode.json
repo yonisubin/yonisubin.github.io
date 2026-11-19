@@ -1,0 +1,27 @@
+[
+ {
+  "Id": 1,
+  "KnsID": 1,
+  "SiteId": 1
+ },
+ {
+  "Id": 2,
+  "KnsID": 2,
+  "SiteId": 2
+ },
+ {
+  "Id": 3,
+  "KnsID": 3,
+  "SiteId": 4
+ },
+ {
+  "Id": 4,
+  "KnsID": 4,
+  "SiteId": 3
+ },
+ {
+  "Id": 5,
+  "KnsID": 5,
+  "SiteId": 5
+ }
+]

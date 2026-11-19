@@ -1,0 +1,57 @@
+[
+ {
+  "Id": 1,
+  "BillID": 403285,
+  "PersonID": 557,
+  "IsInitiator": true,
+  "StartDate": null,
+  "EndDate": "2012-12-09T00:00:00+02:00",
+  "ReasonID": 1204,
+  "ReasonDesc": "חדל להיות חבר כנסת",
+  "LastUpdatedDate": "2015-03-20T12:03:30+02:00"
+ },
+ {
+  "Id": 2,
+  "BillID": 432529,
+  "PersonID": 557,
+  "IsInitiator": true,
+  "StartDate": null,
+  "EndDate": "2012-12-09T00:00:00+02:00",
+  "ReasonID": 1204,
+  "ReasonDesc": "חדל להיות חבר כנסת",
+  "LastUpdatedDate": "2015-03-20T12:03:30+02:00"
+ },
+ {
+  "Id": 3,
+  "BillID": 477827,
+  "PersonID": 12956,
+  "IsInitiator": true,
+  "StartDate": null,
+  "EndDate": "2013-03-18T00:00:00+02:00",
+  "ReasonID": 1201,
+  "ReasonDesc": "מינוי לתפקיד סגן שר בממשלה",
+  "LastUpdatedDate": "2015-03-20T12:03:30+02:00"
+ },
+ {
+  "Id": 4,
+  "BillID": 477712,
+  "PersonID": 12950,
+  "IsInitiator": true,
+  "StartDate": null,
+  "EndDate": "2013-03-19T00:00:00+02:00",
+  "ReasonID": 1201,
+  "ReasonDesc": "מינוי לתפקיד סגן שר בממשלה",
+  "LastUpdatedDate": "2015-03-20T12:03:30+02:00"
+ },
+ {
+  "Id": 5,
+  "BillID": 479581,
+  "PersonID": 23598,
+  "IsInitiator": true,
+  "StartDate": null,
+  "EndDate": "2013-03-18T00:00:00+02:00",
+  "ReasonID": 1200,
+  "ReasonDesc": "מינוי לתפקיד שר בממשלה",
+  "LastUpdatedDate": "2015-03-20T12:03:30+02:00"
+ }
+]

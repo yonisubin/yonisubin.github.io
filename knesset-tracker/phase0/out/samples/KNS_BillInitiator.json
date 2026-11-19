@@ -1,0 +1,42 @@
+[
+ {
+  "Id": 1,
+  "BillID": 29803,
+  "PersonID": 1047,
+  "IsInitiator": true,
+  "Ordinal": 7,
+  "LastUpdatedDate": "2015-03-20T12:03:24+02:00"
+ },
+ {
+  "Id": 2,
+  "BillID": 29804,
+  "PersonID": 1047,
+  "IsInitiator": true,
+  "Ordinal": 2,
+  "LastUpdatedDate": "2015-03-20T12:03:24+02:00"
+ },
+ {
+  "Id": 3,
+  "BillID": 29805,
+  "PersonID": 1047,
+  "IsInitiator": true,
+  "Ordinal": 3,
+  "LastUpdatedDate": "2015-03-20T12:03:24+02:00"
+ },
+ {
+  "Id": 4,
+  "BillID": 29829,
+  "PersonID": 1047,
+  "IsInitiator": true,
+  "Ordinal": 4,
+  "LastUpdatedDate": "2015-03-20T12:03:24+02:00"
+ },
+ {
+  "Id": 5,
+  "BillID": 29830,
+  "PersonID": 1047,
+  "IsInitiator": true,
+  "Ordinal": 2,
+  "LastUpdatedDate": "2015-03-20T12:03:24+02:00"
+ }
+]
