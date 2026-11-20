@@ -216,13 +216,34 @@ export function shiftPiece(p: Piece, lat: number): Piece {
   return piece;
 }
 
-/** Distance along a piece of the point nearest (x, z), extended straight past its ends. */
-export function projectOnPiece(p: Piece, x: number, z: number): number {
+/**
+ * Distance along a piece of the point nearest (x, z), extended straight past its ends.
+ * With `hint` (the last known distance), only segments from 10 m behind it to 25 m ahead are
+ * searched (cars move a few cm per step).
+ */
+export function projectOnPiece(p: Piece, x: number, z: number, hint?: number): number {
   const pts = p.pts;
   const n = pts.length / 2;
   let best = Infinity;
   let bestS = 0;
-  for (let i = 0; i < n - 1; i++) {
+  let i0 = 0;
+  let i1 = n - 2;
+  if (hint !== undefined && n > 8) {
+    const cum = p.cum;
+    const find = (s: number) => {
+      let lo = 0;
+      let hi = n - 1;
+      while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        if (cum[mid] <= s) lo = mid;
+        else hi = mid;
+      }
+      return lo;
+    };
+    i0 = Math.max(0, find(hint - 10));
+    i1 = Math.min(n - 2, find(hint + 25) + 1);
+  }
+  for (let i = i0; i <= i1; i++) {
     const ax = pts[i * 2];
     const az = pts[i * 2 + 1];
     const dx = pts[i * 2 + 2] - ax;

@@ -1,0 +1,23 @@
+import RAPIER from '@dimforge/rapier3d-compat';
+import { SimWorld } from '../sim/world';
+import { DrivingEnv } from '../sim/env';
+import { castRays, observe, OBS_SIZE } from '../../src/ai/observe';
+import { Path } from '../../src/ai/path';
+// Where an AI decision's time goes: rays, the route line, the observation.
+await RAPIER.init();
+const sim = new SimWorld();
+const env = new DrivingEnv(sim, { cars: 16, seed: 1, stage: 5, randomize: false, area: 'any' });
+for (let k = 0; k < 50; k++) env.step(new Float32Array(32).fill(0.3));
+const a = env.agents[0];
+const N = 3000;
+let t0 = performance.now();
+for (let i = 0; i < N; i++) castRays(sim, a.car.body, a.frame, a.rays);
+console.log('rays ms', ((performance.now() - t0) / N).toFixed(4));
+const pieces = a.path.pieces.slice(0, 3);
+t0 = performance.now();
+for (let i = 0; i < N; i++) new Path(pieces, sim.graph);
+console.log('path ms', ((performance.now() - t0) / N).toFixed(4));
+const obs = new Float32Array(OBS_SIZE);
+t0 = performance.now();
+for (let i = 0; i < N; i++) observe(a, obs);
+console.log('observe ms', ((performance.now() - t0) / N).toFixed(4));

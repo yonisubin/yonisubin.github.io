@@ -169,7 +169,7 @@ export class Autopilot implements SimEntity {
       }
       v.prevAction = v.action;
       observe(v, this.obs);
-      policy.act(this.obs, 1, this.out);
+      policy.act1(this.obs, this.out);
       v.action = [this.out[0], this.out[1]];
       this.applySafety(v);
     }

@@ -85,7 +85,7 @@ const SAME_LANE = 2.4; // m: cars whose lateral offsets differ by less than this
 const LANE_CHANGE_SPEED = 1.5; // m/s sideways at most
 const LOOKAHEAD = 90; // m of road ahead considered for curves and leaders
 /** AI (physics) driving within this distance of the player, m; kinematic beyond. */
-export const AI_RADIUS = 170;
+export const AI_RADIUS = 130;
 const AI_HYSTERESIS = 20; // m, so cars at the edge don't flip between modes
 const AI_DECISION_STEPS = 4; // physics steps per decision (15 Hz at 60 Hz, as trained)
 /** The rules' braking overrides the network beyond this deceleration, m/s². */
@@ -1277,7 +1277,7 @@ export class Traffic implements SimEntity {
   /** Move a physics car's piece / distance along on from its actual position. */
   private trackPieces(car: TrafficCar): void {
     for (let guard = 0; guard < 4; guard++) {
-      car.s = projectOnPiece(car.piece, car.currPos.x, car.currPos.z);
+      car.s = projectOnPiece(car.piece, car.currPos.x, car.currPos.z, guard === 0 ? car.s : undefined);
       if (car.s < car.piece.length) break;
       const piece = car.piece;
       if (piece.kind === 'lane') {
@@ -1323,7 +1323,7 @@ export class Traffic implements SimEntity {
     }
     ai.prevAction = ai.action;
     observe(ai, this.obs);
-    policy.act(this.obs, 1, this.act);
+    policy.act1(this.obs, this.act);
     ai.action = [this.act[0], this.act[1]];
     this.stats.aiDecisions++;
     this.stats.aiMs += performance.now() - t0;

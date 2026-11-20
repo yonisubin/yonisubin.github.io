@@ -49,7 +49,8 @@ export const REWARD = {
   steerChange: 0.02, // per unit change of the steering command
   time: 0.01, // every decision
   idle: 0.05, // standing still with no reason to (no red light near, nothing in front)
-  crash: 20,
+  crash: 30,
+  tailgate: 0.15, // per decision at time-to-collision 0 with a car ahead (linear from TTC_SAFE)
   offroad: 20,
   redLight: 20,
   arrive: 10,
@@ -468,6 +469,7 @@ export class DrivingEnv {
       r -= REWARD.steerChange * Math.abs(a.action[0] - a.prevAction[0]);
       r -= REWARD.time;
       if (a.vFwd < 1 && !this.reasonToWait(a)) r -= REWARD.idle;
+      r -= REWARD.tailgate * tailgating(a);
       const info = this.info;
       const o = i * INFO_SIZE;
       info.fill(0, o, o + INFO_SIZE);
@@ -518,6 +520,21 @@ export class DrivingEnv {
       for (let k = 0; k < this.obs.length; k++) this.obs[k] += 0.01 * this.rng.gauss();
     }
   }
+}
+
+/** Time-to-collision margin with a car ahead (±26°), seconds; below it the driver is penalised. */
+const TTC_SAFE = 2.5;
+
+/** 0 (safe) … 1 (about to hit) from the time to collision with the closest car ahead. */
+function tailgating(a: Agent): number {
+  const mid = (RAYS - 1) / 2;
+  let worst = 0;
+  for (let r = mid - 2; r <= mid + 2; r++) {
+    if (!a.rays.car[r] || a.rays.closing[r] <= 0.5) continue;
+    const ttc = Math.max(0, a.rays.dist[r] - 2.5) / a.rays.closing[r];
+    worst = Math.max(worst, (TTC_SAFE - ttc) / TTC_SAFE);
+  }
+  return worst;
 }
 
 function clamp1(v: number): number {

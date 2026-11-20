@@ -72,7 +72,10 @@ src/
                    # route.ts (A* directions on the street network: click the full map to set a destination),
                    # wanted.ts (0–5 stars from crimes, lost out of police sight), jobs.ts (taxi / ambulance / delivery shifts),
                    # places.ts (hospitals = respawn points, extra stores), save.ts (progress in localStorage)
-  sim/             # SimEntity interface, body interpolation, exit-spot helper, smoke, sinking vehicles
+  sim/             # SimEntity interface, body interpolation, exit-spot helper, smoke, sinking vehicles,
+                   # carDynamics.ts (the car physics, no three.js: shared by player cars, AI traffic and rl/)
+  ai/              # the trained AI driver (observation, route paths, lane A*, policy forward pass, sensors);
+                   # used by NPC traffic, the autopilot (game/autopilot.ts) and RL training (rl/)
   camera/          # follow camera (on foot), chase camera (vehicles)
   input/           # keyboard/touch → abstract actions
   audio/           # Web Audio synthesis: effects + voices (sound.ts), what plays when (director.ts), car radio (radio.ts)
@@ -92,6 +95,10 @@ public/
 - **Heights.** Nothing is flat: towns are hilly. Anything placed on the ground must take its height from `terrain.surfaceAt(x, z)` (sidewalks, doors, people, pickups) or `terrain.smoothHeight(x, z)` (road level, parked cars) — never a fixed `CURB_HEIGHT`.
 - **Roads are a graph.** Downtown is a grid of blocks; every road (downtown's included) is an edge in `layout.streets.net`. Use `net.distance` / `net.kerb` / `net.nearest` / `net.pointAt` rather than grid maths. Suburban houses and parcels are in `layout.streets` (`houses`, `parcels`, `driveways`, `trees`), with a `yaw`.
 - **Determinism.** World generation uses a seeded PRNG and hand-written noise, so the same seed always produces the same world; each cell/chunk has its own random stream (`hashSeed`) so chunks can be built in any order.
+
+## RL drivers: `rl/`
+
+The NPC traffic near the player and the car autopilot are driven by a neural network trained with reinforcement learning (PPO) in a headless copy of this game's world. `rl/` holds the simulator (`rl/sim`, TypeScript, run in Node), the trainer (`rl/train`, Python in `rl/.venv`, not an npm dependency), evaluation and a viewer (`npm run rl:viewer`). The trained policy ships as `public/assets/ai/driver.bin`. Read `rl/README.md` before changing anything in `src/ai/`, `src/sim/carDynamics.ts` or the observation: the network only works with the inputs it was trained on, so a change there means retraining. `npm run rl:build && node rl/dist/test_sim.mjs` checks the shared car physics and the simulator.
 
 ## Second game: `civilization/`
 

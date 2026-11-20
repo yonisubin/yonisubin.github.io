@@ -3649,6 +3649,17 @@ flowchart LR
 **Depends on:** `three` (meshes, maths), `@dimforge/rapier3d-compat` (kinematic bodies, colliders), `sim/pose.ts` (`yawPitchQuaternion`: yaw about Y then pitch about the car's own Z axis), `sim/entity.ts` (`SimEntity` type), `sim/smoke.ts` (`Smoke` type: `emit(position, darkness, size)`), `world/rng.ts` (`Rng`: seeded `range`, `int`, `chance`, `float`), `world/layout.ts` (`CityLayout` type: `layout.streets.net`), `world/terrain.ts` (`Terrain` type: `smoothHeight` for road level, `surfaceAt` for signal poles), `world/streets.ts` (`ROAD_SPECS` road widths for pole placement), `world/roadGraph.ts` (`RoadGraph`, `Piece`, `Light`, `pieceAt`, `turnKind`, `LANE_OFFSET` = 1.75 m, `LANE_SPACING` = 3.5 m), `vehicles/carModel.ts` (`CAR_DIMENSIONS`, `PAINT_COLORS`, `TAXI_YELLOW`, `carGeometry`, `carMaterials`, `paintMaterial`, `wheelGeometry`, `CarType`).
 · **Used by:** `main.ts` (creates it, passes the player position and obstacle list, wires `smoke`, `onWreck`, carjacking via `jackable`/`take`, map markers and sound via `positions()`), `game/combat.ts` (`carForCollider`, `damage`), `game/missions.ts` (`pickTarget`, `TrafficCar.pinned`, `serial`, `wrecked`, `active`), `npc/police.ts` indirectly (through the `traffic()` hook = `traffic.positions()`), `audio/director.ts` indirectly (positions for engine sounds), tests (`tests/gameplay.test.cjs` reads `g.traffic.cars`, calls `damage` and `take`).
 
+**AI drivers (since the RL drivers project).** Once `setPolicy()` installs the trained network (`ai/load.ts` loads `public/assets/ai/driver.bin`; `main.ts` wires it), every car within `AI_RADIUS` = 130 m of the player (plus 20 m hysteresis), on loaded ground (`groundLoaded`, set to `city.isLoaded`), is a real physics car: each slot owns a `CarDynamics` (`sim/carDynamics.ts`, the player's car physics) whose body is switched between `Dynamic` (AI) and `KinematicPositionBased` (the original driving) by `setPhysics`. AI cars run `driveAI` instead of `drive`:
+
+- `trackPieces` moves `s` / `piece` along from the body's real position (`ai/path.ts` `projectOnPiece`, searched near the last `s`), with the same lane → turn → lane hand-over as `drive`.
+- The planner runs unchanged (`buildRoute`, `decideLane`, overtakes, `leader`, `stopGap`, IDM) and gives the acceleration the rules want.
+- Every 4th step (staggered by slot index, so 15 Hz per car as in training) `decide` builds the route line (the next 2–3 pieces, lanes shifted to the car's eased lane offset with `shiftPiece`; rebuilt only when that key changes), senses (`ai/driver.ts` `senseDriver` with `ai/sensors.ts` `gameSensors`), builds the 71-number observation (`ai/observe.ts`) and runs `policy.act1`.
+- Safety layer: if the rules brake harder than `SHIELD_DECEL` = 0.8 m/s² (a stop line, a car crossing, the player), that braking (as a pedal, `acc / 9`) overrides a lighter network throttle (`stats.aiShieldSteps`); above the driver's own pace the throttle is simply lifted (so dawdlers and vans keep their character); told to wait and stopped, the handbrake holds it.
+- `afterStep` reads pose, heading, pitch and speed back from the body (`currQuat` keeps the roll and pitch; `render` slerps `prevQuat` → `currQuat`).
+- Hand-back (`fallBack`): off the route line by > 5 m, rolled over, or stuck 6 s while the rules say go → kinematic for 15 s (respawned if > 70 m from the player). `stats.aiFallbacks` counts them.
+
+`aiEnabled` (`?ai=0` in the URL) keeps the original rule-based driving everywhere. Cost: a decision is ~0.1 ms in Node (network 0.08 ms, 15 rays 0.02 ms); in the game about +0.8 ms per physics step for ~15 AI cars, measured in headless Chromium under load.
+
 **Key constants.**
 
 | Name | Value | Meaning / why |
@@ -3938,6 +3949,23 @@ flowchart TD
 - Respawn clears `pinned` and increments `serial` (audit fix `ffd288c`) so missions detect a replaced target.
 - Instanced rendering with zero-scale hiding; `frustumCulled = false` because instance bounds would go stale; shared `HIDDEN` matrix and scratch matrices to avoid per-frame allocations (audit fix).
 - A leftover doc comment ("Yaw about Y, then pitch …") sits above `pickTarget`; it described the old private `orientation` helper that moved to `sim/pose.ts`.
+
+### 6.1b `src/ai/` — the trained driver, shared by traffic, the autopilot and `rl/`
+
+**Purpose.** Everything an AI driver needs at run time, written once and used identically by RL training (`rl/sim`), the RL viewer, NPC traffic and the autopilot, so the network sees the same inputs everywhere.
+
+| File | What it holds |
+|---|---|
+| `observe.ts` | `OBS_SIZE` = 71 and `observe()`: own motion (4), six route waypoints 4–45 m ahead in the car's frame (12), lane offset + heading error (3), road and curve speed limits (2), 15 rays over 180° — distance, car?, closing speed (45), next traffic light distance / red / yellow (3), last action (2). `castRays` takes a `RaySensors` (what the world's rays may see, which colliders are cars, their velocities). `frameOf` reads a body's pose. |
+| `driver.ts` | `DriverView` (one driver's state: frame, velocities, route `path`, `s`, `lat`, rays, light, actions) and `senseDriver()` (refresh it from a body). |
+| `path.ts` | `Path`: a route as one polyline of `roadGraph` lane and turn pieces, with per-point speed limits, curvature limits, lit stop lines, `at`, `project`. `randomRoute` (training), `shiftPiece` (a lane moved sideways, cached), `projectOnPiece`, and `laneRoute` — A* over lanes (no U-turns except at dead ends) from a car's pose to the road nearest a target, for the autopilot. |
+| `policy.ts` | `Policy`: forward pass of the exported network (71 → 256 → 256 → 2, tanh), observation normalisation baked in. `fromBinary` reads `driver.bin` (format in `rl/train/export.py`); `act1` is the fast single-car path (float64, unrolled: ~0.08 ms). |
+| `sensors.ts` | `gameSensors(world)`: rays skip heightfields, trimeshes and sensors (the ground); a car is a > 3 m cuboid on a non-fixed body. Answers are cached per collider handle (reading a shape crosses into WASM). |
+| `load.ts` | `loadDriverPolicy()`: fetches `assets/ai/driver.bin` once; resolves to null on failure (traffic stays rule-based, the autopilot refuses). |
+| `baseline.ts` | The hand-written comparison driver (pure pursuit + PID + ray braking + lights), used by `rl/` for evaluation. |
+| `rng.ts` | Small seeded PRNG for training routes. |
+
+How the policy was trained, evaluated and what its numbers are: `rl/README.md`.
 
 ### 6.2 `src/npc/pedestrians.ts`
 
@@ -5372,6 +5400,12 @@ Public fields: `kind: JobKind | null`, `stage: 'pickup' | 'dropoff' | 'deliver'`
 - `dropsTotal` instead of a hard-coded "/4" (audit fix) → correct labels when fewer houses are found.
 
 ---
+
+### 7.10b `src/game/autopilot.ts`
+
+**Purpose.** The car autopilot: bought once at any gun store (`AUTOPILOT_PRICE` = $50, kept cheap for testing; `PlayerStats.buyAutopilot`, saved as `stats.autopilot`). With a map waypoint set, O (touch: AUTO, shown once owned) in any car plans a lane route (`ai/path.ts` `laneRoute`) and lets the trained network drive (`Car.autoDrive` replaces the player's inputs in `Car.fixedUpdate`). A safety layer brakes when stopping for what the five forward rays see in the car's path (cars by closing speed, anything else by own speed) needs more than ~2.7 m/s², for red lights, and to stop at the destination (2.2 m/s²). Arrival = within 6 m of the goal and stopped: "🏁 Autopilot: arrived", waypoint cleared. Touching steering / throttle / brake (> 0.35) or the handbrake hands the car back; getting out, switching vehicle or clearing the waypoint turns it off; off the route by > 6 m it re-plans (up to 3 times). Stop signs are not handled specially (the network wasn't trained on them; the AI traffic does yield there). `stats` counts engagements, arrivals and safety-layer steps.
+
+**Depends on:** `ai/*`, `world/roadGraph.ts` (its own `RoadGraph` over `layout.streets.net`), `game/route.ts` (`Navigator` waypoint), `player/car.ts` (`autoDrive`, `wheelSteer`), `input/actions.ts` (`autopilot` action = KeyO). · **Used by:** `main.ts` (created after the jobs, toggled on the `autopilot` action in the fixed step, light clock = `traffic.clock`), `game/shop.ts` (price), `tests/ai.test.cjs`.
 
 ### 7.11 `src/game/save.ts`
 
