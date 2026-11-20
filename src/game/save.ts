@@ -24,6 +24,8 @@ export interface SaveData {
     apAmmo: Record<string, number>;
     addons: string[];
     current: string;
+    /** Owns the car autopilot (absent in older saves). */
+    autopilot?: boolean;
   };
   /** Missions completed per giver name, and their best (most) time left in seconds. */
   missions: Record<string, { done: number; best: number }>;

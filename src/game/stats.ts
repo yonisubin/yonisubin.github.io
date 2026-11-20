@@ -78,6 +78,8 @@ export class PlayerStats implements SimEntity {
   readonly ammo: Record<WeaponId, number> = { fists: 0, bat: 0, pistol: 0, rifle: 0 };
   /** Armour-piercing rounds, fired before normal ammo. */
   readonly apAmmo: Record<WeaponId, number> = { fists: 0, bat: 0, pistol: 0, rifle: 0 };
+  /** Bought the car autopilot (game/autopilot.ts). */
+  autopilot = false;
   /** Owned add-ons, as "weapon:addon" keys. */
   readonly addons = new Set<string>();
   current: WeaponId = 'fists';
@@ -130,6 +132,14 @@ export class PlayerStats implements SimEntity {
     this.owned.add(id);
     this.ammo[id] += w.startAmmo ?? 0;
     this.current = id;
+    return true;
+  }
+
+  /** Buy the car autopilot. */
+  buyAutopilot(price: number): boolean {
+    if (this.autopilot || this.money < price) return false;
+    this.money -= price;
+    this.autopilot = true;
     return true;
   }
 
@@ -208,6 +218,7 @@ export class PlayerStats implements SimEntity {
     apAmmo: Record<string, number>;
     addons: string[];
     current: string;
+    autopilot?: boolean;
   } {
     return {
       health: this.health,
@@ -217,6 +228,7 @@ export class PlayerStats implements SimEntity {
       apAmmo: { ...this.apAmmo },
       addons: [...this.addons],
       current: this.current,
+      autopilot: this.autopilot,
     };
   }
 
@@ -238,6 +250,7 @@ export class PlayerStats implements SimEntity {
       if (isWeapon(w) && Object.hasOwn(ADDONS, a)) this.addons.add(key);
     }
     if (isWeapon(data.current) && this.owned.has(data.current)) this.current = data.current;
+    this.autopilot = data.autopilot === true;
   }
 
   /** Health regenerates once you've avoided damage for a few seconds. */

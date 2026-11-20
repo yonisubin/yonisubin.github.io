@@ -14,7 +14,7 @@ from stable_baselines3.common.vec_env.base_vec_env import VecEnv
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORKER = os.path.join(ROOT, "dist", "worker.mjs")
-OBS_SIZE = 56
+OBS_SIZE = 71
 INFO_SIZE = 7
 INFO_KEYS = ["success", "crash", "offroad", "red_light", "timeout", "progress", "length"]
 

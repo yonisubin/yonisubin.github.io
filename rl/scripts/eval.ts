@@ -2,9 +2,9 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { SimWorld } from '../sim/world';
 import { DECISION_DT, DrivingEnv, Info, INFO_SIZE, STAGES } from '../sim/env';
-import { OBS_SIZE, observe } from '../sim/observe';
-import { baselineAction } from '../sim/baseline';
-import { Policy, type PolicyWeights } from '../sim/policy';
+import { OBS_SIZE, observe } from '../../src/ai/observe';
+import { baselineAction } from '../../src/ai/baseline';
+import { Policy, type PolicyWeights } from '../../src/ai/policy';
 
 // Evaluate drivers on fixed, seeded routes that start in the held-out south-east of the city
 // (training never starts a route there):

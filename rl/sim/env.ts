@@ -1,9 +1,10 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { CarDynamics, type CarTune } from '../../src/sim/carDynamics';
 import { CAR_DIMENSIONS } from '../../src/vehicles/carDimensions';
-import { castRays, frameOf, observe, OBS_SIZE, RAYS, type DriverState, type Frame, type RayHit } from './observe';
-import { randomRoute, type Path, type RouteOptions } from './path';
-import { Rng } from './rng';
+import { observe, OBS_SIZE, RAYS } from '../../src/ai/observe';
+import { DriverView, senseDriver } from '../../src/ai/driver';
+import { randomRoute, type Path, type RouteOptions } from '../../src/ai/path';
+import { Rng } from '../../src/ai/rng';
 import { PHYSICS_DT, type SimWorld } from './world';
 
 // A multi-car driving environment on the game's city. N learning cars share one Rapier world
@@ -89,28 +90,14 @@ export interface EnvOptions {
   area: 'train' | 'test' | 'any';
 }
 
-export class Agent implements DriverState {
+export class Agent extends DriverView {
   car!: CarDynamics;
-  frame: Frame = { x: 0, y: 0, z: 0, fx: 1, fz: 0, rx: 0, rz: 1, upY: 1 };
-  vFwd = 0;
-  vSide = 0;
-  yawRate = 0;
-  steer = 0;
-  path!: Path;
-  s = 0;
-  lat = 0;
-  rays: RayHit = { dist: new Float32Array(RAYS), car: new Float32Array(RAYS) };
-  stopDist = Infinity;
-  light: 'green' | 'yellow' | 'red' = 'green';
-  prevAction: [number, number] = [0, 0];
   /** Decisions since the episode started. */
   steps = 0;
   maxSteps = 900;
   /** Set during the physics steps when the car touches something. */
   hit = false;
-  /** The action being applied. */
-  action: [number, number] = [0, 0];
-  /** Last decision's reward terms (for debugging and the viewer). */
+  /** Last decision's reward (for debugging and the viewer). */
   lastReward = 0;
   colliders: number[] = [];
   /** Distance driven this episode, m. */
@@ -121,6 +108,9 @@ export class Agent implements DriverState {
 /** A rule-based car on a route, moved kinematically. */
 interface Bot {
   body: RAPIER.RigidBody;
+  /** Its velocity in the ground plane, shared with SimWorld.kinematicVel for the radar. */
+  vel: { x: number; z: number };
+  collider: number;
   path: Path;
   s: number;
   v: number;
@@ -132,7 +122,6 @@ interface Bot {
 }
 
 const tmpP = { x: 0, z: 0, tx: 0, tz: 0 };
-const proj = { s: 0, lat: 0 };
 
 export class DrivingEnv {
   readonly agents: Agent[] = [];
@@ -296,13 +285,16 @@ export class DrivingEnv {
       body,
     );
     this.sim.kind.set(c.handle, 1);
-    this.bots.push({ body, path, s, v: wait > 0 ? 0 : v0, wait, v0, leads });
+    const vel = { x: 0, z: 0 };
+    this.sim.kinematicVel.set(c.handle, vel);
+    this.bots.push({ body, vel, collider: c.handle, path, s, v: wait > 0 ? 0 : v0, wait, v0, leads });
     this.placeBot(this.bots[this.bots.length - 1], true);
   }
 
   private removeBot(k: number): void {
     const b = this.bots[k];
     for (let c = 0; c < b.body.numColliders(); c++) this.sim.kind.delete(b.body.collider(c).handle);
+    this.sim.kinematicVel.delete(b.collider);
     this.sim.world.removeRigidBody(b.body);
     this.bots.splice(k, 1);
   }
@@ -327,6 +319,8 @@ export class DrivingEnv {
 
   private placeBot(b: Bot, snap: boolean): void {
     b.path.at(b.s, tmpP);
+    b.vel.x = tmpP.tx * b.v;
+    b.vel.z = tmpP.tz * b.v;
     const y = this.sim.height(tmpP.x, tmpP.z);
     const yaw = Math.atan2(-tmpP.tz, tmpP.tx);
     const rot = { x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) };
@@ -401,25 +395,7 @@ export class DrivingEnv {
   /** Read learner i's state: pose, velocities, projection, rays, next light. */
   sense(i: number): void {
     const a = this.agents[i];
-    const body = a.car.body;
-    frameOf(body, a.frame);
-    const v = body.linvel();
-    a.vFwd = v.x * a.frame.fx + v.z * a.frame.fz;
-    a.vSide = v.x * a.frame.rx + v.z * a.frame.rz;
-    a.yawRate = body.angvel().y;
-    a.steer = a.car.steer;
-    a.path.project(a.frame.x, a.frame.z, a.s, proj);
-    a.s = proj.s;
-    a.lat = proj.lat;
-    castRays(this.sim, body, a.frame, a.rays);
-    a.stopDist = Infinity;
-    a.light = 'green';
-    for (const st of a.path.stops) {
-      if (st.s < a.s - 0.5) continue;
-      a.stopDist = st.s - a.s;
-      a.light = this.sim.graph.lightState(st.lane, this.time);
-      break;
-    }
+    senseDriver(a, a.car.body, a.car.steer, this.sim, this.sim.graph, this.time);
   }
 
   /** A red (or yellow) light close ahead, or something right in front: fine to stand still. */

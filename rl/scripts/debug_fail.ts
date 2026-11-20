@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { SimWorld } from '../sim/world';
 import { DrivingEnv, Info, INFO_SIZE } from '../sim/env';
-import { baselineAction } from '../sim/baseline';
+import { baselineAction } from '../../src/ai/baseline';
 await RAPIER.init();
 const sim = new SimWorld();
 const cars = 16;

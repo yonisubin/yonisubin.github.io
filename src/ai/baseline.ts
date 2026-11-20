@@ -1,5 +1,5 @@
-import { MAX_STEER, MIN_STEER, TOP_SPEED } from '../../src/sim/carDynamics';
-import { CAR_DIMENSIONS } from '../../src/vehicles/carDimensions';
+import { MAX_STEER, MIN_STEER, TOP_SPEED } from '../sim/carDynamics';
+import { CAR_DIMENSIONS } from '../vehicles/carDimensions';
 import { RAYS, type DriverState } from './observe';
 
 // The hand-written opponent: pure-pursuit steering + a proportional speed controller, with

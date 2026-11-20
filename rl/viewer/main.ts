@@ -7,9 +7,9 @@ import { buildCarBody, buildWheel, CAR_DIMENSIONS, PAINT_COLORS, TAXI_YELLOW } f
 import { CONNECTION_HEIGHT, SUSPENSION_REST } from '../../src/sim/carDynamics';
 import { SimWorld, CITY_SEED } from '../sim/world';
 import { DrivingEnv, Info, INFO_SIZE, STAGES } from '../sim/env';
-import { OBS_SIZE, RAYS, RAY_LENGTH, WAYPOINTS } from '../sim/observe';
-import { baselineAction } from '../sim/baseline';
-import { Policy, type PolicyWeights } from '../sim/policy';
+import { OBS_SIZE, RAYS, RAY_LENGTH, WAYPOINTS } from '../../src/ai/observe';
+import { baselineAction } from '../../src/ai/baseline';
+import { Policy, type PolicyWeights } from '../../src/ai/policy';
 
 // Watch the drivers in the real 3D city: the game's own world renderer and car models, the
 // headless simulator (rl/sim) for physics, and the trained policy (or the baseline) at the

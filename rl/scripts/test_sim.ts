@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { CarDynamics } from '../../src/sim/carDynamics';
 import { SimWorld } from '../sim/world';
 import { DrivingEnv } from '../sim/env';
-import { baselineAction } from '../sim/baseline';
+import { baselineAction } from '../../src/ai/baseline';
 
 // Checks for the RL simulator: node rl/dist/test_sim.mjs
 //  1. The shared car physics (src/sim/carDynamics.ts) reproduces, bit for bit, the poses the

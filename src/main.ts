@@ -21,6 +21,9 @@ import { createSky } from './world/sky';
 import { CAR_DIMENSIONS, PAINT_COLORS } from './vehicles/carModel';
 import type { SimEntity } from './sim/entity';
 import { Traffic } from './npc/traffic';
+import { loadDriverPolicy } from './ai/load';
+import { Autopilot } from './game/autopilot';
+import type { Policy } from './ai/policy';
 import { Pedestrians } from './npc/pedestrians';
 import { Hud } from './ui/hud';
 import { Minimap, type Marker } from './ui/minimap';
@@ -355,6 +358,16 @@ async function main(): Promise<void> {
     heli.interp.currPos,
   ]);
   entities.push(traffic);
+  // AI drivers (trained with reinforcement learning, see rl/README.md): traffic near the player
+  // drives with the network once it has loaded; until then, or if it can't load, the
+  // rule-based driving carries on. ?ai=0 keeps the rule-based driving.
+  traffic.groundLoaded = (x, z) => city.isLoaded(x, z);
+  traffic.aiEnabled = new URLSearchParams(location.search).get('ai') !== '0';
+  let policy: Policy | null = null;
+  void loadDriverPolicy().then((p) => {
+    policy = p;
+    traffic.setPolicy(p);
+  });
   // Pedestrians: random people from the character library.
   const dropRng = new Rng(31337);
   const pedestrians = library
@@ -493,6 +506,19 @@ async function main(): Promise<void> {
     toast: (text, seconds) => hud.toast(text, seconds),
   });
   entities.push({ fixedUpdate: (dt) => jobs.fixedUpdate(dt), afterStep: () => {}, render: () => {} });
+  // The car autopilot (bought at the gun stores): the AI driver takes you to the waypoint.
+  const autopilot = new Autopilot({
+    world,
+    net: city.layout.streets.net,
+    input,
+    navigator,
+    owned: () => stats.autopilot,
+    car: () => cars.find((c) => c.mode === player.mode) ?? null,
+    lightClock: () => traffic.clock,
+    policy: () => policy,
+    toast: (text, seconds) => hud.toast(text, seconds),
+  });
+  entities.push(autopilot);
   wanted.witnessed = () => police.witnesses(playerPosition());
   // Gunfire is a crime when someone's around to hear it (or the police see it).
   onFoot.combat.onHit = (collider, damage) => void police.damageCollider(collider, damage);
@@ -658,6 +684,7 @@ async function main(): Promise<void> {
     parkVehicles();
     player.update(PHYSICS_STEP); // reads input, sets vehicle controls
     if (input.consumePressed('job')) jobs.toggle();
+    if (input.consumePressed('autopilot')) autopilot.toggle();
     for (const e of entities) e.fixedUpdate(PHYSICS_STEP);
     world.step();
     for (const e of entities) e.afterStep();
@@ -668,7 +695,7 @@ async function main(): Promise<void> {
   const simulate = (seconds: number) => {
     for (let i = 0; i < Math.round(seconds / PHYSICS_STEP); i++) step();
   };
-  (window as unknown as { game: unknown }).game = { RAPIER, scene, fullMap, sound, director, jobs, navigator, autosave, wanted, police, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
+  (window as unknown as { game: unknown }).game = { RAPIER, autopilot, scene, fullMap, sound, director, jobs, navigator, autosave, wanted, police, world, camera, sky, water, places, player, onFoot, picker, library, cars, heli, boats, traffic, pedestrians, dialogue, missions, city, dayNight, stats, cash, shop, renderer, input, simulate };
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;

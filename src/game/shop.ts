@@ -3,6 +3,7 @@ import type { Input } from '../input/actions';
 import type { Interactable } from '../player/onFoot';
 import type { CityLayout } from '../world/layout';
 import type { StoreSite } from './places';
+import { AUTOPILOT_PRICE } from './autopilot';
 import { ADDONS, AP_AMMO, AP_DAMAGE, WEAPONS, type AddonId, type PlayerStats, type WeaponId } from './stats';
 
 // Gun stores: a shopfront on the building nearest the spawn point plus the other stores placed
@@ -209,6 +210,21 @@ export class Shop {
           ),
         );
       }
+    }
+
+    // Not a gun, but sold here too: the car autopilot (game/autopilot.ts).
+    {
+      const line = document.createElement('div');
+      line.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,0.1)';
+      const info = document.createElement('div');
+      info.style.flex = '1';
+      info.innerHTML =
+        '<div style="font-weight:600">Car autopilot</div><div style="opacity:0.7;font-size:13px">AI driver: set a destination on the map (M), then O / AUTO in any car</div>';
+      line.appendChild(info);
+      line.appendChild(
+        s.autopilot ? this.label('Owned') : this.button(`Buy $${AUTOPILOT_PRICE}`, s.money >= AUTOPILOT_PRICE, () => s.buyAutopilot(AUTOPILOT_PRICE)),
+      );
+      panel.appendChild(line);
     }
 
     const footer = document.createElement('div');

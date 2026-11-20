@@ -26,6 +26,7 @@ export type Action =
   | 'job'
   | 'mute'
   | 'radio'
+  | 'autopilot'
   | 'toggleDebug';
 
 // KeyboardEvent.code → actions. `code` is layout-independent (physical key position),
@@ -59,6 +60,7 @@ const KEY_BINDINGS: Record<string, Action[]> = {
   KeyJ: ['job'],
   KeyN: ['mute'],
   KeyR: ['radio'],
+  KeyO: ['autopilot'],
   F3: ['toggleDebug'],
   Backquote: ['toggleDebug'],
 };

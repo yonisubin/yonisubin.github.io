@@ -1,5 +1,5 @@
 // The trained driver in the browser (or Node): a plain forward pass of the exported policy
-// network (rl/train/export.py), batched over every car. The network is small (56 → 256 → 256
+// network (rl/train/export.py), batched over every car. The network is small (71 → 256 → 256
 // → 2), so this is a fraction of a millisecond per car with no runtime dependency.
 
 export interface PolicyWeights {
@@ -11,6 +11,31 @@ export interface PolicyWeights {
 }
 
 export class Policy {
+  /** Load the compact binary written by rl/train/export.py (see the format there). */
+  static fromBinary(buf: ArrayBuffer): Policy {
+    const head = new Int32Array(buf, 0, 5);
+    if (head[0] !== 0x31444c52 || head[1] !== 1) throw new Error('not a driver policy file');
+    const inputs = head[2];
+    const n = head[3];
+    const dims = new Int32Array(buf, 20, n * 3);
+    const f = new Float32Array(buf, 20 + n * 12);
+    let k = 0;
+    const take = (len: number) => {
+      const a = Array.from(f.subarray(k, k + len));
+      k += len;
+      return a;
+    };
+    const obsMean = take(inputs);
+    const obsStd = take(inputs);
+    const clip = take(1)[0];
+    const layers: PolicyWeights['layers'] = [];
+    for (let i = 0; i < n; i++) {
+      const [lin, lout, tanh] = [dims[i * 3], dims[i * 3 + 1], dims[i * 3 + 2]];
+      layers.push({ in: lin, out: lout, w: take(lin * lout), b: take(lout), act: tanh ? 'tanh' : 'none' });
+    }
+    return new Policy({ obsMean, obsStd, clip, layers, steps: head[4] * 1000 });
+  }
+
   private readonly layers: { in: number; out: number; w: Float32Array; b: Float32Array; tanh: boolean }[];
   private readonly mean: Float32Array;
   private readonly std: Float32Array;

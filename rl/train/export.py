@@ -48,6 +48,18 @@ def main(ckpt, out):
             "steps": int(model.num_timesteps)}
     with open(out + ".json", "w") as f:
         json.dump(data, f, separators=(",", ":"))
+    # Compact binary for the game (src/ai/policy.ts Policy.fromBinary): int32 header
+    # [magic 'RLD1', version, inputs, layers, steps/1000, (in, out, tanh?) per layer], then float32
+    # mean, std, clip, and each layer's weights (out × in, row-major) and biases.
+    header = [0x31444C52, 1, len(mean), len(layers), int(model.num_timesteps) // 1000]
+    for L in layers:
+        header += [L["in"], L["out"], 1 if L["act"] == "tanh" else 0]
+    floats = [mean, std, np.array([vn.clip_obs], np.float32)]
+    for m in mods:
+        floats += [m.weight.detach().numpy().astype(np.float32).ravel(), m.bias.detach().numpy().astype(np.float32)]
+    with open(out + ".bin", "wb") as f:
+        f.write(np.array(header, np.int32).tobytes())
+        f.write(np.concatenate(floats).astype(np.float32).tobytes())
     m = Exported(model.policy, mean, std, vn.clip_obs).eval()
     torch.onnx.export(m, torch.zeros(1, len(mean)), out + ".onnx", input_names=["obs"], output_names=["action"],
                       dynamic_axes={"obs": {0: "cars"}, "action": {0: "cars"}}, dynamo=False)

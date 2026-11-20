@@ -59,6 +59,8 @@ export class Car implements SimEntity {
   throttle = 0; // −1..1: forward axis of the stick / W-S keys
   steerInput = 0; // −1..1, positive = right
   handbrake = false;
+  /** Set while the autopilot drives (game/autopilot.ts): used instead of the inputs above. */
+  autoDrive: { steer: number; throttle: number; handbrake: boolean } | null = null;
 
   private readonly dynamics: CarDynamics;
   private readonly wheels: THREE.Group[] = [];
@@ -106,6 +108,11 @@ export class Car implements SimEntity {
     this.gone = true;
   }
 
+  /** Front-wheel angle, rad (positive = left). */
+  get wheelSteer(): number {
+    return this.dynamics.steer;
+  }
+
   /** Signed speed along the car's forward axis, m/s. */
   get speed(): number {
     return this.controller.currentVehicleSpeed();
@@ -128,7 +135,13 @@ export class Car implements SimEntity {
     if (!this.driven && this.body.isSleeping()) return;
     this.impacts.before(this.body);
 
-    this.dynamics.step({ driven: this.driven, throttle: this.throttle, steer: this.steerInput, handbrake: this.handbrake }, dt);
+    const auto = this.driven ? this.autoDrive : null;
+    this.dynamics.step(
+      auto
+        ? { driven: true, throttle: auto.throttle, steer: auto.steer, handbrake: auto.handbrake }
+        : { driven: this.driven, throttle: this.throttle, steer: this.steerInput, handbrake: this.handbrake },
+      dt,
+    );
     const absSpeed = Math.abs(this.speed);
     this.flip.update(this.body, this.interp, dt, absSpeed);
 
@@ -205,7 +218,7 @@ export class Car implements SimEntity {
 /** Player-in-car mode: reads input, drives the car, runs the chase camera. */
 export class DrivingMode implements PlayerMode {
   readonly name = 'Driving';
-  readonly controlsHint = 'W gas · S brake/reverse · A/D steer · Space handbrake · E get out · J job (taxi, ambulance, van) · R radio';
+  readonly controlsHint = 'W gas · S brake/reverse · A/D steer · Space handbrake · E get out · J job (taxi, ambulance, van) · R radio · O autopilot';
   readonly touchButtons: TouchButton[];
   private readonly cameraRig: ChaseCamera;
   private readonly fwd = new THREE.Vector3();
@@ -227,6 +240,7 @@ export class DrivingMode implements PlayerMode {
     this.touchButtons = [
       { label: 'BRAKE', action: 'handbrake' },
       { label: 'EXIT', action: 'interact' },
+      { label: 'AUTO', action: 'autopilot', visible: () => this.stats.autopilot },
     ];
   }
 
@@ -241,6 +255,7 @@ export class DrivingMode implements PlayerMode {
   exit(): void {
     this.light.off();
     this.car.driven = false;
+    this.car.autoDrive = null;
     this.car.throttle = 0;
     this.car.steerInput = 0;
     this.car.handbrake = false;
@@ -275,6 +290,6 @@ export class DrivingMode implements PlayerMode {
   }
 
   status(): string {
-    return `${Math.round(Math.abs(this.car.speed) * 3.6)} km/h`;
+    return `${Math.round(Math.abs(this.car.speed) * 3.6)} km/h${this.car.autoDrive ? ' · AUTOPILOT' : ''}`;
   }
 }

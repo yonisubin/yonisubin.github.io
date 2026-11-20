@@ -1,11 +1,9 @@
 import RAPIER from '@dimforge/rapier3d-compat';
-import { MAX_STEER, TOP_SPEED } from '../../src/sim/carDynamics';
+import { MAX_STEER, TOP_SPEED } from '../sim/carDynamics';
 import type { Path } from './path';
-import { RAY_GROUPS, type SimWorld } from './world';
-
-// The observation: everything the driver sees, about 60 numbers scaled to roughly −1…1. This
-// one function is used in training (Node) and in the browser viewer, so the policy sees
-// identical inputs in both.
+// The observation: everything an AI driver sees, 71 numbers scaled to roughly −1…1. This one
+// function is used in training (rl/, Node), in the RL viewer and in the game (NPC traffic and
+// the autopilot), so the trained policy sees identical inputs everywhere.
 
 /** Distances ahead along the route of the waypoints the driver sees, m. */
 export const WAYPOINTS = [4, 8, 14, 22, 32, 45];
@@ -13,7 +11,7 @@ export const RAYS = 15; // fanned over 180°, −90° (left) … +90° (right)
 export const RAY_LENGTH = 40;
 export const LIGHT_RANGE = 60;
 
-export const OBS_SIZE = 4 + WAYPOINTS.length * 2 + 3 + 2 + RAYS * 2 + 3 + 2; // 56
+export const OBS_SIZE = 4 + WAYPOINTS.length * 2 + 3 + 2 + RAYS * 3 + 3 + 2; // 71
 
 /** A car's pose in the ground plane, from its rigid body. */
 export interface Frame {
@@ -55,12 +53,31 @@ export interface RayHit {
   dist: Float32Array;
   /** 1 = a car, 0 = a building / nothing. */
   car: Float32Array;
+  /**
+   * Closing speed along the ray (m/s, + = getting closer) of a car it hit, 0 otherwise. Like a
+   * radar: one frame of distances can't tell a stopped car from one driving away.
+   */
+  closing: Float32Array;
+}
+
+/** What the sensor rays can see in a physics world (the RL simulator and the game differ). */
+export interface RaySensors {
+  world: RAPIER.World;
+  /** Collision groups for the ray query (e.g. to skip the ground), or undefined. */
+  rayGroups?: number;
+  /** Extra filter: false = the ray passes through this collider (ground, people…). */
+  rayFilter?: (collider: RAPIER.Collider) => boolean;
+  /** Is this collider part of a car? */
+  isCar(collider: RAPIER.Collider): boolean;
+  /** Ground-plane velocity of the car a collider belongs to. */
+  velocity(collider: RAPIER.Collider): { x: number; z: number };
 }
 
 const ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 });
 
 /** Cast the sensor fan from a car (its own body excluded). */
-export function castRays(sim: SimWorld, body: RAPIER.RigidBody, f: Frame, out: RayHit): RayHit {
+export function castRays(sim: RaySensors, body: RAPIER.RigidBody, f: Frame, out: RayHit): RayHit {
+  const v = body.linvel();
   for (let i = 0; i < RAYS; i++) {
     const a = -Math.PI / 2 + (Math.PI * i) / (RAYS - 1);
     const c = Math.cos(a);
@@ -71,11 +88,16 @@ export function castRays(sim: SimWorld, body: RAPIER.RigidBody, f: Frame, out: R
     ray.dir.x = c * f.fx + s * f.rx;
     ray.dir.y = 0;
     ray.dir.z = c * f.fz + s * f.rz;
-    const hit = sim.world.castRay(ray, RAY_LENGTH, true, undefined, RAY_GROUPS, undefined, body);
+    const hit = sim.world.castRay(ray, RAY_LENGTH, true, undefined, sim.rayGroups, undefined, body, sim.rayFilter);
     if (hit) {
       out.dist[i] = hit.timeOfImpact;
-      out.car[i] = sim.kind.get(hit.collider.handle) === 1 ? 1 : 0;
+      out.car[i] = sim.isCar(hit.collider) ? 1 : 0;
+      if (out.car[i]) {
+        const o = sim.velocity(hit.collider);
+        out.closing[i] = (v.x - o.x) * ray.dir.x + (v.z - o.z) * ray.dir.z;
+      } else out.closing[i] = 0;
     } else {
+      out.closing[i] = 0;
       out.dist[i] = RAY_LENGTH;
       out.car[i] = 0;
     }
@@ -135,6 +157,7 @@ export function observe(d: DriverState, out: Float32Array, offset = 0): void {
   for (let r = 0; r < RAYS; r++) {
     out[k++] = d.rays.dist[r] / RAY_LENGTH;
     out[k++] = d.rays.car[r];
+    out[k++] = clamp(d.rays.closing[r] / 15);
   }
   // Traffic light ahead.
   const near = d.stopDist < LIGHT_RANGE;

@@ -3,6 +3,7 @@ import { buildStreets, generateCity, WORLD_HALF, type Building, type CityLayout 
 import { Terrain } from '../../src/world/terrain';
 import { RoadGraph } from '../../src/world/roadGraph';
 import type { StreetNet } from '../../src/world/streets';
+import type { RaySensors } from '../../src/ai/observe';
 
 // The game's world, without three.js: the same seeded city, street network and lanes, and a
 // Rapier world holding just what a car can touch on the road: the ground (a heightfield of the
@@ -20,7 +21,9 @@ export const RAY_GROUPS = (0xffff << 16) | 0x0002;
 const TILE = 256; // m per heightfield tile
 const STEP = 2; // m between height samples
 
-export class SimWorld {
+export class SimWorld implements RaySensors {
+  readonly rayGroups = RAY_GROUPS;
+
   readonly layout: CityLayout;
   readonly terrain: Terrain;
   readonly net: StreetNet;
@@ -30,6 +33,11 @@ export class SimWorld {
   readonly ground = new Set<number>();
   /** What each obstacle collider is: 0 = building/wall, 1 = car. */
   readonly kind = new Map<number, number>();
+  /**
+   * Velocities of kinematic cars (rule-based traffic), by collider handle; other cars report
+   * their rigid body's velocity.
+   */
+  readonly kinematicVel = new Map<number, { x: number; z: number }>();
   /** Junction centres with traffic lights. */
   readonly litNodes: number[];
 
@@ -51,6 +59,20 @@ export class SimWorld {
     this.world.timestep = PHYSICS_DT;
     this.buildGround();
     this.buildBuildings();
+  }
+
+  isCar(c: RAPIER.Collider): boolean {
+    return this.kind.get(c.handle) === 1;
+  }
+
+  /** Ground-plane velocity of the body a collider belongs to. */
+  velocity(c: RAPIER.Collider): { x: number; z: number } {
+    const k = this.kinematicVel.get(c.handle);
+    if (k) return k;
+    const b = c.parent();
+    if (!b) return { x: 0, z: 0 };
+    const v = b.linvel();
+    return { x: v.x, z: v.z };
   }
 
   /** Road-level height (roads sit on the smooth hills; see terrain.ts). */

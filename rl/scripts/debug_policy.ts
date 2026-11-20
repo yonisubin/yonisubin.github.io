@@ -2,7 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { readFileSync } from 'node:fs';
 import { SimWorld } from '../sim/world';
 import { DrivingEnv, Info, INFO_SIZE } from '../sim/env';
-import { Policy } from '../sim/policy';
+import { Policy } from '../../src/ai/policy';
 // Trace a policy's failed episodes: node rl/dist/debug_policy.mjs <policy.json> <stage 1-6>
 await RAPIER.init();
 const sim = new SimWorld();
@@ -17,7 +17,7 @@ for (let k = 0; k < 3000; k++) {
   policy.act(env.obs, cars, act);
   env.agents.forEach((a, i) => {
     const pi = a.path.index(a.s);
-    hist[i].push(`s=${a.s.toFixed(1)}/${a.path.length.toFixed(0)} lat=${a.lat.toFixed(2)} v=${a.vFwd.toFixed(1)} lim=${a.path.limit[pi].toFixed(1)} curve=${a.path.curveLimit(a.s, 30).toFixed(1)} act=${act[i * 2].toFixed(2)},${act[i * 2 + 1].toFixed(2)} ray=${a.rays.dist[7].toFixed(0)} stop=${a.stopDist.toFixed(0)}${a.light} pos=${a.frame.x.toFixed(0)},${a.frame.z.toFixed(0)}`);
+    hist[i].push(`s=${a.s.toFixed(1)}/${a.path.length.toFixed(0)} lat=${a.lat.toFixed(2)} v=${a.vFwd.toFixed(1)} lim=${a.path.limit[pi].toFixed(1)} curve=${a.path.curveLimit(a.s, 30).toFixed(1)} act=${act[i * 2].toFixed(2)},${act[i * 2 + 1].toFixed(2)} ray=${Array.from(a.rays.dist.slice(5,10)).map(x=>x.toFixed(0))}c${Array.from(a.rays.car.slice(5,10)).join("")} stop=${a.stopDist.toFixed(0)}${a.light} pos=${a.frame.x.toFixed(0)},${a.frame.z.toFixed(0)}`);
   });
   env.step(act);
   for (let i = 0; i < cars; i++) if (env.done[i]) {

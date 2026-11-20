@@ -18,6 +18,12 @@ import {
   wheelGeometry,
   type CarType,
 } from '../vehicles/carModel';
+import { CarDynamics } from '../sim/carDynamics';
+import type { Policy } from '../ai/policy';
+import { DriverView, senseDriver } from '../ai/driver';
+import { observe, OBS_SIZE, type RaySensors } from '../ai/observe';
+import { gameSensors } from '../ai/sensors';
+import { Path, projectOnPiece, shiftPiece } from '../ai/path';
 
 // NPC traffic: cars that follow the street network, obey traffic lights and stop signs, and
 // keep their distance.
@@ -58,6 +64,17 @@ import {
 // Cost: decisions about lanes run a couple of times a second per car (staggered), the
 // per-step work is IDM plus a scan over the other ~28 cars, and pieces are shared objects
 // so "same lane?" is an identity check.
+//
+// AI drivers (src/ai, trained with reinforcement learning in rl/): once a policy is loaded
+// (setPolicy), cars near the player are real physics cars — the same ray-cast vehicle the
+// player drives (sim/carDynamics.ts) — and the trained network steers and works the pedals,
+// 15 decisions a second, from what it sees: its route ahead, 15 sensor rays with a radar-like
+// closing speed, the next traffic light. Everything above still runs as the planner (which
+// way to turn, which lane, overtaking) and as a safety layer: if the rules want to brake
+// harder than the network (a stop sign, a car crossing the junction, the player on foot), the
+// rule's braking wins. Far from the player, where nobody can see the difference, or where the
+// ground isn't loaded, or if the network loses its way, a car falls back to the kinematic
+// driving above.
 
 const POOL_SIZE = 28;
 const SPAWN_MIN = 60; // m from the player (closer spawns would pop in visibly)
@@ -67,6 +84,13 @@ const STOP_LINE_BACK = 1.0; // m before the end of a lane (the paint is just bef
 const SAME_LANE = 2.4; // m: cars whose lateral offsets differ by less than this share a lane
 const LANE_CHANGE_SPEED = 1.5; // m/s sideways at most
 const LOOKAHEAD = 90; // m of road ahead considered for curves and leaders
+/** AI (physics) driving within this distance of the player, m; kinematic beyond. */
+export const AI_RADIUS = 170;
+const AI_HYSTERESIS = 20; // m, so cars at the edge don't flip between modes
+const AI_DECISION_STEPS = 4; // physics steps per decision (15 Hz at 60 Hz, as trained)
+/** The rules' braking overrides the network beyond this deceleration, m/s². */
+const SHIELD_DECEL = 0.8;
+const BRAKE_DECEL = 9; // m/s² at full brake (sim/carDynamics.ts): converts the rules' braking to a pedal
 const TYPES: CarType[] = ['sedan', 'sedan', 'sedan', 'taxi', 'sedan', 'van'];
 // Gunfire damage. Cars have more health than people; a wreck stays put for a while.
 const CAR_HEALTH = 150;
@@ -140,6 +164,21 @@ export interface TrafficCar {
   pinned: boolean;
   /** Counts respawns of this slot, so a mission can tell its car was replaced (carjacked). */
   serial: number;
+  /** Physics (also the kinematic body: switched between the two body types). */
+  dyn: CarDynamics;
+  /** Driven by the AI policy as a physics car right now (else kinematic). */
+  physics: boolean;
+  /** The AI driver's view and its current route line. */
+  ai: DriverView;
+  aiPathKey: string;
+  /** Seconds stuck (stopped while the rules say go), and AI disabled until this time. */
+  aiStuck: number;
+  aiBlockedUntil: number;
+  /** Body orientation (physics cars roll and pitch; kinematic ones are set from yaw/pitch). */
+  prevQuat: THREE.Quaternion;
+  currQuat: THREE.Quaternion;
+  /** Index in the pool (staggers decisions). */
+  index: number;
 }
 
 /** Things traffic must not drive into: the player (any mode), parked player cars, etc. */
@@ -176,7 +215,35 @@ export class Traffic implements SimEntity {
   private time = 0;
   private lightTimer = 0;
   /** Counters for tests and the debug overlay. */
-  readonly stats = { laneChanges: 0, passStarted: 0, passCompleted: 0, passAborted: 0 };
+  readonly stats = {
+    laneChanges: 0,
+    passStarted: 0,
+    passCompleted: 0,
+    passAborted: 0,
+    /** AI: physics steps driven, of which the rules' braking overrode the network. */
+    aiSteps: 0,
+    aiShieldSteps: 0,
+    /** AI: decisions taken, time spent on them (ms), and hand-backs to kinematic driving. */
+    aiDecisions: 0,
+    aiMs: 0,
+    aiFallbacks: 0,
+  };
+  /** The trained driving policy (null: every car drives kinematically). */
+  private policy: Policy | null = null;
+  /** Is there ground (a loaded collider) under (x, z)? Set by the game. */
+  groundLoaded: (x: number, z: number) => boolean = () => false;
+  /** Turn AI driving off (e.g. for comparisons); cars then drive kinematically. */
+  aiEnabled = true;
+  private steps = 0;
+  /** The clock the traffic lights run on, s. */
+  get clock(): number {
+    return this.time;
+  }
+  private readonly obs = new Float32Array(OBS_SIZE);
+  private readonly act = new Float32Array(2);
+  private readonly sensors: RaySensors;
+  private readonly pieceIds = new WeakMap<Piece, number>();
+  private nextPieceId = 1;
   private obstacleList: THREE.Vector3[] = [];
 
   // Scratch.
@@ -210,6 +277,7 @@ export class Traffic implements SimEntity {
   ) {
     this.graph = new RoadGraph(layout.streets.net);
     this.lights = new TrafficLights(scene, world, this.graph, terrain);
+    this.sensors = gameSensors(world);
 
     // Instanced meshes per car type and part.
     const counts = new Map<CarType, number>();
@@ -259,13 +327,12 @@ export class Traffic implements SimEntity {
     }
 
     const placeholder = this.graph.lane(0, 1);
-    for (const { type, slot } of slots) {
+    slots.forEach(({ type, slot }, index) => {
       const d = CAR_DIMENSIONS[type];
-      const body = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased());
-      world.createCollider(
-        RAPIER.ColliderDesc.cuboid(d.boxHalf[0], d.boxHalf[1], d.boxHalf[2]).setTranslation(...d.boxCenter),
-        body,
-      );
+      // A full physics car, kinematic until the AI drives it.
+      const dyn = new CarDynamics(world, type, 0, -100, 0, 0);
+      const body = dyn.body;
+      body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, false);
       const color = type === 'taxi' ? TAXI_YELLOW : PAINT_COLORS[this.rng.int(0, PAINT_COLORS.length - 1)];
       this.meshes.get(type)![0].setColorAt(slot, new THREE.Color(color));
       this.cars.push({
@@ -300,8 +367,17 @@ export class Traffic implements SimEntity {
         currYaw: 0,
         currPitch: 0,
         active: false,
+        dyn,
+        physics: false,
+        ai: new DriverView(),
+        aiPathKey: '',
+        aiStuck: 0,
+        aiBlockedUntil: 0,
+        prevQuat: new THREE.Quaternion(),
+        currQuat: new THREE.Quaternion(),
+        index,
       });
-    }
+    });
     // Fill the pool straight away (closer than usual is fine before the first frame).
     for (const car of this.cars) this.respawn(car, 25);
   }
@@ -327,6 +403,7 @@ export class Traffic implements SimEntity {
     const player = this.playerPosition();
     // A new car in this slot: not anyone's mission target any more.
     car.pinned = false;
+    if (car.physics) this.setPhysics(car, false);
     car.serial++;
     const net = this.graph.net;
     // Roads near the player, weighted toward the busier ones.
@@ -364,7 +441,10 @@ export class Traffic implements SimEntity {
       this.place(car);
       car.prevPos.copy(car.currPos);
       car.prevYaw = car.currYaw;
+      yawPitchQuaternion(car.currYaw, car.currPitch, car.currQuat);
+      car.prevQuat.copy(car.currQuat);
       car.body.setTranslation(car.currPos, true);
+      car.body.setRotation(car.currQuat, true);
       car.body.setEnabled(true);
       return;
     }
@@ -954,6 +1034,7 @@ export class Traffic implements SimEntity {
     }
     const player = this.playerPosition();
     this.obstacleList = this.obstacles();
+    this.steps++;
 
     for (const car of this.cars) {
       if (!car.active) {
@@ -969,12 +1050,26 @@ export class Traffic implements SimEntity {
         car.wrecked += dt;
         car.prevPos.copy(car.currPos);
         car.prevYaw = car.currYaw;
-        car.speed = 0;
+        car.prevQuat.copy(car.currQuat);
         car.acc = 0;
+        if (car.physics) {
+          // Nobody driving: the brakes lock and it slides to a stop.
+          car.dyn.step({ driven: false, throttle: 0, steer: 0, handbrake: false }, dt);
+        } else car.speed = 0;
         if (car.wrecked > WRECK_TIME) this.respawn(car);
         continue;
       }
-      this.drive(car, dt);
+      // AI near the player, on loaded ground; kinematic otherwise.
+      const dist = Math.hypot(car.currPos.x - player.x, car.currPos.z - player.z);
+      const wantAI =
+        this.policy !== null &&
+        this.aiEnabled &&
+        this.time >= car.aiBlockedUntil &&
+        dist < AI_RADIUS + (car.physics ? AI_HYSTERESIS : 0) &&
+        this.groundLoaded(car.currPos.x, car.currPos.z);
+      if (wantAI !== car.physics) this.setPhysics(car, wantAI);
+      if (car.physics) this.driveAI(car, dt);
+      else this.drive(car, dt);
     }
   }
 
@@ -1007,6 +1102,7 @@ export class Traffic implements SimEntity {
 
     car.prevPos.copy(car.currPos);
     car.prevYaw = car.currYaw;
+    car.prevQuat.copy(car.currQuat);
     car.s += car.speed * dt;
     car.wheelSpin += (car.speed * dt) / CAR_DIMENSIONS[car.type].wheelRadius;
 
@@ -1044,9 +1140,9 @@ export class Traffic implements SimEntity {
       }
     }
     this.place(car);
-    yawPitchQuaternion(car.currYaw, car.currPitch, this.quat);
+    yawPitchQuaternion(car.currYaw, car.currPitch, car.currQuat);
     car.body.setNextKinematicTranslation(car.currPos);
-    car.body.setNextKinematicRotation(this.quat);
+    car.body.setNextKinematicRotation(car.currQuat);
   }
 
   /** Is a car alongside, on the side the car is moving to (would moving over hit it)? */
@@ -1066,7 +1162,205 @@ export class Traffic implements SimEntity {
     return false;
   }
 
-  afterStep(): void {}
+  /** Switch a car between AI physics driving and kinematic driving. */
+  private setPhysics(car: TrafficCar, on: boolean): void {
+    const body = car.body;
+    car.physics = on;
+    if (on) {
+      body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+      body.setTranslation({ x: car.currPos.x, y: car.currPos.y + 0.05, z: car.currPos.z }, true);
+      body.setRotation(car.currQuat, true);
+      const fx = Math.cos(car.currYaw);
+      const fz = -Math.sin(car.currYaw);
+      body.setLinvel({ x: fx * car.speed, y: 0, z: fz * car.speed }, true);
+      body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      car.dyn.steer = 0;
+      car.ai.action = [0, 0];
+      car.ai.prevAction = [0, 0];
+      car.aiPathKey = '';
+      car.aiStuck = 0;
+    } else {
+      body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+      // Carry on kinematically from where the physics left it, in its lane.
+      car.speed = Math.max(0, car.speed);
+    }
+  }
+
+  /** Install the trained driving policy (null turns AI driving off). */
+  setPolicy(policy: Policy | null): void {
+    this.policy = policy;
+  }
+
+  get hasPolicy(): boolean {
+    return this.policy !== null;
+  }
+
+  private pieceId(p: Piece): number {
+    let id = this.pieceIds.get(p);
+    if (id === undefined) this.pieceIds.set(p, (id = this.nextPieceId++));
+    return id;
+  }
+
+  /**
+   * One fixed step of an AI-driven car: the rules plan (route, lane, overtaking) and work out
+   * how hard they'd brake; the network steers and works the pedals; the harder brake wins.
+   */
+  private driveAI(car: TrafficCar, dt: number): void {
+    const d = car.driver;
+    // Where the physics has taken it along its pieces (the network steers, so it's never
+    // exactly on the line).
+    this.trackPieces(car);
+    this.buildRoute(car);
+    const v0 = Math.min(this.desiredSpeed(car, car.piece), this.curveSpeed(car));
+    car.decideIn -= dt;
+    if (car.decideIn <= 0) {
+      car.decideIn = this.rng.range(0.4, 0.7);
+      this.decideLane(car, v0);
+    }
+    if (car.passing) this.updateOvertake(car, dt);
+    const lead = this.leader(car, car.latTarget, true);
+    if (Math.abs(car.lat - car.latTarget) > 1.2) {
+      const old = this.leader(car, car.lat, true);
+      if (old.gap < lead.gap) Object.assign(lead, old);
+    }
+    let acc = this.idm(d, car.speed, v0, lead.gap, car.speed - lead.speed);
+    const stop = this.stopGap(car);
+    if (stop < Infinity) acc = Math.min(acc, this.idm(d, car.speed, v0, stop, car.speed));
+
+    // Lane offset the route line follows: eased toward the target lane, as in drive().
+    const dl = car.latTarget - car.lat;
+    const blocked = Math.abs(dl) > 0.3 && this.blockedSideways(car, dl);
+    const want = blocked ? 0 : Math.sign(dl) * Math.min(LANE_CHANGE_SPEED, Math.abs(dl) * 1.2) * Math.min(1, car.speed / 3 + 0.3);
+    car.latVel += (want - car.latVel) * Math.min(1, dt * 4);
+    car.lat += car.latVel * dt;
+    if (Math.abs(car.latTarget - car.lat) < 0.02 && Math.abs(car.latVel) < 0.05) {
+      car.lat = car.latTarget;
+      car.latVel = 0;
+    }
+
+    // The network decides 15 times a second (cars staggered across steps).
+    if ((this.steps + car.index) % AI_DECISION_STEPS === 0) {
+      if (!this.decide(car)) return;
+    }
+    // Safety layer: the rules' braking, as a brake pedal, overrides a lighter foot.
+    const ai = car.ai;
+    let throttle = ai.action[1];
+    let handbrake = false;
+    if (acc < -SHIELD_DECEL) {
+      // Real braking (a stop line, a car crossing, someone in the road): as a brake pedal.
+      const rule = Math.max(-1, acc / BRAKE_DECEL);
+      if (rule < throttle - 0.02) {
+        throttle = rule;
+        this.stats.aiShieldSteps++;
+      }
+    } else if (car.speed > v0 + 0.5 && throttle > 0) {
+      // Faster than this driver likes (a dawdler, a van): just lift off.
+      throttle = 0;
+    }
+    // Told to wait and (nearly) stopped: hold it there, even on a hill.
+    if (acc < -0.3 && car.speed < 0.6) {
+      throttle = 0;
+      handbrake = true;
+    }
+    this.stats.aiSteps++;
+    car.acc = throttle < -0.05 ? -BRAKE_DECEL * -throttle : acc;
+    car.prevPos.copy(car.currPos);
+    car.prevYaw = car.currYaw;
+    car.prevQuat.copy(car.currQuat);
+    car.dyn.step({ driven: true, steer: ai.action[0], throttle, handbrake }, dt);
+
+    // Stuck: stopped although the rules say go (wedged on something). Hand it back.
+    car.aiStuck = car.speed < 0.3 && acc > 0.3 ? car.aiStuck + dt : 0;
+    if (car.aiStuck > 6) this.fallBack(car);
+  }
+
+  /** Move a physics car's piece / distance along on from its actual position. */
+  private trackPieces(car: TrafficCar): void {
+    for (let guard = 0; guard < 4; guard++) {
+      car.s = projectOnPiece(car.piece, car.currPos.x, car.currPos.z);
+      if (car.s < car.piece.length) break;
+      const piece = car.piece;
+      if (piece.kind === 'lane') {
+        const turn = this.plannedTurn(car, piece);
+        car.piece = turn;
+        car.lat -= turn.offIn;
+        car.latTarget = 0;
+        car.stoppedAt = -1;
+        car.exit = this.chooseExit(turn.to!);
+      } else {
+        car.piece = piece.to!;
+        car.lat += piece.offOut;
+        car.latTarget = piece.offOut;
+      }
+    }
+  }
+
+  /** The network's next action for a car. False if the car had to be handed back. */
+  private decide(car: TrafficCar): boolean {
+    const policy = this.policy!;
+    const ai = car.ai;
+    const t0 = performance.now();
+    // The route line: the next pieces at the car's lane offset (rebuilt when they change).
+    const r = this.route;
+    const lat0 = Math.round(car.lat * 20) / 20;
+    let key = `${lat0}`;
+    for (let k = 0; k < this.routeLength; k++) key += `|${this.pieceId(r[k].piece)}:${r[k].lat}`;
+    if (key !== car.aiPathKey) {
+      const pieces: Piece[] = [];
+      for (let k = 0; k < this.routeLength; k++) {
+        const step = r[k];
+        pieces.push(step.piece.kind === 'turn' ? step.piece : shiftPiece(step.piece, k === 0 ? car.lat : step.lat));
+      }
+      ai.path = new Path(pieces, this.graph);
+      ai.s = car.s; // the route line starts at the current piece's start
+      car.aiPathKey = key;
+    }
+    senseDriver(ai, car.body, car.dyn.steer, this.sensors, this.graph, this.time);
+    // Lost (spun out, shoved off the road): hand back to kinematic driving.
+    if (Math.abs(ai.lat) > 5 || ai.frame.upY < 0.5) {
+      this.fallBack(car);
+      return false;
+    }
+    ai.prevAction = ai.action;
+    observe(ai, this.obs);
+    policy.act(this.obs, 1, this.act);
+    ai.action = [this.act[0], this.act[1]];
+    this.stats.aiDecisions++;
+    this.stats.aiMs += performance.now() - t0;
+    return true;
+  }
+
+  /** The AI lost its way: drive this car kinematically for a while (out of sight: respawn). */
+  private fallBack(car: TrafficCar): void {
+    this.stats.aiFallbacks++;
+    car.aiBlockedUntil = this.time + 15;
+    const player = this.playerPosition();
+    if (!car.pinned && Math.hypot(car.currPos.x - player.x, car.currPos.z - player.z) > 70) {
+      this.respawn(car);
+      return;
+    }
+    this.setPhysics(car, false);
+  }
+
+  afterStep(): void {
+    // Physics cars: read the pose back from the body.
+    for (const car of this.cars) {
+      if (!car.active || !car.physics) continue;
+      const t = car.body.translation();
+      const q = car.body.rotation();
+      car.currPos.set(t.x, t.y, t.z);
+      car.currQuat.set(q.x, q.y, q.z, q.w);
+      // Forward (+X) in the world: heading and pitch.
+      const fx = 1 - 2 * (q.y * q.y + q.z * q.z);
+      const fy = 2 * (q.x * q.y + q.w * q.z);
+      const fz = 2 * (q.x * q.z - q.w * q.y);
+      car.currYaw = Math.atan2(-fz, fx);
+      car.currPitch = Math.asin(Math.max(-1, Math.min(1, fy)));
+      const v = car.body.linvel();
+      car.speed = Math.max(0, (v.x * fx + v.z * fz) / (Math.hypot(fx, fz) || 1));
+      car.wheelSpin += (car.speed * (1 / 60)) / CAR_DIMENSIONS[car.type].wheelRadius;
+    }
+  }
 
   render(alpha: number, frameDt: number): void {
     const pos = this.tmp;
@@ -1082,9 +1376,7 @@ export class Traffic implements SimEntity {
         continue;
       }
       pos.lerpVectors(car.prevPos, car.currPos, alpha);
-      let dyaw = car.currYaw - car.prevYaw;
-      dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
-      yawPitchQuaternion(car.prevYaw + dyaw * alpha, car.currPitch, this.quat);
+      this.quat.slerpQuaternions(car.prevQuat, car.currQuat, alpha);
       this.mat.compose(pos, this.quat, this.one);
       for (const m of meshes) m.setMatrixAt(car.slot, this.mat);
       // Brake lights: on while slowing down or standing.
@@ -1184,6 +1476,7 @@ export class Traffic implements SimEntity {
    */
   take(car: TrafficCar): { type: CarType; color: number; position: THREE.Vector3; yaw: number } {
     const taken = { type: car.type, color: car.color, position: car.currPos.clone(), yaw: car.currYaw };
+    if (car.physics) this.setPhysics(car, false);
     car.active = false;
     car.body.setEnabled(false);
     return taken;
@@ -1227,6 +1520,7 @@ export class Traffic implements SimEntity {
     passing: boolean;
     acc: number;
     yaw: number;
+    physics: boolean;
   }[] {
     return this.cars.map((c) => ({
       pos: c.currPos,
@@ -1240,6 +1534,7 @@ export class Traffic implements SimEntity {
       passing: c.passing !== null,
       acc: c.acc,
       yaw: c.currYaw,
+      physics: c.physics,
     }));
   }
 }
@@ -1334,3 +1629,4 @@ class TrafficLights {
     if (changed) for (const l of ['red', 'yellow', 'green'] as Light[]) if (this.lamps[l].instanceColor) this.lamps[l].instanceColor!.needsUpdate = true;
   }
 }
+

@@ -1,6 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { DrivingEnv, INFO_SIZE } from './env';
-import { OBS_SIZE } from './observe';
+import { OBS_SIZE } from '../../src/ai/observe';
 import { SimWorld } from './world';
 
 // A simulation worker for the Python trainer (rl/train/node_vec_env.py): one city, N cars,

@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { SimWorld } from '../sim/world';
 import { DrivingEnv, Info, INFO_SIZE, STAGES } from '../sim/env';
-import { baselineAction } from '../sim/baseline';
+import { baselineAction } from '../../src/ai/baseline';
 await RAPIER.init();
 const sim = new SimWorld();
 const stages = process.argv[2] ? process.argv[2].split(',').map(Number) : STAGES.map((_, i) => i);

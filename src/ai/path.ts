@@ -1,4 +1,4 @@
-import { pieceAt, type Piece, type RoadGraph } from '../../src/world/roadGraph';
+import { pieceAt, type Piece, type RoadGraph } from '../world/roadGraph';
 import type { Rng } from './rng';
 
 // A route as one polyline in the right-hand lane: a chain of the road graph's lane and turn
@@ -181,4 +181,139 @@ export function randomRoute(graph: RoadGraph, rng: Rng, opt: RouteOptions): { pa
     const path = new Path(pieces, graph);
     return { path, start };
   }
+}
+
+const shifted = new WeakMap<Piece, Map<number, Piece>>();
+
+/**
+ * The same piece moved `lat` m to the right of travel (the outer lane of a two-lane road, an
+ * overtaking car in the oncoming lane, a lane change in progress). Cached per 5 cm of offset.
+ */
+export function shiftPiece(p: Piece, lat: number): Piece {
+  const key = Math.round(lat * 20);
+  if (key === 0) return p;
+  let byLat = shifted.get(p);
+  if (!byLat) shifted.set(p, (byLat = new Map()));
+  const hit = byLat.get(key);
+  if (hit) return hit;
+  const off = key / 20;
+  const src = p.pts;
+  const n = src.length / 2;
+  const pts = new Float32Array(src.length);
+  for (let i = 0; i < n; i++) {
+    const a = Math.max(0, i - 1);
+    const b = Math.min(n - 1, i + 1);
+    let tx = src[b * 2] - src[a * 2];
+    let tz = src[b * 2 + 1] - src[a * 2 + 1];
+    const l = Math.hypot(tx, tz) || 1;
+    tx /= l;
+    tz /= l;
+    pts[i * 2] = src[i * 2] - tz * off;
+    pts[i * 2 + 1] = src[i * 2 + 1] + tx * off;
+  }
+  const piece: Piece = { ...p, pts };
+  byLat.set(key, piece);
+  return piece;
+}
+
+/** Distance along a piece of the point nearest (x, z), extended straight past its ends. */
+export function projectOnPiece(p: Piece, x: number, z: number): number {
+  const pts = p.pts;
+  const n = pts.length / 2;
+  let best = Infinity;
+  let bestS = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const ax = pts[i * 2];
+    const az = pts[i * 2 + 1];
+    const dx = pts[i * 2 + 2] - ax;
+    const dz = pts[i * 2 + 3] - az;
+    const l2 = dx * dx + dz * dz || 1e-9;
+    let t = ((x - ax) * dx + (z - az) * dz) / l2;
+    // Only the first and last segments extend beyond the piece.
+    if (i > 0) t = Math.max(0, t);
+    if (i < n - 2) t = Math.min(1, t);
+    const qx = ax + dx * t;
+    const qz = az + dz * t;
+    const d2 = (x - qx) ** 2 + (z - qz) ** 2;
+    if (d2 < best) {
+      best = d2;
+      bestS = p.cum[i] + t * Math.sqrt(l2);
+    }
+  }
+  return bestS;
+}
+
+/**
+ * Driving directions in lanes: the fastest chain of lanes and turns from a car at (x, z)
+ * heading (hx, hz) to the road nearest (tx, tz) — A* over lanes, never a U-turn except at a
+ * dead end. Returns the path, where the car is on it and where to stop, or null.
+ */
+export function laneRoute(
+  graph: RoadGraph,
+  x: number,
+  z: number,
+  hx: number,
+  hz: number,
+  tx: number,
+  tz: number,
+): { path: Path; start: number; goal: number } | null {
+  const net = graph.net;
+  const from = net.nearest(x, z, 60);
+  const to = net.nearest(tx, tz, 2000);
+  if (!from || !to) return null;
+  const fe = net.edges[from.edge];
+  const segDx = fe.pts[from.seg * 2 + 2] - fe.pts[from.seg * 2];
+  const segDz = fe.pts[from.seg * 2 + 3] - fe.pts[from.seg * 2 + 1];
+  const first = graph.lane(fe.id, segDx * hx + segDz * hz >= 0 ? 1 : -1);
+  const startS = projectOnPiece(first, x, z);
+  const goalLanes = [graph.lane(to.edge, 1), graph.lane(to.edge, -1)];
+  const goalS = goalLanes.map((l) => Math.max(0, Math.min(l.length, projectOnPiece(l, to.x, to.z))));
+
+  // Already on the destination's lane, ahead of us.
+  const direct = goalLanes.indexOf(first);
+  if (direct >= 0 && goalS[direct] > startS + 5) {
+    return { path: new Path([first], graph), start: startS, goal: goalS[direct] };
+  }
+  const FAST = 19;
+  const key = (l: Piece) => l.edge * 2 + (l.dir === 1 ? 0 : 1);
+  const g = new Map<number, number>();
+  const came = new Map<number, Piece>();
+  const open: { lane: Piece; f: number }[] = [];
+  const nodeOf = (l: Piece) => net.nodes[l.node];
+  const h = (l: Piece) => Math.hypot(nodeOf(l).x - to.x, nodeOf(l).z - to.z) / FAST;
+  g.set(key(first), (first.length - startS) / first.speed);
+  open.push({ lane: first, f: g.get(key(first))! + h(first) });
+  let goal: Piece | null = null;
+  let expanded = 0;
+  while (open.length && expanded < 20000) {
+    let bi = 0;
+    for (let i = 1; i < open.length; i++) if (open[i].f < open[bi].f) bi = i;
+    const { lane } = open.splice(bi, 1)[0];
+    expanded++;
+    const gi = goalLanes.indexOf(lane);
+    if (gi >= 0 && lane !== first) {
+      goal = lane;
+      break;
+    }
+    const base = g.get(key(lane))!;
+    for (const next of graph.exits(lane)) {
+      const turnCost = 3 + (next.edge === lane.edge ? 20 : 0); // junctions cost time; U-turns more
+      const gi2 = goalLanes.indexOf(next);
+      const along = gi2 >= 0 ? goalS[gi2] : next.length;
+      const c = base + turnCost + along / next.speed;
+      if (c < (g.get(key(next)) ?? Infinity)) {
+        g.set(key(next), c);
+        came.set(key(next), lane);
+        open.push({ lane: next, f: c + h(next) });
+      }
+    }
+  }
+  if (!goal) return null;
+  const lanes: Piece[] = [goal];
+  while (lanes[0] !== first) lanes.unshift(came.get(key(lanes[0]))!);
+  const pieces: Piece[] = [lanes[0]];
+  for (let i = 1; i < lanes.length; i++) pieces.push(graph.turn(lanes[i - 1], lanes[i]), lanes[i]);
+  const path = new Path(pieces, graph);
+  const goalAlong = path.length - (goal.length - goalS[goalLanes.indexOf(goal)]);
+  return { path, start: startS, goal: goalAlong };
 }
