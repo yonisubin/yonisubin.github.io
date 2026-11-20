@@ -10,34 +10,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 // Geometry is created once per car type and shared; player cars get their own paint
 // material, while NPC traffic reuses the same geometry in InstancedMeshes.
 
-export type CarType = 'sedan' | 'taxi' | 'van';
-
-export interface CarDimensions {
-  length: number;
-  width: number;
-  wheelBase: number; // distance between axles
-  track: number; // distance between left and right wheel centres
-  wheelRadius: number;
-  /** Physics collision box (half extents and centre), for the chassis. */
-  boxHalf: [number, number, number];
-  boxCenter: [number, number, number];
-  mass: number; // kg
-}
-
-export const CAR_DIMENSIONS: Record<CarType, CarDimensions> = {
-  sedan: {
-    length: 4.5, width: 1.8, wheelBase: 2.7, track: 1.56, wheelRadius: 0.34,
-    boxHalf: [2.2, 0.36, 0.88], boxCenter: [0, 0.68, 0], mass: 1300,
-  },
-  taxi: {
-    length: 4.5, width: 1.8, wheelBase: 2.7, track: 1.56, wheelRadius: 0.34,
-    boxHalf: [2.2, 0.36, 0.88], boxCenter: [0, 0.68, 0], mass: 1300,
-  },
-  van: {
-    length: 4.9, width: 1.95, wheelBase: 3.0, track: 1.66, wheelRadius: 0.37,
-    boxHalf: [2.4, 0.78, 0.95], boxCenter: [0, 1.12, 0], mass: 2000,
-  },
-};
+export { CAR_DIMENSIONS, type CarDimensions, type CarType } from './carDimensions';
+import { CAR_DIMENSIONS, type CarType } from './carDimensions';
 
 /** Typical car paint colours, as hex sRGB. */
 export const PAINT_COLORS = [0xe8e8e6, 0x1b1c1e, 0x8a8f96, 0x9c1b1b, 0x1f3f7a, 0x2f5a3a, 0xc7c2b5, 0x5a6470, 0x3a2a24];

@@ -1,0 +1,8 @@
+# Trainer only (not part of the game). Install into rl/.venv:
+#   python3 -m venv rl/.venv
+#   rl/.venv/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch
+#   rl/.venv/bin/pip install -r rl/requirements.txt
+stable-baselines3==2.9.2
+gymnasium
+tensorboard
+onnx

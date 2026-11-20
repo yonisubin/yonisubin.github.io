@@ -3,3 +3,10 @@ dist
 art/
 civilization/dist
 portal/dist
+rl/.venv
+rl/dist
+rl/runs
+rl/viewer/dist
+rl/train*.log
+__pycache__
+rl/viewer/public/policies/step_*

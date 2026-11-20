@@ -1,0 +1,40 @@
+{
+  "Baseline (pure pursuit + PID)": {
+    "empty": {
+      "episodes": 40,
+      "success": 35,
+      "crash": 2,
+      "offroad": 0,
+      "redLight": 0,
+      "timeout": 3,
+      "km": 13.163456911362418,
+      "laneSq": 1111.8612575406785,
+      "laneN": 19403,
+      "steerChange": 73.79980439454974,
+      "seconds": 1293.5333333334715,
+      "speedFrac": 13079.55056375998,
+      "speedN": 19403,
+      "speeding": 0,
+      "inferMs": 27.06129499996132,
+      "decisions": 24240
+    },
+    "heavy": {
+      "episodes": 40,
+      "success": 28,
+      "crash": 2,
+      "offroad": 0,
+      "redLight": 1,
+      "timeout": 9,
+      "km": 12.22313669501042,
+      "laneSq": 1954.070452753023,
+      "laneN": 27353,
+      "steerChange": 92.13458659389583,
+      "seconds": 1823.5333333329895,
+      "speedFrac": 12582.814221965322,
+      "speedN": 27353,
+      "speeding": 0,
+      "inferMs": 30.48286600006577,
+      "decisions": 27940
+    }
+  }
+}

@@ -21,7 +21,10 @@
     "test:portal": "node portal/tests/run.mjs",
     "build:characters": "node scripts/build-characters.mjs",
     "build:quaternius": "node scripts/build-quaternius.mjs",
-    "test": "node tests/run.mjs"
+    "test": "node tests/run.mjs",
+    "rl:build": "node rl/build.mjs",
+    "rl:viewer": "vite --config rl/viewer/vite.config.ts",
+    "typecheck:rl": "tsc --noEmit -p rl"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

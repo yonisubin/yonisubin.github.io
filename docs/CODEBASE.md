@@ -3027,11 +3027,13 @@ Each vertex takes the colour of its `_part` index (part 0 if the attribute is mi
 
 **Purpose.** `Car` (a drivable car simulated with Rapier's `DynamicRayCastVehicleController`) and `DrivingMode` (the player-in-car mode: reads input, drives the car, runs the chase camera and headlights). Each wheel is a ray cast down from the chassis rather than a wheel body: where it hits, a spring-damper suspension force pushes the chassis up, and tyre friction impulses (engine, brakes, sideways grip) act at the contact point — the classic "raycast vehicle", cheap and very stable.
 
-**Depends on:** `three`, Rapier; `input/actions.ts`; `state.ts`; `sim/entity.ts` (`BodyInterpolator`, `SimEntity`); `sim/exit.ts`; `sim/sinking.ts`; `sim/vehicleBody.ts` (`FlipRecovery`, `ImpactMeter`, `placeBody`); `camera/chaseCamera.ts`; `sim/vehicleLight.ts` (type); `game/stats.ts` (type); `vehicles/carModel.ts` (`CAR_DIMENSIONS`, `ambulanceLivery`, `buildCarBody`, `buildWheel`, `CarType`) · **Used by:** `main.ts` only (parked cars, hospital cars and ambulances, carjacked cars).
+**Depends on:** `three`, Rapier; `input/actions.ts`; `state.ts`; `sim/entity.ts` (`BodyInterpolator`, `SimEntity`); `sim/exit.ts`; `sim/sinking.ts`; `sim/vehicleBody.ts` (`FlipRecovery`, `ImpactMeter`, `placeBody`); `sim/carDynamics.ts` (`CarDynamics`, `SUSPENSION_REST`); `camera/chaseCamera.ts`; `sim/vehicleLight.ts` (type); `game/stats.ts` (type); `vehicles/carModel.ts` (`CAR_DIMENSIONS`, `ambulanceLivery`, `buildCarBody`, `buildWheel`, `CarType`) · **Used by:** `main.ts` only (parked cars, hospital cars and ambulances, carjacked cars).
+
+**The physics lives in `src/sim/carDynamics.ts`** (no three.js), so the headless RL simulator in `rl/` drives exactly the same car. `CarDynamics` builds the chassis body (mass properties, the massless cabin collider, the vehicle controller and its four wheels) and `step(inputs, dt)` applies steering, engine, brakes, handbrake grip and drag, then `updateVehicle`. An optional `CarTune` (`mass`, `engine`, `grip` multipliers, all 1 in the game) lets RL training randomise each car slightly. `Car` keeps the model, sinking, flip recovery, impacts and the driver inputs (`driven`, `throttle`, `steerInput`, `handbrake`), and passes them to `dynamics.step` each fixed step. `CAR_DIMENSIONS` / `CarType` live in the three-free `vehicles/carDimensions.ts` (re-exported by `carModel.ts`). `rl/tests/car_reference.json` holds poses recorded with the pre-extraction car; `node rl/dist/test_sim.mjs` checks the shared physics still reproduces them bit for bit.
 
 Chassis space: +X forward, +Y up, +Z right; left-hand drive (driver on −Z). Wheel indices `FL = 0, FR = 1, RL = 2, RR = 3`.
 
-**Key constants.**
+**Key constants** (the physics ones are in `sim/carDynamics.ts`; flip and crash ones in `car.ts`).
 
 | Name | Value | Meaning / why |
 |---|---|---|

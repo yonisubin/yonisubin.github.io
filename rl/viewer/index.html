@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RL Drivers Viewer</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: system-ui, sans-serif; }
+      #hud { position: fixed; left: 14px; top: 12px; color: #fff; text-shadow: 0 1px 3px #000c; font-size: 15px; line-height: 1.35; pointer-events: none; }
+      #hud .title { font-size: 19px; font-weight: 700; }
+      #bars { position: fixed; right: 14px; bottom: 14px; width: 190px; color: #fff; font-size: 13px; text-shadow: 0 1px 2px #000; pointer-events: none; }
+      .bar { position: relative; height: 12px; background: #0008; border-radius: 6px; margin: 3px 0 8px; }
+      .bar i { position: absolute; top: 0; bottom: 0; background: #4fc3f7; border-radius: 6px; }
+      .bar .mid { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: #fff8; }
+      #toast { position: fixed; left: 50%; top: 40%; transform: translateX(-50%); font-size: 34px; font-weight: 800; color: #fff; text-shadow: 0 2px 8px #000; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <div id="hud"></div>
+    <div id="bars"></div>
+    <div id="toast"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
