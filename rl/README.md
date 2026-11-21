@@ -69,9 +69,15 @@ stage has had at least 300 k steps).
 | 3 Random city routes (whole city) | 946 k |
 | 4 Stopped / slow cars ahead on the route | 1.25 M |
 | 5 Traffic: 16 learners meet near a hub + 10 rule-based cars | 7.48 M |
-| 6 Traffic lights enforced | 8.00 M |
+| 6 Traffic lights enforced (later split: lights without the crowd, then 7 traffic + lights) | 8.00 M (not passed) |
 
-RESULTS_STAGE6
+**Where it ended up.** Stages 1–5 passed the 80 % bar; stage 6 (lights) did not. The
+shipped policy is the one that finished stage 5 (`stage5_done`, 8.0 M steps). Training went
+on to 17.3 M steps on the traffic-light stages without passing (55–65 % success with 25–35 %
+of episodes running a red, flat over the last ~2 M steps), and the 17.3 M checkpoint is no
+better on the evaluation below, so it wasn't shipped. In the game, red lights are still obeyed:
+the traffic's rule layer brakes for them and the autopilot's safety layer does too. Learning
+lights is the main open item (see "Next").
 
 ## Reward hacking and other failures (and the fixes)
 
@@ -94,13 +100,47 @@ RESULTS_STAGE6
 5. **Running red lights (stage 6 stuck at 35–70 % violations).** In 96 of 118 violations the
    car could have stopped. Cause: any contact ended a learner's episode as a crash, so a
    learner that stopped at a red was often rear-ended by another learner — a −30 crash —
-   which is worse than the −20 for running the light. Stopping was being punished. Fixes: being
-   rear-ended is not the learner's fault (no penalty, the episode goes on), and a dense penalty
-   for approaching a red too fast to stop.
+   which is worse than the −20 for running the light. Stopping was being punished. Fixes tried:
+   being rear-ended is not the learner's fault (no penalty, the episode goes on); a dense
+   penalty for approaching a red too fast to stop; the amber rule (a yellow you could still
+   stop for counts as red — the traces showed it speeding up on yellow); lights first without
+   the crowd of learners (stage 6 / 7 split). Violations came down from ~50 % to ~28 % but the
+   stage never passed; the network does react to the light (throttle −0.11 on red vs +0.69 on
+   green in the same states) but brakes too late and too softly. Still open.
 
 ## Evaluation
 
-EVAL_TABLE
+200 fixed, seeded routes per set, all starting in the south-east of the city, where training
+never starts a route. "Heavy traffic" is stage-6 conditions with 18 rule-based cars, stopped
+cars on the route and enforced lights. Numbers from `rl/results/eval.md`:
+
+#### Empty roads (random city routes)
+
+| Driver | Route completion | Crashes | Off road | Red lights | Timeouts | Collisions / km | Mean speed (% of limit) | Time over limit | Lane deviation RMS (m) | Steering change / s | Inference (ms / car / decision, Node) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Baseline (pure pursuit + PID) | 98.0% | 2 | 0 | 0 | 2 | 0.03 | 67% | 0.0% | 0.26 | 0.06 | 0.001 |
+| RL (8.0M steps) | 95.5% | 0 | 9 | 0 | 0 | 0.00 | 95% | 7.1% | 0.48 | 3.10 | 0.195 |
+| RL (17.3M steps) | 94.5% | 0 | 11 | 0 | 0 | 0.00 | 95% | 26.9% | 0.59 | 3.60 | 0.204 |
+
+200 episodes each, routes starting in the held-out south-east (x > 450 m, z > 450 m).
+
+#### Heavy traffic (rule-based cars, stopped cars, traffic lights)
+
+| Driver | Route completion | Crashes | Off road | Red lights | Timeouts | Collisions / km | Mean speed (% of limit) | Time over limit | Lane deviation RMS (m) | Steering change / s | Inference (ms / car / decision, Node) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Baseline (pure pursuit + PID) | 75.5% | 11 | 0 | 5 | 33 | 0.17 | 43% | 0.0% | 0.23 | 0.04 | 0.001 |
+| RL (8.0M steps) | 68.5% | 24 | 7 | 30 | 2 | 0.82 | 63% | 3.2% | 0.64 | 3.01 | 0.204 |
+| RL (17.3M steps) | 65.0% | 22 | 9 | 33 | 6 | 0.58 | 56% | 6.5% | 0.78 | 2.96 | 0.205 |
+
+200 episodes each, routes starting in the held-out south-east (x > 450 m, z > 450 m).
+
+**Reading it honestly:** the hand-written baseline completes more routes and crashes less. The
+RL driver is much quicker (95 % vs 67 % of the limit on empty roads; it rarely times out where
+the baseline times out on 33 of 200 heavy-traffic routes), has no crashes on empty roads, but
+runs red lights (it never passed the lights stage), wanders more in its lane and its steering
+is far busier (≈ 3 steering-command units per second vs 0.05: a fine jitter the car's 2.2 rad/s
+steering-rate limit smooths, but it shows). The safety layer in the game covers the lights;
+smoothness needs more training (the steering penalty was raised from 0.02 to 0.06 late on).
 
 The baseline is a hand-written pure-pursuit steering controller (aim at a point 4 m + 0.4 s
 ahead on the route) with a proportional speed controller toward the road and curve limits,
@@ -119,6 +159,15 @@ raycast braking, and stopping for red lights (`src/ai/baseline.ts`).
 - **Cost:** a decision is ~0.1 ms per car in Node (network 0.08 ms with the unrolled float64
   forward pass, 15 rays 0.02 ms). In the game, about +0.8 ms per physics step for ~15 AI cars,
   measured in headless Chromium while training was using the CPU.
+
+## Next
+
+- **Lights.** Splitting stage 6 (lights without the crowd first) and the amber rule didn't get
+  it over the bar in ~3 M steps. Things to try: a frame of memory (previous rays / light state)
+  or a recurrent policy, a longer discount horizon (γ = 0.995; at 15 Hz γ = 0.99 discounts a
+  12 s wait to 11 %), and a lights stage from the start of the curriculum.
+- **Smoothness.** Longer training with the higher steering penalty, or a steering-rate action.
+- **Stop signs and pedestrians** in the simulator (the game's rule layer handles them now).
 
 ## Running it
 
