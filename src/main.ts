@@ -757,6 +757,14 @@ async function main(): Promise<void> {
     // Clamped at 0 too: the first frame's timestamp can be slightly earlier than `last`.
     const frameTime = Math.min(Math.max(0, (now - last) / 1000), MAX_FRAME_TIME);
     last = now;
+    frame(frameTime);
+  });
+  // Video recorders (rl/record/game.cjs) stop the animation loop and call this directly, so
+  // every frame is exactly 1/30 s of game time however slowly a headless browser renders.
+  (window as unknown as { game: { frame: typeof frame } }).game.frame = frame;
+
+  /** One frame: the fixed physics steps due, then everything that renders. */
+  function frame(frameTime: number): void {
     accumulator += frameTime;
 
     while (accumulator >= PHYSICS_STEP) {
@@ -847,7 +855,7 @@ async function main(): Promise<void> {
     fullMap.update(mode.focus(), viewDir, markers);
     renderer.render(scene, camera);
     debug.update(frameTime);
-  });
+  }
 }
 
 function showLoading(): HTMLDivElement {

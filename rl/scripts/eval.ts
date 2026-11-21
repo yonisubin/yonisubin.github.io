@@ -42,10 +42,10 @@ type Driver = { name: string; act: (env: DrivingEnv, out: Float32Array) => void 
 
 function run(driver: Driver, set: 'empty' | 'heavy'): Metrics {
   const sim = new SimWorld(undefined, { layout: base.layout, terrain: base.terrain });
-  const stage = set === 'empty' ? 2 : 5;
+  const stage = set === 'empty' ? 2 : 6;
   const cars = set === 'empty' ? 8 : 4;
   const env = new DrivingEnv(sim, { cars, seed: set === 'empty' ? 101 : 202, stage, randomize: false, area: 'test' });
-  if (set === 'heavy') env.stage = { ...STAGES[5], traffic: 18 };
+  if (set === 'heavy') env.stage = { ...STAGES[6], traffic: 18 };
   let next = 0;
   const seedOf = (k: number) => 50_000 + k * 7919;
   const owner: number[] = [];

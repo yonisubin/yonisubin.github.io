@@ -13,3 +13,4 @@ rl/viewer/public/policies/step_*
 rl/viewer/public/policies/current.*
 rl/media/*.gif
 rl/policies/
+rl/viewer/public/policies/

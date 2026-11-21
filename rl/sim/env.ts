@@ -38,7 +38,10 @@ export const STAGES: Stage[] = [
   { name: '3 random city routes', routeLength: [250, 700], maxTurns: 10, leaders: 0, traffic: 0, hubRadius: 0, lights: false },
   { name: '4 stopped cars ahead', routeLength: [250, 700], maxTurns: 10, leaders: 0.6, traffic: 0, hubRadius: 0, lights: false },
   { name: '5 traffic', routeLength: [250, 700], maxTurns: 10, leaders: 0.4, traffic: 10, hubRadius: 220, lights: false },
-  { name: '6 traffic lights', routeLength: [250, 700], maxTurns: 10, leaders: 0.4, traffic: 10, hubRadius: 220, lights: true },
+  // Lights first without the crowd: with 16 learners around one lit junction, the ones still
+  // running reds T-boned the ones that waited, so waiting didn't pay (see rl/README.md).
+  { name: '6 traffic lights', routeLength: [250, 700], maxTurns: 10, leaders: 0.4, traffic: 0, hubRadius: 0, lights: true },
+  { name: '7 traffic + lights', routeLength: [250, 700], maxTurns: 10, leaders: 0.4, traffic: 10, hubRadius: 220, lights: true },
 ];
 
 /** Reward weights (per decision). See rl/README.md for why each is there. */
@@ -46,10 +49,11 @@ export const REWARD = {
   progress: 0.1, // per metre gained along the route
   speeding: 0.05, // per m/s over the road's limit
   lane: 0.02, // per metre from the lane centre
-  steerChange: 0.02, // per unit change of the steering command
+  steerChange: 0.06, // per unit change of the steering command (was 0.02: jittery steering)
   time: 0.01, // every decision
   idle: 0.05, // standing still with no reason to (no red light near, nothing in front)
   crash: 30,
+  redApproach: 0.15, // per decision when too fast to stop for a red light ahead (scaled 0…1)
   tailgate: 0.15, // per decision at time-to-collision 0 with a car ahead (linear from TTC_SAFE)
   offroad: 20,
   redLight: 20,
@@ -104,6 +108,16 @@ export class Agent extends DriverView {
   /** Distance driven this episode, m. */
   driven = 0;
   episodeSeed = 0;
+  /**
+   * The light ahead turned yellow while this car could still stop comfortably: that yellow
+   * counts as red (the rule drivers follow). Remembered per stop line.
+   */
+  amberStop = false;
+  amberLine = -1;
+  /** The light at the next stop line counts as red for this car. */
+  get mustStop(): boolean {
+    return this.light === 'red' || (this.light === 'yellow' && this.amberStop);
+  }
 }
 
 /** A rule-based car on a route, moved kinematically. */
@@ -397,6 +411,32 @@ export class DrivingEnv {
   sense(i: number): void {
     const a = this.agents[i];
     senseDriver(a, a.car.body, a.car.steer, this.sim, this.sim.graph, this.time);
+    // Amber: decide once, when it turns yellow (or when the line comes into view on yellow).
+    const line = Math.round(a.s + a.stopDist);
+    if (a.light !== 'yellow' || line !== a.amberLine) {
+      if (a.light === 'yellow') {
+        const v = Math.max(0, a.vFwd);
+        a.amberStop = a.stopDist > (v * v) / (2 * 4) + 1;
+        a.amberLine = line;
+      } else {
+        a.amberStop = false;
+        a.amberLine = -1;
+      }
+    }
+  }
+
+  /**
+   * Hit from behind by another car: not the learner's fault. (Counting it as a crash taught
+   * the drivers that stopping at a red light gets you rear-ended, so they ran the lights.)
+   */
+  private rearEnded(a: Agent, other: RAPIER.Collider): boolean {
+    if (!this.sim.isCar(other)) return false;
+    const o = other.parent();
+    if (!o) return false;
+    const p = o.translation();
+    const t = a.car.body.translation();
+    const along = (p.x - t.x) * a.frame.fx + (p.z - t.z) * a.frame.fz;
+    return along < -2.5;
   }
 
   /** A red (or yellow) light close ahead, or something right in front: fine to stand still. */
@@ -421,7 +461,7 @@ export class DrivingEnv {
     }
     const sBefore = this.agents.map((a) => a.s);
     // The light at each learner's next stop line, as it was before this decision.
-    const lightsBefore = this.agents.map((a) => (a.stopDist < Infinity ? { s: a.s + a.stopDist, light: a.light } : null));
+    const lightsBefore = this.agents.map((a) => (a.stopDist < Infinity ? { s: a.s + a.stopDist, stop: a.mustStop } : null));
     for (let k = 0; k < ACTION_REPEAT; k++) {
       for (const a of this.agents) a.car.step({ driven: true, steer: a.action[0], throttle: a.action[1], handbrake: false }, PHYSICS_DT);
       for (const b of this.bots) {
@@ -441,7 +481,7 @@ export class DrivingEnv {
           world.contactPairsWith(col, (other) => {
             if (a.hit) return;
             world.contactPair(col, other, (m) => {
-              if (m.numContacts() > 0) a.hit = true;
+              if (m.numContacts() > 0 && !this.rearEnded(a, other)) a.hit = true;
             });
           });
         }
@@ -470,6 +510,7 @@ export class DrivingEnv {
       r -= REWARD.time;
       if (a.vFwd < 1 && !this.reasonToWait(a)) r -= REWARD.idle;
       r -= REWARD.tailgate * tailgating(a);
+      if (st.lights) r -= REWARD.redApproach * redApproach(a);
       const info = this.info;
       const o = i * INFO_SIZE;
       info.fill(0, o, o + INFO_SIZE);
@@ -481,7 +522,7 @@ export class DrivingEnv {
       // Ran a red: crossed a stop line that was red the moment before.
       let ranRed = false;
       const lb = lightsBefore[i];
-      if (lb && sBefore[i] <= lb.s && a.s > lb.s && lb.light === 'red') ranRed = true;
+      if (lb && sBefore[i] <= lb.s && a.s > lb.s && lb.stop) ranRed = true;
       if (crashed) {
         r -= REWARD.crash;
         info[o + Info.Crash] = 1;
@@ -535,6 +576,17 @@ function tailgating(a: Agent): number {
     worst = Math.max(worst, (TTC_SAFE - ttc) / TTC_SAFE);
   }
   return worst;
+}
+
+/**
+ * 0 … 1: how far a car is past the point where it could still stop comfortably (4 m/s²) for
+ * a red light ahead — a dense warning before the large penalty for running it.
+ */
+function redApproach(a: Agent): number {
+  if (!a.mustStop || a.stopDist > 80) return 0;
+  const v = Math.max(0, a.vFwd);
+  const excess = (v * v) / (2 * 4) - Math.max(0, a.stopDist - 2);
+  return Math.max(0, Math.min(1, excess / 10));
 }
 
 function clamp1(v: number): number {

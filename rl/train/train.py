@@ -16,7 +16,7 @@ from stable_baselines3.common.vec_env import VecNormalize
 from node_vec_env import NodeVecEnv
 
 STAGES = ["1 straight lanes", "2 curves + single junctions", "3 random city routes",
-          "4 stopped cars ahead", "5 traffic", "6 traffic lights"]
+          "4 stopped cars ahead", "5 traffic", "6 traffic lights", "7 traffic + lights"]
 
 
 class Curriculum(BaseCallback):
