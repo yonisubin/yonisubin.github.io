@@ -57,3 +57,16 @@ export function senseDriver(
     break;
   }
 }
+
+/**
+ * How much of the way to the network's new steering command the wheel input moves each
+ * decision (a first-order low-pass at 15 Hz, time constant ≈ 0.13 s). The raw network output
+ * dithers a little from one decision to the next, which reads as swaying; the filter is part
+ * of the driver in training and in the game alike, so the network learned with it in the loop.
+ */
+export const STEER_SMOOTHING = 0.4;
+
+/** The action actually applied: steering smoothed from the previous one, throttle as is. */
+export function smoothAction(prev: [number, number], steer: number, throttle: number): [number, number] {
+  return [prev[0] + STEER_SMOOTHING * (steer - prev[0]), throttle];
+}

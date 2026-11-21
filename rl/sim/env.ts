@@ -2,7 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { CarDynamics, type CarTune } from '../../src/sim/carDynamics';
 import { CAR_DIMENSIONS } from '../../src/vehicles/carDimensions';
 import { observe, OBS_SIZE, RAYS } from '../../src/ai/observe';
-import { DriverView, senseDriver } from '../../src/ai/driver';
+import { DriverView, senseDriver, smoothAction } from '../../src/ai/driver';
 import { Path, randomRoute, shiftPiece, type RouteOptions } from '../../src/ai/path';
 import { LANE_SPACING, type RoadGraph } from '../../src/world/roadGraph';
 import { Rng } from '../../src/ai/rng';
@@ -460,7 +460,7 @@ export class DrivingEnv {
     const world = this.sim.world;
     for (let i = 0; i < n; i++) {
       const a = this.agents[i];
-      a.action = [clamp1(actions[i * 2]), clamp1(actions[i * 2 + 1])];
+      a.action = smoothAction(a.action, clamp1(actions[i * 2]), clamp1(actions[i * 2 + 1]));
       a.hit = false;
       // Rapier puts a body at rest to sleep, and engine force doesn't wake it (a car waiting
       // at a red light would never move off again).

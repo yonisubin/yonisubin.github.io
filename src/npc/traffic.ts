@@ -20,7 +20,7 @@ import {
 } from '../vehicles/carModel';
 import { CarDynamics } from '../sim/carDynamics';
 import type { Policy } from '../ai/policy';
-import { DriverView, senseDriver } from '../ai/driver';
+import { DriverView, senseDriver, smoothAction } from '../ai/driver';
 import { observe, OBS_SIZE, type RaySensors } from '../ai/observe';
 import { gameSensors } from '../ai/sensors';
 import { Path, projectOnPiece, shiftPiece } from '../ai/path';
@@ -1324,7 +1324,7 @@ export class Traffic implements SimEntity {
     ai.prevAction = ai.action;
     observe(ai, this.obs);
     policy.act1(this.obs, this.act);
-    ai.action = [this.act[0], this.act[1]];
+    ai.action = smoothAction(ai.prevAction, this.act[0], this.act[1]);
     this.stats.aiDecisions++;
     this.stats.aiMs += performance.now() - t0;
     return true;

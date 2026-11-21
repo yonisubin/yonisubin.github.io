@@ -5,7 +5,7 @@ import type { SimEntity } from '../sim/entity';
 import type { Policy } from '../ai/policy';
 import { RoadGraph } from '../world/roadGraph';
 import type { StreetNet } from '../world/streets';
-import { DriverView, senseDriver } from '../ai/driver';
+import { DriverView, senseDriver, smoothAction } from '../ai/driver';
 import { observe, OBS_SIZE, RAY_LENGTH, RAYS, type RaySensors } from '../ai/observe';
 import { laneRoute } from '../ai/path';
 import { gameSensors } from '../ai/sensors';
@@ -172,7 +172,7 @@ export class Autopilot implements SimEntity {
       v.prevAction = v.action;
       observe(v, this.obs);
       policy.act1(this.obs, this.out);
-      v.action = [this.out[0], this.out[1]];
+      v.action = smoothAction(v.prevAction, this.out[0], this.out[1]);
       this.applySafety(v);
     }
     // Arrived: stopped at the destination.
