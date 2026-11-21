@@ -3,7 +3,8 @@ import { CarDynamics, type CarTune } from '../../src/sim/carDynamics';
 import { CAR_DIMENSIONS } from '../../src/vehicles/carDimensions';
 import { observe, OBS_SIZE, RAYS } from '../../src/ai/observe';
 import { DriverView, senseDriver } from '../../src/ai/driver';
-import { randomRoute, type Path, type RouteOptions } from '../../src/ai/path';
+import { Path, randomRoute, shiftPiece, type RouteOptions } from '../../src/ai/path';
+import { LANE_SPACING, type RoadGraph } from '../../src/world/roadGraph';
 import { Rng } from '../../src/ai/rng';
 import { PHYSICS_DT, type SimWorld } from './world';
 
@@ -49,7 +50,8 @@ export const REWARD = {
   progress: 0.1, // per metre gained along the route
   speeding: 0.05, // per m/s over the road's limit
   lane: 0.02, // per metre from the lane centre
-  steerChange: 0.06, // per unit change of the steering command (was 0.02: jittery steering)
+  steerChange: 0.1, // per unit change of the steering command (was 0.02, then 0.06: jittery steering)
+  sway: 0.08, // per unit of steering (+ half the yaw rate, rad/s) where the route ahead is straight
   time: 0.01, // every decision
   idle: 0.05, // standing still with no reason to (no red light near, nothing in front)
   crash: 30,
@@ -284,7 +286,9 @@ export class DrivingEnv {
       const ahead = start + rng.range(25, 70);
       if (ahead < path.length - 20) {
         const wait = rng.next() < 0.5 ? rng.range(2, 15) : 0;
-        this.addBot(path, ahead, rng.range(0.4, 0.9) * path.limit[path.index(ahead)], wait, i);
+        // Half of them in the next lane on two-lane roads: not in the learner's way.
+        const lanePath = rng.next() < 0.5 ? outerLanes(path, this.sim.graph) : path;
+        this.addBot(lanePath, ahead, rng.range(0.4, 0.9) * path.limit[path.index(ahead)], wait, i);
       }
     }
   }
@@ -327,7 +331,7 @@ export class DrivingEnv {
       const { path, start } = randomRoute(this.sim.graph, this.rng, { ...this.routeOptions(), length: 600, maxTurns: 12 });
       path.at(start, tmpP);
       if (!this.clear(tmpP.x, tmpP.z, 15)) continue;
-      this.addBot(path, start, path.limit[0] * this.rng.range(0.7, 1.0), 0, -1);
+      this.addBot(this.rng.next() < 0.5 ? outerLanes(path, this.sim.graph) : path, start, path.limit[0] * this.rng.range(0.7, 1.0), 0, -1);
       wandering++;
     }
   }
@@ -441,9 +445,12 @@ export class DrivingEnv {
 
   /** A red (or yellow) light close ahead, or something right in front: fine to stand still. */
   reasonToWait(a: Agent): boolean {
-    if (a.stopDist < 40 && a.light !== 'green') return true;
+    // At the stop line of a red (or amber) light. Stopping 25 m short with the lane clear
+    // doesn't count (the car should pull up to the line).
+    if (a.stopDist < 8 && a.light !== 'green') return true;
+    // Something close ahead in its own lane (a car in the next lane is no reason).
     const mid = (RAYS - 1) / 2;
-    for (let r = mid - 2; r <= mid + 2; r++) if (a.rays.dist[r] < 12) return true;
+    for (let r = mid - 2; r <= mid + 2; r++) if (a.rays.dist[r] < 12 && inLane(a, r)) return true;
     return false;
   }
 
@@ -507,6 +514,8 @@ export class DrivingEnv {
       r -= REWARD.speeding * Math.max(0, a.vFwd - limit);
       r -= REWARD.lane * Math.abs(a.lat);
       r -= REWARD.steerChange * Math.abs(a.action[0] - a.prevAction[0]);
+      // Swaying: on a straight road there's nothing to steer for.
+      r -= REWARD.sway * straightness(a) * (Math.abs(a.action[0]) + 0.5 * Math.abs(a.yawRate));
       r -= REWARD.time;
       if (a.vFwd < 1 && !this.reasonToWait(a)) r -= REWARD.idle;
       r -= REWARD.tailgate * tailgating(a);
@@ -563,6 +572,24 @@ export class DrivingEnv {
   }
 }
 
+/** 0 on a bend tighter than ~50 m radius … 1 where the next 40 m of route are straight. */
+function straightness(a: Agent): number {
+  return Math.max(0, Math.min(1, (a.path.curveLimit(a.s, 40) - 12) / 13));
+}
+
+const hitProj = { s: 0, lat: 0 };
+
+/** Does ray r hit something within 1.6 m of the route's lane centre (the car's own lane)? */
+function inLane(a: Agent, r: number): boolean {
+  const d = a.rays.dist[r];
+  const ang = -Math.PI / 2 + (Math.PI * r) / (RAYS - 1);
+  const f = a.frame;
+  const x = f.x + d * (Math.cos(ang) * f.fx + Math.sin(ang) * f.rx);
+  const z = f.z + d * (Math.cos(ang) * f.fz + Math.sin(ang) * f.rz);
+  a.path.project(x, z, a.s + d, hitProj);
+  return Math.abs(hitProj.lat) < 1.6;
+}
+
 /** Time-to-collision margin with a car ahead (±26°), seconds; below it the driver is penalised. */
 const TTC_SAFE = 2.5;
 
@@ -571,7 +598,7 @@ function tailgating(a: Agent): number {
   const mid = (RAYS - 1) / 2;
   let worst = 0;
   for (let r = mid - 2; r <= mid + 2; r++) {
-    if (!a.rays.car[r] || a.rays.closing[r] <= 0.5) continue;
+    if (!a.rays.car[r] || a.rays.closing[r] <= 0.5 || !inLane(a, r)) continue;
     const ttc = Math.max(0, a.rays.dist[r] - 2.5) / a.rays.closing[r];
     worst = Math.max(worst, (TTC_SAFE - ttc) / TTC_SAFE);
   }
@@ -587,6 +614,11 @@ function redApproach(a: Agent): number {
   const v = Math.max(0, a.vFwd);
   const excess = (v * v) / (2 * 4) - Math.max(0, a.stopDist - 2);
   return Math.max(0, Math.min(1, excess / 10));
+}
+
+/** The same route in the outer (right-hand) lane wherever the road has two lanes each way. */
+function outerLanes(path: Path, graph: RoadGraph): Path {
+  return new Path(path.pieces.map((p) => (p.kind === 'lane' && p.lanes > 1 ? shiftPiece(p, LANE_SPACING) : p)), graph);
 }
 
 function clamp1(v: number): number {

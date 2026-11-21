@@ -6,7 +6,7 @@ import type { Policy } from '../ai/policy';
 import { RoadGraph } from '../world/roadGraph';
 import type { StreetNet } from '../world/streets';
 import { DriverView, senseDriver } from '../ai/driver';
-import { observe, OBS_SIZE, RAYS, type RaySensors } from '../ai/observe';
+import { observe, OBS_SIZE, RAY_LENGTH, RAYS, type RaySensors } from '../ai/observe';
 import { laneRoute } from '../ai/path';
 import { gameSensors } from '../ai/sensors';
 import type { Navigator } from './route';
@@ -28,6 +28,7 @@ const ARRIVE_DECEL = 2.2; // m/s²: gentle stop at the destination
 const FRONT_CLEARANCE = 3.2; // m from the car's centre to a safe gap in front
 const TAKEOVER = 0.35; // stick / key deflection that hands control back
 const MAX_REROUTES = 3;
+const LANE_HALF = 1.6; // m from the lane centre that counts as "in our lane"
 
 export interface AutopilotDeps {
   world: RAPIER.World;
@@ -55,6 +56,7 @@ export class Autopilot implements SimEntity {
   private steps = 0;
   private reroutes = 0;
   private readonly controls = { steer: 0, throttle: 0, handbrake: false };
+  private readonly hit = { s: 0, lat: 0 };
   /** For tests and the debug overlay. */
   readonly stats = { engaged: 0, arrived: 0, shieldSteps: 0, steps: 0, reroutes: 0 };
 
@@ -192,9 +194,16 @@ export class Autopilot implements SimEntity {
     // Whatever the rays see straight ahead (±20°): cars, people, poles.
     const mid = (RAYS - 1) / 2;
     for (let r = mid - 2; r <= mid + 2; r++) {
-      // Only what's in the car's own path (not a lamp post beside the road).
+      // Only what's in our lane on the route (not a car waiting in the next lane, not a lamp
+      // post beside the road): where the ray hit, measured from the route's lane centre.
       const angle = (Math.PI * (r - mid)) / (RAYS - 1);
-      if (Math.abs(v.rays.dist[r] * Math.sin(angle)) > 1.4) continue;
+      const d = v.rays.dist[r];
+      if (d >= RAY_LENGTH) continue;
+      const f = v.frame;
+      const hx = f.x + d * (Math.cos(angle) * f.fx + Math.sin(angle) * f.rx);
+      const hz = f.z + d * (Math.cos(angle) * f.fz + Math.sin(angle) * f.rz);
+      v.path.project(hx, hz, v.s + d, this.hit);
+      if (Math.abs(this.hit.lat) > LANE_HALF) continue;
       const gap = v.rays.dist[r] * Math.cos(angle) - FRONT_CLEARANCE;
       const closing = v.rays.car[r] ? v.rays.closing[r] : speed;
       if (closing <= 0.3) continue;

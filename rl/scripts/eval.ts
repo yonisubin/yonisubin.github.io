@@ -34,6 +34,12 @@ interface Metrics {
   speedFrac: number;
   speedN: number;
   speeding: number;
+  /** Yaw rate² summed where the route ahead is straight (weaving), and the count. */
+  weaveSq: number;
+  weaveN: number;
+  /** Stopped at a red light: distance from the stop line, summed, and the count. */
+  redGap: number;
+  redN: number;
   inferMs: number;
   decisions: number;
 }
@@ -54,7 +60,7 @@ function run(driver: Driver, set: 'empty' | 'heavy'): Metrics {
     env.spawn(i, seedOf(next++));
     env.sense(i);
   }
-  const m: Metrics = { episodes: 0, success: 0, crash: 0, offroad: 0, redLight: 0, timeout: 0, km: 0, laneSq: 0, laneN: 0, steerChange: 0, seconds: 0, speedFrac: 0, speedN: 0, speeding: 0, inferMs: 0, decisions: 0 };
+  const m: Metrics = { episodes: 0, success: 0, crash: 0, offroad: 0, redLight: 0, timeout: 0, km: 0, laneSq: 0, laneN: 0, steerChange: 0, seconds: 0, speedFrac: 0, speedN: 0, speeding: 0, weaveSq: 0, weaveN: 0, redGap: 0, redN: 0, inferMs: 0, decisions: 0 };
   const act = new Float32Array(cars * 2);
   const prevSteer = new Float32Array(cars);
   while (m.episodes < EPISODES) {
@@ -75,6 +81,20 @@ function run(driver: Driver, set: 'empty' | 'heavy'): Metrics {
         m.speedFrac += Math.max(0, a.vFwd) / lim;
         m.speedN++;
         if (a.vFwd > lim + 1) m.speeding++;
+        // Weaving: turning while the next 40 m of route are straight (curve limit > 25 m/s).
+        if (a.path.curveLimit(a.s, 40) > 25 && a.vFwd > 3) {
+          m.weaveSq += a.yawRate * a.yawRate;
+          m.weaveN++;
+        }
+        // Waiting at a red light: how far short of the line (only when nothing in front within 12 m).
+        if (a.light === 'red' && a.stopDist < 60 && Math.abs(a.vFwd) < 0.3) {
+          let blocked = false;
+          for (let r = 5; r <= 9; r++) if (a.rays.dist[r] < 12 && Math.abs(a.rays.dist[r] * Math.sin(((r - 7) * Math.PI) / 14)) < 1.6) blocked = true;
+          if (!blocked) {
+            m.redGap += a.stopDist;
+            m.redN++;
+          }
+        }
         prevSteer[i] = act[i * 2];
         continue;
       }
@@ -145,12 +165,12 @@ const pct = (a: number, b: number) => `${((a / b) * 100).toFixed(1)}%`;
 const lines: string[] = [];
 for (const set of ['empty', 'heavy'] as const) {
   lines.push(`### ${set === 'empty' ? 'Empty roads (random city routes)' : 'Heavy traffic (rule-based cars, stopped cars, traffic lights)'}`, '');
-  lines.push('| Driver | Route completion | Crashes | Off road | Red lights | Timeouts | Collisions / km | Mean speed (% of limit) | Time over limit | Lane deviation RMS (m) | Steering change / s | Inference (ms / car / decision, Node) |');
-  lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|');
+  lines.push('| Driver | Route completion | Crashes | Off road | Red lights | Timeouts | Collisions / km | Mean speed (% of limit) | Time over limit | Lane deviation RMS (m) | Steering change / s | Weave (yaw rate RMS on straights, rad/s) | Gap to the line at a red, clear lane (m) | Inference (ms / car / decision, Node) |');
+  lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
   for (const d of drivers) {
     const m = results[d.name][set];
     lines.push(
-      `| ${d.name} | ${pct(m.success, m.episodes)} | ${m.crash} | ${m.offroad} | ${m.redLight} | ${m.timeout} | ${(m.crash / Math.max(1e-6, m.km)).toFixed(2)} | ${((m.speedFrac / m.speedN) * 100).toFixed(0)}% | ${pct(m.speeding, m.speedN)} | ${Math.sqrt(m.laneSq / m.laneN).toFixed(2)} | ${(m.steerChange / m.seconds).toFixed(2)} | ${(m.inferMs / m.decisions).toFixed(3)} |`,
+      `| ${d.name} | ${pct(m.success, m.episodes)} | ${m.crash} | ${m.offroad} | ${m.redLight} | ${m.timeout} | ${(m.crash / Math.max(1e-6, m.km)).toFixed(2)} | ${((m.speedFrac / m.speedN) * 100).toFixed(0)}% | ${pct(m.speeding, m.speedN)} | ${Math.sqrt(m.laneSq / m.laneN).toFixed(2)} | ${(m.steerChange / m.seconds).toFixed(2)} | ${Math.sqrt(m.weaveSq / Math.max(1, m.weaveN)).toFixed(3)} | ${m.redN ? (m.redGap / m.redN).toFixed(1) : '–'} | ${(m.inferMs / m.decisions).toFixed(3)} |`,
     );
   }
   lines.push('', `${EPISODES} episodes each, routes starting in the held-out south-east (x > 450 m, z > 450 m).`, '');

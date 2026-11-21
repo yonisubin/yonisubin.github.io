@@ -57,7 +57,7 @@ class Curriculum(BaseCallback):
             self.next_ckpt += self.every
         full = len(self.raw.recent) >= self.raw.recent.maxlen
         if (full and rates.get("success", 0) >= self.bar and n - self.stage_start >= self.min_steps
-                and self.raw.stage < len(STAGES) - 1):
+                and self.raw.stage < min(len(STAGES) - 1, self.max_stage)):
             self.save(f"stage{self.raw.stage + 1}_done_{n // 1000:06d}k")
             self.raw.set_stage(self.raw.stage + 1)
             self.stage_start = n
@@ -74,6 +74,7 @@ def main():
     ap.add_argument("--ckpt-every", type=float, default=250_000)
     ap.add_argument("--resume", default=None)
     ap.add_argument("--ent", type=float, default=0.0)
+    ap.add_argument("--max-stage", type=int, default=99, help="don't advance the curriculum past this stage index")
     args = ap.parse_args()
     torch.set_num_threads(1)
     run = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), args.run)
@@ -93,6 +94,7 @@ def main():
             tensorboard_log=os.path.join(run, "tb"), verbose=0, seed=1,
         )
     cb = Curriculum(venv, raw, run, int(args.ckpt_every))
+    cb.max_stage = args.max_stage
     cb.model = model
     cb.next_ckpt = (model.num_timesteps // cb.every + 1) * cb.every
     if not args.resume:
