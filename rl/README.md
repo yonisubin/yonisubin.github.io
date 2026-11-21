@@ -32,7 +32,9 @@ Only measured numbers appear below.
   road's and the next 40 m of curves' speed limits; 15 rays over 180° (distance, car or not,
   closing speed — a cheap radar); the next traffic light within 60 m (distance, red, yellow);
   the last action.
-- **Action:** steering and throttle/brake, −1…1, decided every 4 physics steps (15 Hz).
+- **Action:** steering and throttle/brake, −1…1, decided every 4 physics steps (15 Hz). The
+  steering command is low-passed (`src/ai/driver.ts` `smoothAction`: 40 % of the way to the
+  new value each decision, τ ≈ 0.13 s) in training and in the game alike.
 - **Network:** 71 → 256 → 256 → 2 (tanh), shared by all cars (parameter sharing). Deterministic
   mean action at run time. ~340 KB as `driver.bin`.
 
@@ -43,10 +45,11 @@ Only measured numbers appear below.
 | Progress along the route | +0.1 per m | The main signal (projection onto the route: circling or reversing earns nothing) |
 | Over the road's speed limit | −0.05 per m/s | Drive legally, not just fast |
 | Distance from lane centre | −0.02 per m | Keep to the lane |
-| Change of steering | −0.02 per unit | Smooth driving |
+| Change of steering | −0.1 per unit (was 0.02) | Smooth driving |
+| Steering and turning where the route is straight | −0.08 × straightness × (\|steer\| + ½ \|yaw rate\|) | No swaying on straights (failure 6) |
 | Time | −0.01 | Don't dawdle |
-| Standing still with no reason | −0.05 | See failure 1 |
-| Closing on a car ahead, time-to-collision < 2.5 s | up to −0.15 | See failure 4 |
+| Standing still with no reason (not at a red's stop line, nothing close ahead *in its lane*) | −0.05 | Failures 1 and 7 |
+| Closing on a car ahead in its lane, time-to-collision < 2.5 s | up to −0.15 | See failure 4 |
 | Too fast to stop for a red light ahead | up to −0.15 | See failure 5 |
 | Crash (not when rear-ended) | −30, ends | |
 | Off the road / > 6 m off the route | −20, ends | |
@@ -72,7 +75,8 @@ stage has had at least 300 k steps).
 | 6 Traffic lights enforced (later split: lights without the crowd, then 7 traffic + lights) | 8.00 M (not passed) |
 
 **Where it ended up.** Stages 1–5 passed the 80 % bar; stage 6 (lights) did not. The
-shipped policy is the one that finished stage 5 (`stage5_done`, 8.0 M steps). Training went
+shipped policy is the one that finished stage 5 (`stage5_done`, 8.0 M steps), fine-tuned on
+stage 5 for 6 M more steps with the sway and lane fixes below (`runs/v3`, 14.0 M steps). Training went
 on to 17.3 M steps on the traffic-light stages without passing (55–65 % success with 25–35 %
 of episodes running a red, flat over the last ~2 M steps), and the 17.3 M checkpoint is no
 better on the evaluation below, so it wasn't shipped. In the game, red lights are still obeyed:
@@ -108,6 +112,20 @@ lights is the main open item (see "Next").
    stage never passed; the network does react to the light (throttle −0.11 on red vs +0.69 on
    green in the same states) but brakes too late and too softly. Still open.
 
+6. **Swaying on straights** (Yoni's review of the clips). The steering command flickered from
+   one decision to the next (3.1 units of steering change per second vs 0.06 for the baseline).
+   A sway penalty on straights alone barely moved it (2.8 after 3 M steps). Fix: low-pass the
+   steering command as part of the driver (training, traffic and autopilot), then fine-tune
+   with it in the loop: weaving on straights 0.33 → 0.09 rad/s (empty roads), steering change
+   1.7 → 0.6 /s, with *more* routes completed.
+7. **Waiting behind a car in the next lane** at a red light, short of a free stop line. Every
+   training car drove the inner lane, so the policy had never seen a car in the next lane, and
+   standing still was excused near any red within 40 m. Fixes: half the training traffic drives
+   the outer lane on two-lane roads; waiting is excused only at the stop line or behind
+   something in its own lane (hit points projected onto the route); the autopilot's safety
+   brake uses the same own-lane test. The gap to the line at a red with a clear lane went from
+   11.9 m to 9.4 m (baseline 4.3 m): better, not solved.
+
 ## Evaluation
 
 200 fixed, seeded routes per set, all starting in the south-east of the city, where training
@@ -116,31 +134,31 @@ cars on the route and enforced lights. Numbers from `rl/results/eval.md`:
 
 #### Empty roads (random city routes)
 
-| Driver | Route completion | Crashes | Off road | Red lights | Timeouts | Collisions / km | Mean speed (% of limit) | Time over limit | Lane deviation RMS (m) | Steering change / s | Inference (ms / car / decision, Node) |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| Baseline (pure pursuit + PID) | 98.0% | 2 | 0 | 0 | 2 | 0.03 | 67% | 0.0% | 0.26 | 0.06 | 0.001 |
-| RL (8.0M steps) | 95.5% | 0 | 9 | 0 | 0 | 0.00 | 95% | 7.1% | 0.48 | 3.10 | 0.195 |
-| RL (17.3M steps) | 94.5% | 0 | 11 | 0 | 0 | 0.00 | 95% | 26.9% | 0.59 | 3.60 | 0.204 |
+| Driver | Route completion | Crashes | Off road | Red lights | Timeouts | Collisions / km | Mean speed (% of limit) | Time over limit | Lane deviation RMS (m) | Steering change / s | Weave (yaw rate RMS on straights, rad/s) | Gap to the line at a red, clear lane (m) | Inference (ms / car / decision, Node) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Baseline (pure pursuit + PID) | 98.0% | 2 | 0 | 0 | 2 | 0.03 | 67% | 0.0% | 0.24 | 0.07 | 0.035 | 0.6 | 0.001 |
+| RL (8.0M steps) | 96.5% | 0 | 7 | 0 | 0 | 0.00 | 97% | 7.0% | 0.53 | 1.71 | 0.330 | – | 0.193 |
+| RL (14.0M steps) | 98.0% | 0 | 4 | 0 | 0 | 0.00 | 94% | 1.3% | 0.53 | 0.57 | 0.087 | – | 0.194 |
 
 200 episodes each, routes starting in the held-out south-east (x > 450 m, z > 450 m).
 
 #### Heavy traffic (rule-based cars, stopped cars, traffic lights)
 
-| Driver | Route completion | Crashes | Off road | Red lights | Timeouts | Collisions / km | Mean speed (% of limit) | Time over limit | Lane deviation RMS (m) | Steering change / s | Inference (ms / car / decision, Node) |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| Baseline (pure pursuit + PID) | 75.5% | 11 | 0 | 5 | 33 | 0.17 | 43% | 0.0% | 0.23 | 0.04 | 0.001 |
-| RL (8.0M steps) | 68.5% | 24 | 7 | 30 | 2 | 0.82 | 63% | 3.2% | 0.64 | 3.01 | 0.204 |
-| RL (17.3M steps) | 65.0% | 22 | 9 | 33 | 6 | 0.58 | 56% | 6.5% | 0.78 | 2.96 | 0.205 |
+| Driver | Route completion | Crashes | Off road | Red lights | Timeouts | Collisions / km | Mean speed (% of limit) | Time over limit | Lane deviation RMS (m) | Steering change / s | Weave (yaw rate RMS on straights, rad/s) | Gap to the line at a red, clear lane (m) | Inference (ms / car / decision, Node) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Baseline (pure pursuit + PID) | 79.5% | 19 | 0 | 3 | 19 | 0.39 | 43% | 0.0% | 0.24 | 0.06 | 0.041 | 4.3 | 0.001 |
+| RL (8.0M steps) | 60.5% | 30 | 13 | 32 | 4 | 0.76 | 64% | 2.8% | 0.71 | 2.28 | 0.477 | 11.9 | 0.197 |
+| RL (14.0M steps) | 66.0% | 25 | 2 | 36 | 5 | 0.67 | 65% | 0.6% | 0.85 | 1.15 | 0.163 | 9.4 | 0.199 |
 
 200 episodes each, routes starting in the held-out south-east (x > 450 m, z > 450 m).
 
-**Reading it honestly:** the hand-written baseline completes more routes and crashes less. The
-RL driver is much quicker (95 % vs 67 % of the limit on empty roads; it rarely times out where
-the baseline times out on 33 of 200 heavy-traffic routes), has no crashes on empty roads, but
-runs red lights (it never passed the lights stage), wanders more in its lane and its steering
-is far busier (≈ 3 steering-command units per second vs 0.05: a fine jitter the car's 2.2 rad/s
-steering-rate limit smooths, but it shows). The safety layer in the game covers the lights;
-smoothness needs more training (the steering penalty was raised from 0.02 to 0.06 late on).
+**Reading it honestly:** the shipped policy is "RL (14.0M steps)" (stage 5 + the smoothing
+fine-tune). On empty roads it matches the baseline's completion (98 %) with no crashes, at 94 %
+of the limit against the baseline's 67 %. In heavy traffic the baseline still completes more
+routes (79.5 % vs 66 %) and crashes less per km; the RL driver almost never times out where
+the baseline does 19 times, but it runs red lights (it never passed the lights stage — in the
+game, the safety layers stop it) and waits further back from the line. It still weaves more
+than the baseline (0.09 vs 0.035 rad/s on straights), far less than before.
 
 The baseline is a hand-written pure-pursuit steering controller (aim at a point 4 m + 0.4 s
 ahead on the route) with a proportional speed controller toward the road and curve limits,
