@@ -15,7 +15,7 @@
       "speedFrac": 61534.27022027326,
       "speedN": 92068,
       "speeding": 0,
-      "inferMs": 75.80747799991514,
+      "inferMs": 76.96807599973909,
       "decisions": 97776
     },
     "heavy": {
@@ -33,7 +33,7 @@
       "speedFrac": 62985.55758440118,
       "speedN": 146008,
       "speeding": 0,
-      "inferMs": 169.45556800164923,
+      "inferMs": 161.9142300002277,
       "decisions": 148760
     }
   },
@@ -53,7 +53,7 @@
       "speedFrac": 59908.7789382564,
       "speedN": 62832,
       "speeding": 4467,
-      "inferMs": 16775.430783000294,
+      "inferMs": 12894.136883999352,
       "decisions": 66040
     },
     "heavy": {
@@ -71,8 +71,46 @@
       "speedFrac": 35213.20068893831,
       "speedN": 56293,
       "speeding": 1795,
-      "inferMs": 12321.232545997947,
+      "inferMs": 11647.961903003132,
       "decisions": 56972
+    }
+  },
+  "RL (17.3M steps)": {
+    "empty": {
+      "episodes": 200,
+      "success": 189,
+      "crash": 0,
+      "offroad": 11,
+      "redLight": 0,
+      "timeout": 0,
+      "km": 57.45075231756768,
+      "laneSq": 21237.002015010174,
+      "laneN": 61788,
+      "steerChange": 14822.004253040446,
+      "seconds": 4119.199999997569,
+      "speedFrac": 58838.87168296747,
+      "speedN": 61788,
+      "speeding": 16647,
+      "inferMs": 13268.213766999455,
+      "decisions": 64944
+    },
+    "heavy": {
+      "episodes": 200,
+      "success": 130,
+      "crash": 22,
+      "offroad": 9,
+      "redLight": 33,
+      "timeout": 6,
+      "km": 38.0764965657852,
+      "laneSq": 45055.885446580105,
+      "laneN": 74834,
+      "steerChange": 14777.432780059462,
+      "seconds": 4988.933333330111,
+      "speedFrac": 42086.70887809158,
+      "speedN": 74834,
+      "speeding": 4862,
+      "inferMs": 15577.748857997649,
+      "decisions": 75816
     }
   }
 }
